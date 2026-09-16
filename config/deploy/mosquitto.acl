@@ -1,0 +1,13 @@
+# /etc/mosquitto/acl — keep in step with the gateways registered in the API.
+#
+# Each gateway gets its own broker user (the gateway's `mqttUsername`) and may
+# only publish packets under its own node ID. Create users with:
+#   sudo mosquitto_passwd /etc/mosquitto/passwd gw-cel-01
+
+# The backend subscriber reads everything under the mesh root.
+user mesh-backend
+topic read msh/#
+
+# One block per gateway. Replace the node ID with the gateway's own.
+user gw-cel-01
+topic write msh/US/2/e/+/!0a000001

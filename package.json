@@ -1,0 +1,76 @@
+{
+    "name": "mesh-fire-detection-backend",
+    "private": true,
+    "license": "MIT",
+    "version": "0.1.0",
+    "type": "module",
+    "engines": {
+        "node": ">=24.0.0"
+    },
+    "imports": {
+        "#src/*": {
+            "development": "./src/*.ts",
+            "default": "./dist/*.js"
+        },
+        "#tests/*": "./tests/*.ts"
+    },
+    "scripts": {
+        "dev": "tsx watch --conditions=development --env-file-if-exists=.env src/index.ts",
+        "build": "tsc -p tsconfig.build.json",
+        "start": "node --env-file-if-exists=.env dist/index.js",
+        "prepare": "node config/build/installHooks.mjs",
+        "check": "npm run check:types && npm run lint && npm test && npm run build",
+        "check:types": "tsc -p tsconfig.json --noEmit",
+        "test": "vitest run --config config/build/vitest.config.ts",
+        "test:watch": "vitest --config config/build/vitest.config.ts",
+        "lint": "npm run lint:format && npm run lint:structure && npm run lint:js && npm run lint:deadcode",
+        "lint:format": "prettier --config config/lint/.prettierrc --check . --log-level warn --ignore-path config/lint/.prettierignore",
+        "lint:structure": "tsx config/lint/checkStructure.ts",
+        "lint:js": "eslint --config config/lint/eslint.config.mjs .",
+        "lint:deadcode": "knip --config config/lint/knip.json --tsConfig tsconfig.build.json",
+        "fix": "npm run fix:format && npm run fix:js",
+        "fix:format": "prettier --config config/lint/.prettierrc --write . --log-level warn --ignore-path config/lint/.prettierignore",
+        "fix:js": "eslint --config config/lint/eslint.config.mjs . --fix",
+        "deps:updates": "npx npm-check-updates -u",
+        "db:generate": "drizzle-kit generate --config config/build/drizzle.config.ts",
+        "user:create-admin": "node --env-file-if-exists=.env dist/app/createAdmin.js"
+    },
+    "lint-staged": {
+        "*.{ts,js,mjs,cjs,json,md,yml,yaml}": "prettier --config config/lint/.prettierrc --check --ignore-path config/lint/.prettierignore",
+        "{src,config,tests}/**/*.{ts,js,mjs,cjs}": "eslint --config config/lint/eslint.config.mjs"
+    },
+    "dependencies": {
+        "@bufbuild/protobuf": "^2.15.0",
+        "@hono/node-server": "^2.1.1",
+        "@hono/zod-validator": "^0.9.1",
+        "@meshtastic/protobufs": "^2.8.0",
+        "better-auth": "^1.7.5",
+        "better-sqlite3": "^13.0.3",
+        "drizzle-orm": "^0.45.2",
+        "hono": "^4.13.8",
+        "hono-rate-limiter": "^0.5.4",
+        "mqtt": "^5.16.0",
+        "pino": "^10.3.1",
+        "zod": "^4.6.5"
+    },
+    "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "@types/better-sqlite3": "^9.6.0",
+        "@types/node": "^26.6.1",
+        "drizzle-kit": "^0.31.10",
+        "eslint": "^10.10.0",
+        "eslint-config-prettier": "^10.1.8",
+        "eslint-import-resolver-typescript": "^4.4.5",
+        "eslint-plugin-import-x": "^4.17.1",
+        "eslint-plugin-unicorn": "^74.0.0",
+        "globals": "^17.12.0",
+        "husky": "^9.1.7",
+        "knip": "^6.36.0",
+        "lint-staged": "^17.5.1",
+        "prettier": "^3.9.7",
+        "tsx": "^4.23.13",
+        "typescript": "^6.0.3",
+        "typescript-eslint": "^8.70.0",
+        "vitest": "^5.0.1"
+    }
+}

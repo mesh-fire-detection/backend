@@ -1,0 +1,18 @@
+# /etc/litestream.yml — continuous off-server backup of the SQLite database.
+# Credentials come from /etc/default/litestream:
+#   LITESTREAM_ACCESS_KEY_ID=...
+#   LITESTREAM_SECRET_ACCESS_KEY=...
+#   LITESTREAM_ENDPOINT=https://<account>.r2.cloudflarestorage.com  (or Backblaze B2 S3 endpoint)
+#   LITESTREAM_BUCKET=mesh-backend-backups
+
+dbs:
+    - path: /var/lib/mesh-backend/mesh.db
+      replicas:
+          - type: s3
+            bucket: ${LITESTREAM_BUCKET}
+            path: mesh.db
+            endpoint: ${LITESTREAM_ENDPOINT}
+            region: auto
+            # How far back a point-in-time restore can go. Older snapshots are
+            # pruned, but every snapshot holds the whole database, so no rows are lost.
+            retention: 72h

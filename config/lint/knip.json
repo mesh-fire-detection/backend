@@ -1,0 +1,6 @@
+{
+    "$schema": "https://unpkg.com/knip@6/schema.json",
+    "project": ["src/**/*.ts", "config/**/*.{ts,mjs}", "tests/**/*.ts"],
+    "include": ["files", "exports", "types", "duplicates", "dependencies", "unlisted"],
+    "entry": ["src/app/createAdmin.ts", "config/build/drizzle.config.ts"]
+}

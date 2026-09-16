@@ -1,0 +1,14 @@
+# /etc/caddy/Caddyfile — HTTPS termination and reverse proxy for the API.
+# Caddy obtains and renews the certificate automatically.
+
+api.meshfiredetection.org {
+	encode zstd gzip
+
+	# Caddy replaces any client-supplied X-Forwarded-For with the real client
+	# address, which the app uses for rate limiting.
+	reverse_proxy 127.0.0.1:3000
+
+	log {
+		output file /var/log/caddy/api.log
+	}
+}

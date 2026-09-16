@@ -1,0 +1,45 @@
+name: Deploy
+
+# Deploys main after the checks pass. Requires repository secrets:
+#   DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY (private key), DEPLOY_KNOWN_HOSTS
+on:
+    workflow_run:
+        workflows: [CI]
+        types: [completed]
+        branches: [main]
+
+concurrency: deploy
+
+jobs:
+    deploy:
+        if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+        runs-on: ubuntu-latest
+        environment: production
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event.workflow_run.head_sha }}
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: .nvmrc
+                  cache: npm
+            - run: npm ci
+            - run: npm run build
+
+            - name: Configure SSH
+              run: |
+                  install -m 700 -d ~/.ssh
+                  echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+                  chmod 600 ~/.ssh/id_ed25519
+                  echo "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+            - name: Upload and activate release
+              env:
+                  TARGET: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
+                  RELEASE: /opt/mesh-backend/releases/${{ github.event.workflow_run.head_sha }}
+              run: |
+                  ssh "$TARGET" "mkdir -p $RELEASE"
+                  # -R keeps relative paths; `npm ci` runs the prepare script in config/build.
+                  rsync -azR dist migrations package.json package-lock.json \
+                      config/build/installHooks.mjs config/deploy/release.sh "$TARGET:$RELEASE/"
+                  ssh "$TARGET" "bash $RELEASE/config/deploy/release.sh $RELEASE"

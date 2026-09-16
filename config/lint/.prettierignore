@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+logs/
+data/
+*.db
+.env
+.env.*
+!config/.env.example
+.husky/_/
+package-lock.json
+docs/
+migrations/

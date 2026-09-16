@@ -1,0 +1,27 @@
+# /etc/systemd/system/mesh-backend.service
+[Unit]
+Description=Mesh Fire Detection backend
+After=network-online.target mosquitto.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mesh
+Group=mesh
+Environment=NODE_ENV=production
+WorkingDirectory=/opt/mesh-backend/current
+ExecStart=/usr/bin/node --env-file=/etc/mesh-backend/env dist/index.js
+Restart=always
+RestartSec=5
+# Give in-flight requests and the broker connection time to close.
+TimeoutStopSec=20
+
+# Hardening: the app only needs to write its database.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/mesh-backend
+
+[Install]
+WantedBy=multi-user.target
