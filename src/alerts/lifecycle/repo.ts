@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, ne, or, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 
 import { type Db } from '#src/shared/db/connection'
 import { alertEvents, alertRules, alerts } from '#src/shared/db/schema'
@@ -50,12 +50,13 @@ export function createAlertRepo(db: Db) {
 
         /** Owner of the rule behind a rule alert; undefined for system alerts. */
         ruleOwnerOf(alert: AlertRow): string | undefined {
-            if (alert.ruleId === null) return undefined
-            return db
-                .select({ ownerId: alertRules.ownerId })
-                .from(alertRules)
-                .where(eq(alertRules.id, alert.ruleId))
-                .get()?.ownerId
+            return alert.ruleId === null
+                ? undefined
+                : db
+                      .select({ ownerId: alertRules.ownerId })
+                      .from(alertRules)
+                      .where(eq(alertRules.id, alert.ruleId))
+                      .get()?.ownerId
         },
 
         /**
@@ -66,12 +67,12 @@ export function createAlertRepo(db: Db) {
             filter: { status?: AlertStatus | undefined; ownerId?: string | undefined },
             limit: number
         ): AlertWithMetric[] {
-            const conditions: SQL[] = []
-            if (filter.status !== undefined) conditions.push(eq(alerts.status, filter.status))
-            if (filter.ownerId !== undefined) {
-                const visible = or(isNull(alerts.ruleId), eq(alertRules.ownerId, filter.ownerId))
-                if (visible !== undefined) conditions.push(visible)
-            }
+            const conditions = [
+                filter.status === undefined ? undefined : eq(alerts.status, filter.status),
+                filter.ownerId === undefined
+                    ? undefined
+                    : or(isNull(alerts.ruleId), eq(alertRules.ownerId, filter.ownerId)),
+            ]
             return selectWithMetric()
                 .where(and(...conditions))
                 .orderBy(desc(alerts.openedAt), desc(alerts.id))
@@ -81,13 +82,14 @@ export function createAlertRepo(db: Db) {
         },
 
         eventsFor(alertIds: readonly string[]): AlertEventRow[] {
-            if (alertIds.length === 0) return []
-            return db
-                .select()
-                .from(alertEvents)
-                .where(inArray(alertEvents.alertId, [...alertIds]))
-                .orderBy(asc(alertEvents.at), asc(alertEvents.id))
-                .all()
+            return alertIds.length === 0
+                ? []
+                : db
+                      .select()
+                      .from(alertEvents)
+                      .where(inArray(alertEvents.alertId, [...alertIds]))
+                      .orderBy(asc(alertEvents.at), asc(alertEvents.id))
+                      .all()
         },
 
         findUnresolvedForRule(ruleId: string, deviceId: string): AlertRow | undefined {

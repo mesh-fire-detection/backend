@@ -9,8 +9,7 @@ export function formatNodeId(nodeNum: number): string {
 
 export function parseNodeId(nodeId: string): number | undefined {
     const normalized = nodeId.toLowerCase()
-    if (!NODE_ID_PATTERN.test(normalized)) return undefined
-    return Number.parseInt(normalized.slice(1), 16)
+    return NODE_ID_PATTERN.test(normalized) ? Number.parseInt(normalized.slice(1), 16) : undefined
 }
 
 /** Accepts `!A1B2C3D4` in any case and yields the node number. */

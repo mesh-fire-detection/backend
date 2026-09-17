@@ -50,9 +50,12 @@ export function createHarness() {
     const app = createApp({ logger, auth, services, corsOrigin: SITE_ORIGIN })
 
     const request = (path: string, options: RequestOptions = {}): Promise<Response> => {
-        const headers: Record<string, string> = { origin: SITE_ORIGIN, ...options.headers }
-        if (options.cookie !== undefined) headers['cookie'] = options.cookie
-        if (options.body !== undefined) headers['content-type'] = 'application/json'
+        const headers: Record<string, string> = {
+            origin: SITE_ORIGIN,
+            ...options.headers,
+            ...(options.cookie !== undefined && { cookie: options.cookie }),
+            ...(options.body !== undefined && { 'content-type': 'application/json' }),
+        }
         return Promise.resolve(
             app.request(path, {
                 method: options.method ?? 'GET',

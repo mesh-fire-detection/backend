@@ -86,20 +86,24 @@ const checkDirectory = (
     rule: StructureRule
 ): readonly Violation[] => {
     const relativePath = toRelative(rootDir, dir)
-    const violations: Violation[] = []
-
-    if (entries.length < rule.minEntries) {
-        violations.push({
-            relativePath,
-            message: `${entries.length} entries, needs at least ${rule.minEntries}`,
-        })
-    }
-    if (entries.length > rule.maxEntries) {
-        violations.push({
-            relativePath,
-            message: `${entries.length} entries, allows at most ${rule.maxEntries}`,
-        })
-    }
+    const violations: Violation[] = [
+        ...(entries.length < rule.minEntries
+            ? [
+                  {
+                      relativePath,
+                      message: `${entries.length} entries, needs at least ${rule.minEntries}`,
+                  },
+              ]
+            : []),
+        ...(entries.length > rule.maxEntries
+            ? [
+                  {
+                      relativePath,
+                      message: `${entries.length} entries, allows at most ${rule.maxEntries}`,
+                  },
+              ]
+            : []),
+    ]
 
     for (const entry of entries) {
         if (!entry.isFile() || !FILE_LINE_COUNT_EXTENSIONS.has(path.extname(entry.name))) continue
@@ -124,12 +128,10 @@ export const collectViolations = (
     rules
         .flatMap((rule) => {
             const targetDir = path.resolve(rootDir, rule.target)
-            if (!fs.existsSync(targetDir)) {
-                return [{ relativePath: rule.target, message: `${rule.label} does not exist` }]
-            }
-
-            return [...walkDirectories(targetDir)].flatMap(({ dir, entries }) =>
-                checkDirectory(rootDir, dir, entries, rule)
-            )
+            return fs.existsSync(targetDir)
+                ? [...walkDirectories(targetDir)].flatMap(({ dir, entries }) =>
+                      checkDirectory(rootDir, dir, entries, rule)
+                  )
+                : [{ relativePath: rule.target, message: `${rule.label} does not exist` }]
         })
         .toSorted((left, right) => left.relativePath.localeCompare(right.relativePath))

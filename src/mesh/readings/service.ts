@@ -26,10 +26,7 @@ export function createReadingsService(deps: {
         if (deviceRepo.findById(deviceId) === undefined) throw notFound('Device')
 
         const to = query.to === undefined ? clock() : new Date(query.to)
-        const from =
-            query.from === undefined
-                ? new Date(to.getTime() - DEFAULT_RANGE_MS)
-                : new Date(query.from)
+        const from = new Date(query.from ?? to.getTime() - DEFAULT_RANGE_MS)
         if (from > to) throw new DomainError('bad_request', '`from` must be before `to`')
         if (to.getTime() - from.getTime() > MAX_RANGE_DAYS * MS_PER_DAY) {
             throw new DomainError('bad_request', `Range may span at most ${MAX_RANGE_DAYS} days`)

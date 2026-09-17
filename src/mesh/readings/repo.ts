@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, lte, type SQL } from 'drizzle-orm'
+import { and, asc, eq, gte, lte } from 'drizzle-orm'
 
 import { type Db } from '#src/shared/db/connection'
 import { deviceMetrics, readings } from '#src/shared/db/schema'
@@ -13,12 +13,12 @@ export function createReadingsRepo(db: Db) {
             range: { from: Date; to: Date; metric?: string | undefined },
             limit: number
         ): ReadingRow[] {
-            const conditions: SQL[] = [
+            const conditions = [
                 eq(readings.deviceId, deviceId),
                 gte(readings.recordedAt, range.from),
                 lte(readings.recordedAt, range.to),
+                range.metric === undefined ? undefined : eq(readings.metric, range.metric),
             ]
-            if (range.metric !== undefined) conditions.push(eq(readings.metric, range.metric))
 
             return db
                 .select()

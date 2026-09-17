@@ -44,8 +44,7 @@ function numericValue(message: Message, field: DescField): number | undefined {
     if (typeof value === 'number') {
         return field.scalar === ScalarType.FLOAT ? fromFloat32(value) : value
     }
-    if (typeof value === 'bigint') return Number(value)
-    return undefined
+    return typeof value === 'bigint' ? Number(value) : undefined
 }
 
 /**
@@ -107,15 +106,14 @@ function neighborInfoPayload(bytes: Uint8Array): MeshPayload {
 
 function positionPayload(bytes: Uint8Array): MeshPayload {
     const position = fromBinary(Mesh.PositionSchema, bytes)
-    if (position.latitudeI === undefined || position.longitudeI === undefined) {
-        return { kind: 'other', portnum: Portnums.PortNum.POSITION_APP }
-    }
-    return {
-        kind: 'position',
-        latitude: position.latitudeI * LATLON_SCALE,
-        longitude: position.longitudeI * LATLON_SCALE,
-        altitudeM: position.altitude ?? null,
-    }
+    return position.latitudeI === undefined || position.longitudeI === undefined
+        ? { kind: 'other', portnum: Portnums.PortNum.POSITION_APP }
+        : {
+              kind: 'position',
+              latitude: position.latitudeI * LATLON_SCALE,
+              longitude: position.longitudeI * LATLON_SCALE,
+              altitudeM: position.altitude ?? null,
+          }
 }
 
 function nodeInfoPayload(bytes: Uint8Array): MeshPayload {
