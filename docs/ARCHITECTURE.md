@@ -57,11 +57,17 @@ src/
     lifecycle/        alerts, their status changes and events
     evaluation/       rule evaluation on readings, system alert sweep
 migrations/           generated SQL (drizzle-kit); never edit a committed one
+config/build/         build config, Vitest, Drizzle, contract and runtime checks, hooks
 config/deploy/        Caddy, systemd, Mosquitto, Litestream, release script
 ```
 
 Features are grouped under `mesh/` and `alerts/` to stay within the 7-entries
 folder cap.
+
+`tsconfig.json` checks source, tooling, and tests without emitting files.
+`config/build/tsconfig.build.json` builds only `src/` into `dist/`. Native package
+imports (`#src/*`) resolve to TypeScript with the `development` condition and to
+compiled JavaScript otherwise. `@types/node` tracks Node 24.
 
 ## Layers
 
@@ -280,7 +286,12 @@ See `DEPLOYMENT.md` for the runbook.
 - **Backups:** Litestream streams SQLite to object storage (Cloudflare R2 or
   Backblaze B2). A restore is tested before launch.
 - **Monitoring:** an external uptime check on `/health` (503 when failing).
-- **Deploys:** GitHub Actions runs `npm run check`; on `main`, a second
+- **Deploys:** GitHub Actions runs `npm run check`, then `npm run check:runtime`
+  against the compiled entry point with a temporary SQLite database and MQTT
+  disabled. It verifies health, the empty network feed, and clean SIGTERM
+  shutdown. `npm run check:contract` compares the actual exported `MeshNode`
+  and `MeshLink` types with the web repo's `main` branch; locally it defaults to
+  the sibling `../web` checkout. On `main`, a second
   workflow builds, uploads a release over SSH, installs production
   dependencies, switches the `current` symlink, restarts, and checks `/health`.
   Migrations run at startup.
