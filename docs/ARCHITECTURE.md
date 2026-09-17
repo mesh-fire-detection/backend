@@ -6,23 +6,29 @@ How the backend is built. Requirements live in `SPEC.md`; conventions in
 ## Overview
 
 ```
-Mesh nodes ──LoRa──> Gateway node ──LTE──> Mosquitto (MQTT broker)
-                                                  │
-                                                  ▼
-                                    ┌───────────────────────────┐
-Website / users ──HTTPS──> Caddy ─> │ Node 24 app (one process) │
-                                    │   HTTP routes (Hono)      │
-                                    │   MQTT subscriber         │
-                                    │   Scheduled jobs          │
-                                    │        │                  │
-                                    │   Services → Repos        │
-                                    └────────┬──────────────────┘
-                                             ▼
-                                   SQLite ──Litestream──> object storage
+Mesh nodes ──LoRa──> Gateway node ──MQTT/TCP──> Mosquitto (MQTT broker)
+                                                        │
+                                                        ▼
+                                          ┌───────────────────────────┐
+Website / users ──HTTPS──> Cloudflare ──> Caddy ─────> │ Node 24 app (one process) │
+                                          │             │   HTTP routes (Hono)      │
+                                          │             │   MQTT subscriber         │
+                                          │             │   Scheduled jobs          │
+                                          │             │        │                  │
+                                          │             │   Services → Repos        │
+                                          │             └────────┬──────────────────┘
+                                          │                      ▼
+                                          │            SQLite ──Litestream──> object storage
 ```
 
 Everything runs on one VPS. The app is a single Node process containing the
 HTTP server, the MQTT subscriber, and the scheduled jobs.
+
+Cloudflare proxies the website and HTTP API only. Gateway MQTT traffic uses
+the DNS-only hostname `mqtt.meshfiredetection.org`, which resolves directly to
+the VPS; it does not pass through Cloudflare, Caddy, or the HTTP application.
+Mosquitto and the Node app are separate processes on the same VPS. The app
+subscribes to Mosquitto through its loopback-only listener.
 
 ## Source layout
 
