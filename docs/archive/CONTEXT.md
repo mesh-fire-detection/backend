@@ -1,9 +1,9 @@
 # CONTEXT — Planning conversation summary
 
-A summary of the planning chat that produced `AGENTS.md`, `SPEC.md`, and
-`ARCHITECTURE.md`. It records the questions asked, the owner's answers, and the
+A summary of the planning chat that produced [AGENTS.md](../../AGENTS.md), [SPEC.md](../SPEC.md), and
+[ARCHITECTURE.md](../ARCHITECTURE.md). It records the questions asked, the owner's answers, and the
 reasoning behind each choice, so later work doesn't reopen settled questions.
-`SPEC.md` and `ARCHITECTURE.md` are the source of truth. If this file disagrees
+[SPEC.md](../SPEC.md) and [ARCHITECTURE.md](../ARCHITECTURE.md) are the source of truth. If this file disagrees
 with them, they win.
 
 ## The request
@@ -24,7 +24,7 @@ The project owner asked for a backend for the Mesh Fire Detection network
 - React + Vite site on GitHub Pages, Node >= 24, ESM, TypeScript 6.
 - Tooling: Vitest, tsx, ESLint (no warnings allowed), Prettier (4-space indent,
   no semicolons, single quotes, width 100), Knip, Husky, lint-staged.
-- `AGENTS.md` rules: feature-first folders, at least 2 and at most 7 entries per
+- `../../AGENTS.md` rules: feature-first folders, at least 2 and at most 7 entries per
   folder under `src/`, tests in `tests/` mirroring `src/`, never commit unless
   asked, never discard uncommitted changes.
 - `src/core/content/network/network.ts` defines `MeshNode` and `MeshLink` and a
