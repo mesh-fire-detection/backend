@@ -67,16 +67,17 @@ export function createIngestService(deps: IngestDeps) {
                 repo.insertLinkObservations(
                     payload.neighbors.flatMap((neighbor) => {
                         const heard = deviceRepo.findByNodeNum(neighbor.nodeNum)
-                        if (heard === undefined || heard.id === device.id) return []
-                        return [
-                            {
-                                fromDeviceId: heard.id,
-                                toDeviceId: device.id,
-                                observedAt: at,
-                                snr: neighbor.snr,
-                                rssi: null,
-                            },
-                        ]
+                        return heard === undefined || heard.id === device.id
+                            ? []
+                            : [
+                                  {
+                                      fromDeviceId: heard.id,
+                                      toDeviceId: device.id,
+                                      observedAt: at,
+                                      snr: neighbor.snr,
+                                      rssi: null,
+                                  },
+                              ]
                     })
                 )
                 return []

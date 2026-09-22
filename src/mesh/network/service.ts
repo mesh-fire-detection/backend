@@ -25,8 +25,7 @@ export function nodeStatus(
 ): NodeStatus {
     if (minutesSinceHeard === null || minutesSinceHeard >= thresholds.offlineMin) return 'offline'
     const lowBattery = batteryPct !== null && batteryPct < thresholds.lowBatteryPct
-    if (lowBattery || minutesSinceHeard >= thresholds.degradedMin) return 'degraded'
-    return 'online'
+    return lowBattery || minutesSinceHeard >= thresholds.degradedMin ? 'degraded' : 'online'
 }
 
 /** Great-circle distance between `[longitude, latitude]` points. */
@@ -98,19 +97,23 @@ function toMeshLinks(
         .flatMap(({ row, rssi }) => {
             const from = devicesById.get(row.fromDeviceId)
             const to = devicesById.get(row.toDeviceId)
-            if (from === undefined || to === undefined) return []
-            return [
-                {
-                    from: from.id,
-                    to: to.id,
-                    rssi,
-                    snr: row.snr,
-                    distanceKm: round(
-                        distanceKm([from.longitude, from.latitude], [to.longitude, to.latitude]),
-                        2
-                    ),
-                },
-            ]
+            return from === undefined || to === undefined
+                ? []
+                : [
+                      {
+                          from: from.id,
+                          to: to.id,
+                          rssi,
+                          snr: row.snr,
+                          distanceKm: round(
+                              distanceKm(
+                                  [from.longitude, from.latitude],
+                                  [to.longitude, to.latitude]
+                              ),
+                              2
+                          ),
+                      },
+                  ]
         })
         .toArray()
 }
