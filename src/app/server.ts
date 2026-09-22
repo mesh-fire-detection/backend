@@ -12,6 +12,7 @@ import { networkRoutes } from '#src/mesh/network/routes'
 import { readingsRoutes } from '#src/mesh/readings/routes'
 import { access, sessionMiddleware, type AppEnv } from '#src/shared/auth/access'
 import { AUTH_BASE_PATH, type Auth } from '#src/shared/auth/auth'
+import { DEV_CONSOLE_PATH, devConsoleRoutes } from '#src/shared/http/devConsole'
 import { createErrorHandler, notFound } from '#src/shared/http/handler'
 import { rateLimit } from '#src/shared/http/rateLimit'
 import { type Logger } from '#src/shared/logger'
@@ -22,10 +23,18 @@ export type AppDeps = {
     readonly auth: Auth
     readonly services: Services
     readonly corsOrigin: string
+    /** Mounts the development API console. Off unless explicitly enabled. */
+    readonly devConsole?: boolean | undefined
 }
 
 /** Builds the HTTP app without listening, so tests can drive it through `app.request()`. */
-export function createApp({ logger, auth, services, corsOrigin }: AppDeps): Hono<AppEnv> {
+export function createApp({
+    logger,
+    auth,
+    services,
+    corsOrigin,
+    devConsole = false,
+}: AppDeps): Hono<AppEnv> {
     const app = new Hono<AppEnv>()
 
     app.onError(createErrorHandler(logger))
@@ -55,6 +64,9 @@ export function createApp({ logger, auth, services, corsOrigin }: AppDeps): Hono
     app.route('/', gatewayRoutes(services.gateways))
     app.route('/', ruleRoutes(services.rules))
     app.route('/', alertRoutes(services.alerts))
+
+    // Last, so the document it builds sees every route above it.
+    if (devConsole) app.route(DEV_CONSOLE_PATH, devConsoleRoutes(app))
 
     return app
 }

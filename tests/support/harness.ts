@@ -25,8 +25,13 @@ type RequestOptions = {
     readonly headers?: Readonly<Record<string, string>>
 }
 
+type HarnessOptions = {
+    /** Mounts the development API console, as the DEV_CONSOLE env flag does. */
+    readonly devConsole?: boolean | undefined
+}
+
 /** A fresh in-memory database, services, and HTTP app per call, with a controllable clock. */
-export function createHarness() {
+export function createHarness({ devConsole }: HarnessOptions = {}) {
     let now = START.getTime()
     let mqttState: MqttState = 'disabled'
     const clock = () => new Date(now)
@@ -47,7 +52,13 @@ export function createHarness() {
         config: TEST_CONFIG,
         mqttState: () => mqttState,
     })
-    const app = createApp({ logger, auth, services, corsOrigin: SITE_ORIGIN })
+    const app = createApp({
+        logger,
+        auth,
+        services,
+        corsOrigin: SITE_ORIGIN,
+        devConsole,
+    })
 
     const request = (path: string, options: RequestOptions = {}): Promise<Response> => {
         const headers: Record<string, string> = {

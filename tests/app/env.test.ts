@@ -17,6 +17,7 @@ describe('parseEnv', () => {
             HOST: '127.0.0.1',
             LOG_LEVEL: 'info',
             DATABASE_PATH: 'data/mesh.db',
+            DEV_CONSOLE: false,
             MQTT_URL: undefined,
             MQTT_USERNAME: undefined,
             MQTT_PASSWORD: undefined,

@@ -20,6 +20,9 @@ const EnvSchema = z
             .default('info'),
         DATABASE_PATH: z.string().min(1).default('data/mesh.db'),
 
+        /** Serves the API console at /dev. Never enable on a public host. */
+        DEV_CONSOLE: z.stringbool().default(false),
+
         /** Leave unset to run without ingest (local development). */
         MQTT_URL: optionalText.pipe(z.url().optional()),
         MQTT_USERNAME: optionalText,
