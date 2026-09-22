@@ -42,17 +42,33 @@ The CLI prompts for a password of 12–128 characters.
 
 ```sh
 npm run check
+npm run check:runtime
 ```
 
 `check` runs type checks, formatting, structure checks, ESLint, Knip, Vitest, and
-the build.
+the build. `check:runtime` starts the compiled app with an isolated temporary
+database and a free loopback port, checks health and the network feed, then checks
+shutdown with SIGTERM. It does not load `.env` or connect to MQTT.
+
+To check the API types against a local checkout of the website:
+
+```sh
+npm run check:contract -- ../web
+```
+
+The path defaults to `../web`. This checks the actual `MeshNode` and `MeshLink`
+types in both repositories, including field names, nullability, and optional
+fields; installing the website's dependencies is not required. Backend CI runs
+this against the website's `main` branch as well as the runtime check.
 
 ```sh
 npm run build
 npm start
 ```
 
-The build writes compiled JavaScript to `dist/`.
+The build uses `config/build/tsconfig.build.json` and writes `dist/`. Imports use
+the native `#src/*` alias in `package.json`: `src/*.ts` in development and
+`dist/*.js` in production. Node types track the runtime's major version, 24.
 
 ## Documentation
 

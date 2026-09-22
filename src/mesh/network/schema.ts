@@ -24,7 +24,7 @@ export type MeshNode = z.infer<typeof MeshNodeSchema>
 
 /**
  * Must match `MeshLink` in the web repo. `rssi` is null when only SNR is
- * known (NeighborInfo); the web type needs `rssi: number | null`.
+ * known (NeighborInfo); the web type also uses `rssi: number | null`.
  */
 const MeshLinkSchema = z.object({
     from: z.string(),

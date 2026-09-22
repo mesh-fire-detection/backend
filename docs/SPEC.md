@@ -191,9 +191,9 @@ channel table so adding them later needs no restructuring.
 - `MeshLink`: `from`, `to`, `rssi` (dBm, **nullable**), `snr` (dB),
   `distanceKm`.
 
-**Web repo change required:** `MeshLink.rssi` must become `number | null`.
-RSSI is only known when the gateway hears a node directly; NeighborInfo
-reports SNR only.
+`MeshLink.rssi` is `number | null` in both repositories. RSSI is only known when
+the gateway hears a node directly; NeighborInfo reports SNR only. Backend CI
+checks the exported network types against the web repo's `main` branch.
 
 The site is hosted on a different origin, so the API sets CORS for the site's
 domain. Both share `meshfiredetection.org`, so session cookies are same-site.
