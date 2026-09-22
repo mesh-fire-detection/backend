@@ -40,11 +40,16 @@ The CLI prompts for a password of 12–128 characters.
 
 ## Try it
 
-Set `DEV_CONSOLE=true` and start the app, then open <http://127.0.0.1:3000/dev>:
+Set `DEV_CONSOLE=true` in `.env`, start the app, then open
+<http://127.0.0.1:3000/dev>:
 
 ```sh
-DEV_CONSOLE=true npm run dev
+cp config/.env.example .env     # then set AUTH_SECRET and DEV_CONSOLE=true
+npm run dev
 ```
+
+The flag goes in `.env` rather than in front of the command, so this works the
+same in PowerShell and in a POSIX shell.
 
 The console lists every route with its request shape taken from the same Zod
 schemas that validate the requests, so it cannot drift from the code. It is
