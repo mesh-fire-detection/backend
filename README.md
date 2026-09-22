@@ -9,8 +9,17 @@ Use Node 24 (`nvm use` if you have nvm), then:
 
 ```sh
 npm ci
+npm run prepare
 cp config/.env.example .env
 ```
+
+`.npmrc` sets `ignore-scripts=true`, so dependency install scripts do not run.
+`better-sqlite3` ships prebuilt binaries for every platform but declares no
+install script, so npm would otherwise fall back to `node-gyp rebuild` and
+demand a C++ toolchain to rebuild what is already there — which fails on
+Windows, where that toolchain is not a normal prerequisite. Nothing here needs
+those scripts. The trade-off is that `npm ci` no longer installs the Git hooks,
+so run `npm run prepare` once after cloning.
 
 Set `AUTH_SECRET` in `.env` to a random value of at least 32 characters. Generate
 one with:
