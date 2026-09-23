@@ -277,7 +277,9 @@ sign-in limiter.
 
 See `DEPLOYMENT.md` for the runbook.
 
-- **Server:** one Hetzner VPS, Ubuntu LTS.
+- **Server:** one Oracle Cloud Always Free instance, Ubuntu LTS. Ampere A1
+  (arm64) preferred, E2.1.Micro (x86) as the fallback when A1 capacity is
+  unavailable.
 - **Processes:** the app (systemd), Mosquitto, Caddy (HTTPS, reverse proxy),
   Litestream.
 - **Domain:** `api.meshfiredetection.org` → Caddy → app on `127.0.0.1:3000`.

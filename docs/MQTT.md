@@ -31,9 +31,9 @@ its sender are registered and enabled.
 | Setting | Value |
 | --- | --- |
 | Broker host | `mqtt.meshfiredetection.org` |
-| Field port | `1884` while TLS is being validated on gateway hardware |
-| Transport | MQTT over TCP with username and password authentication; no transport TLS on port `1884` |
-| TLS port | `8883`, once enabled by the deployment; do not assume it is available yet |
+| Field port | `8883` |
+| Transport | MQTT over TLS, with username and password authentication |
+| Certificate | Public Let's Encrypt certificate for `mqtt.meshfiredetection.org`; no client certificate required |
 | Root topic | `msh/US` |
 | Publish topic | `msh/US/2/e/+/&lt;gateway-node-id&gt;` |
 | Payload format | Binary Meshtastic protobuf `ServiceEnvelope` |
@@ -53,7 +53,7 @@ DNS only means Cloudflare answers the DNS request with the VPS address but
 does not proxy the connection. The actual field path is:
 
 ```text
-Gateway → mqtt.meshfiredetection.org DNS lookup → VPS public IP:1884 → Mosquitto
+Gateway → mqtt.meshfiredetection.org DNS lookup → server public IP:8883 → Mosquitto
 ```
 
 It is not an HTTPS connection and does not pass through Cloudflare's normal
@@ -65,20 +65,26 @@ Do not enable the orange cloud for `mqtt.meshfiredetection.org`: standard
 Cloudflare proxying does not carry raw MQTT/TCP. Cloudflare Spectrum could
 proxy MQTT as Layer-4 TCP, but it is not used by this deployment.
 
-The VPS firewall must permit inbound TCP `1884` for gateway traffic. It is
-normally open to all source addresses because cellular gateway addresses are
-dynamic. This does not grant publishing access: Mosquitto rejects clients that
-do not authenticate, and the ACL restricts each authenticated gateway to its
-own topic. Port `1883` must never be exposed publicly; it is bound to
-`127.0.0.1` for the local backend subscriber only.
+Inbound TCP `8883` must be permitted in **both** firewall layers on Oracle: the
+VCN security list and the instance's own iptables rules. It is normally open to
+all source addresses because cellular gateway addresses are dynamic. That does
+not grant publishing access: Mosquitto rejects clients that do not
+authenticate, and the ACL restricts each authenticated gateway to its own
+topic. Port `1883` must never be exposed publicly; it is bound to `127.0.0.1`
+for the local backend subscriber only.
 
-Port `1884` is an interim transport while MQTT-over-TLS support is tested on
-the actual gateway hardware. The private Meshtastic channel encrypts the
-packet payload, but it does not turn this broker connection into TLS: MQTT
-connection metadata and broker credentials are not protected by transport
-encryption on this port. When the deployment enables TLS, gateways will use
-`mqtts://mqtt.meshfiredetection.org:8883`; the `1884` listener and firewall
-rule should then be removed.
+TLS protects the broker credentials and the connection metadata in transit.
+That is a separate layer from the private Meshtastic channel key, which
+encrypts the packet payload: a stolen broker password alone lets an attacker
+publish to one gateway's topic, but the backend drops anything it cannot
+decrypt with the channel key, and drops packets from unregistered senders.
+
+`docs/DEPLOYMENT.md` records that some gateway firmware has reboot-looped with
+TLS enabled. Verify TLS on a single device before configuring the rest. If the
+hardware genuinely cannot do TLS, the plain `1884` listener in
+`config/deploy/mosquitto.conf` is the documented retreat — uncomment it, open
+`1884` instead of `8883`, and record the decision, understanding that broker
+credentials then cross the network in the clear.
 
 `<gateway-node-id>` is the gateway's Meshtastic node ID in its MQTT topic
 form, for example `!0a000001`. The broker ACL must grant a gateway permission

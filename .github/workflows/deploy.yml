@@ -39,7 +39,11 @@ jobs:
                   RELEASE: /opt/mesh-backend/releases/${{ github.event.workflow_run.head_sha }}
               run: |
                   ssh "$TARGET" "mkdir -p $RELEASE"
-                  # -R keeps relative paths; `npm ci` runs the prepare script in config/build.
-                  rsync -azR dist migrations package.json package-lock.json \
+                  # -R keeps relative paths. .npmrc must travel with the release:
+                  # without it the server's `npm ci` falls back to `node-gyp rebuild`
+                  # for better-sqlite3 and fails, since there is no compiler there.
+                  # installHooks.mjs is kept only in case ignore-scripts is ever
+                  # lifted and npm runs the prepare script again.
+                  rsync -azR dist migrations package.json package-lock.json .npmrc \
                       config/build/installHooks.mjs config/deploy/release.sh "$TARGET:$RELEASE/"
                   ssh "$TARGET" "bash $RELEASE/config/deploy/release.sh $RELEASE"
