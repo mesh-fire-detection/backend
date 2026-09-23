@@ -5,10 +5,17 @@ import { rateLimiter } from 'hono-rate-limiter'
 import { errorBody } from '#src/shared/http/errors'
 
 /**
- * The app listens on localhost behind Caddy, which appends the client address
- * to X-Forwarded-For. The last entry is the one Caddy saw.
+ * Caddy sets `X-Real-IP` from its own `{client_ip}`, which resolves the real
+ * caller through the trusted Cloudflare hop and overwrites whatever the client
+ * sent. Prefer it: behind Cloudflare every visitor shares the edge address that
+ * `X-Forwarded-For` ends at, so keying on that would put the whole Internet in
+ * one bucket. With no proxy in front, Caddy appends the address it saw and the
+ * last `X-Forwarded-For` entry is still the right one.
  */
 function clientKey(c: Context): string {
+    const real = c.req.header('x-real-ip')?.trim()
+    if (real) return real
+
     const forwarded = c.req.header('x-forwarded-for')
     const last = forwarded?.split(',').at(-1)?.trim()
     if (last) return last
