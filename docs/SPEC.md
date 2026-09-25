@@ -44,7 +44,7 @@ Node types, from the site: `base`, `cellular` (gateway with LTE backhaul),
 | --- | --- |
 | Runtime | Node 24, TypeScript, ESM |
 | Repo | New repo, same conventions as the web repo |
-| Hosting | One Hetzner VPS (~$5/month). GitHub is not the live backend. |
+| Hosting | One Oracle Cloud Always Free instance ($0). GitHub is not the live backend. |
 | Database | SQLite, continuously backed up off-server |
 | Ingest | Meshtastic MQTT uplink to our own Mosquitto broker (see Ingest) |
 | Retention | Keep all data indefinitely. Nothing is deleted automatically. |

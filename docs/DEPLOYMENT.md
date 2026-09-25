@@ -1,16 +1,64 @@
 # DEPLOYMENT — Runbook
 
-How to stand up and run the backend on one Hetzner VPS. Files referenced here
+How to stand up and run the backend on one Oracle Cloud Always Free instance.
+Files referenced here
 live in `config/deploy/`.
 
-## 1. Server
+## 1. Server (Oracle Cloud Always Free)
 
-1. Create an Ubuntu LTS VPS. Point `api.meshfiredetection.org` and
-   `mqtt.meshfiredetection.org` (A/AAAA) at it.
-2. Firewall: allow 22, 80, 443, and the Mosquitto field port (1884, or 8883
-   once TLS is enabled). Nothing else. Do not allow 1883 from the Internet.
-3. Install Node 24 (NodeSource), Caddy, Mosquitto, and Litestream.
-4. Create users and directories:
+Always Free covers this workload at no cost, with 10 TB of monthly egress —
+enough that Litestream's continuous replication is not a concern. Google Cloud's
+equivalent free tier allows 1 GB/month, which Litestream alone would exhaust.
+
+1. **Upgrade the tenancy to Pay-As-You-Go.** Always Free resources stay free and
+   the bill stays zero, but Oracle stops reclaiming instances it judges idle.
+   A quiet week must not cost us the alerting backend.
+2. Create the instance with Ubuntu LTS:
+    - Preferred: `VM.Standard.A1.Flex`, 4 OCPU / 24 GB (Ampere, arm64). Far more
+      than this needs, and free.
+    - If Oracle reports "Out of host capacity" — common for A1 — either retry in
+      another availability domain or fall back to `VM.Standard.E2.1.Micro`
+      (x86, 1 GB). On the micro shape add swap before installing anything, since
+      the app, broker, Caddy and Litestream share 1 GB:
+
+        ```sh
+        sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile
+        sudo mkswap /swapfile && sudo swapon /swapfile
+        echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+        ```
+
+    Both architectures work: `better-sqlite3` ships a `linux-arm64` prebuild,
+    and Caddy, Mosquitto, Litestream and Node 24 all publish arm64 builds. The
+    prebuild is only used because `.npmrc` sets `ignore-scripts=true`; without
+    it npm tries `node-gyp rebuild` and the install fails on a machine with no
+    compiler.
+3. **Reserve the public IP** (Networking → Reserved IPs, then attach it) so it
+   survives a stop/start. An ephemeral IP changes and breaks both DNS records.
+4. Open the ports in **both** layers. Doing only the first is the most common
+   Oracle mistake, and the symptom — console says open, connections still hang —
+   looks like a broken service:
+
+    - **VCN Security List or NSG**, in the Oracle console: ingress TCP 80, 443
+      and 8883 from `0.0.0.0/0`.
+    - **The instance firewall.** Oracle's Ubuntu images ship pre-seeded iptables
+      rules ending in a catch-all REJECT, persisted by `netfilter-persistent`.
+      A rule appended after that REJECT never matches, so insert before it:
+
+        ```sh
+        sudo iptables -I INPUT 6 -p tcp --dport 80 -j ACCEPT
+        sudo iptables -I INPUT 7 -p tcp --dport 443 -j ACCEPT
+        sudo iptables -I INPUT 8 -p tcp --dport 8883 -j ACCEPT
+        sudo netfilter-persistent save
+        ```
+
+        Check the position first with `sudo iptables -L INPUT -n --line-numbers`
+        and adjust the indices so the new rules sit above the REJECT.
+
+    - Never open 1883. Its listener binds to `127.0.0.1` for the local backend.
+
+5. Install Node 24 (NodeSource), Caddy, Mosquitto, Litestream, and Certbot with
+   its Cloudflare DNS plugin.
+6. Create users and directories:
 
     ```sh
     sudo useradd --system --home /var/lib/mesh-backend mesh
@@ -20,7 +68,7 @@ live in `config/deploy/`.
     sudo chown mesh:mesh /var/lib/mesh-backend
     ```
 
-5. Let `deploy` restart the service and nothing else:
+7. Let `deploy` restart the service and nothing else:
 
     ```sh
     echo 'deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart mesh-backend' | sudo tee /etc/sudoers.d/mesh-backend
@@ -29,46 +77,51 @@ live in `config/deploy/`.
 ## 2. Cloudflare DNS and MQTT routing
 
 Cloudflare is the authoritative DNS provider for both hostnames, but it only
-proxies the HTTP service. Configure these records in the Cloudflare DNS
-dashboard:
+proxies the HTTP service. Configure these records:
 
 | Hostname | Record | Target | Cloudflare proxy status | Traffic path |
 | --- | --- | --- | --- | --- |
-| `api.meshfiredetection.org` | A and/or AAAA | VPS public IP | Proxied (orange cloud) | Cloudflare → Caddy → Node app |
-| `mqtt.meshfiredetection.org` | A and/or AAAA | Same VPS public IP | DNS only (gray cloud) | Gateway → Mosquitto |
+| `api.meshfiredetection.org` | A and/or AAAA | Reserved public IP | Proxied (orange cloud) | Cloudflare → Caddy → Node app |
+| `mqtt.meshfiredetection.org` | A and/or AAAA | Same IP | DNS only (gray cloud) | Gateway → Mosquitto |
+
+Set the zone's SSL/TLS mode to **Full (strict)** so the proxied leg validates
+Caddy's certificate rather than accepting anything.
 
 The gray-cloud setting is required because the normal Cloudflare proxy carries
 HTTP/HTTPS traffic, not raw MQTT/TCP. The gateway resolves
-`mqtt.meshfiredetection.org` through Cloudflare DNS, then opens a direct TCP
-connection to the VPS. It does not connect through Caddy, the HTTP API, or an
-HTTPS URL.
+`mqtt.meshfiredetection.org` through Cloudflare DNS, then opens a direct TLS
+connection to the server. It does not pass through Caddy or the HTTP API.
 
-The direct MQTT hostname necessarily exposes the VPS public IP to gateway
-clients. Do not change `mqtt.meshfiredetection.org` to Proxied unless the
-deployment intentionally adopts Cloudflare Spectrum, a separate Layer-4 TCP
-proxy product; Spectrum is not part of this deployment.
+Do not change `mqtt.meshfiredetection.org` to Proxied unless the deployment
+intentionally adopts Cloudflare Spectrum, a separate Layer-4 TCP proxy product;
+Spectrum is not part of this deployment.
 
-Open the field port in both firewall layers:
+This hostname necessarily exposes the server's public IP, which also means the
+API origin is reachable without passing through Cloudflare. That is why the
+Caddyfile declares Cloudflare's ranges as `trusted_proxies` and sets `X-Real-IP`
+itself: a forwarding header a client could set must never decide rate limiting.
 
-- In the Hetzner Cloud Firewall, add an inbound TCP rule for port `1884`.
-- On the VPS firewall, allow the same port; with UFW, run
-  `sudo ufw allow 1884/tcp`.
-- Do not add an inbound rule for port `1883`. Its Mosquitto listener binds to
-  `127.0.0.1` and is only for the local Node backend.
+### Broker certificate
 
-Gateway LTE source addresses are normally dynamic, so the field-port firewall
-rule cannot reliably restrict access by source IP. Access is instead enforced
-by Mosquitto: every gateway has a distinct username and password, and its ACL
-permits publishing only to that gateway's topic. An unauthenticated Internet
-client may reach the TCP port, but cannot publish packets.
+`mqtt.meshfiredetection.org` is gray-cloud, so it has no Cloudflare edge
+certificate, and HTTP-01 would need port 80 answering on that name. Use DNS-01
+with a Cloudflare API token scoped to `Zone:DNS:Edit` for this zone only:
 
-The current field listener is direct MQTT/TCP on `1884`; it is not HTTPS and
-does not use transport TLS. Meshtastic private-channel encryption protects the
-packet payload but does not protect MQTT connection metadata or broker
-credentials in transit. Once TLS has been tested on actual gateway hardware,
-configure Mosquitto with a certificate for `mqtt.meshfiredetection.org`, enable
-its `8883` listener, change the firewall rule to `8883/TCP`, move gateways to
-`mqtts://mqtt.meshfiredetection.org:8883`, and remove public access to `1884`.
+```sh
+sudo install -d -m 700 /etc/letsencrypt
+printf 'dns_cloudflare_api_token = %s
+' "$TOKEN"     | sudo tee /etc/letsencrypt/cloudflare.ini > /dev/null
+sudo chmod 600 /etc/letsencrypt/cloudflare.ini
+
+sudo cp config/deploy/mosquitto-certs.sh     /etc/letsencrypt/renewal-hooks/deploy/mosquitto-certs.sh
+sudo chmod 755 /etc/letsencrypt/renewal-hooks/deploy/mosquitto-certs.sh
+
+sudo certbot certonly --dns-cloudflare     --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini     -d mqtt.meshfiredetection.org
+```
+
+Mosquitto cannot read `/etc/letsencrypt/live`, so the deploy hook copies the
+certificate to `/etc/mosquitto/certs` and sends SIGHUP. Certbot runs the hook on
+issue and on every renewal.
 
 ## 3. Configuration
 
