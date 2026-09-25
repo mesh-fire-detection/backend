@@ -45,7 +45,13 @@ try {
     }
 
     const stopJobs = startJobs({ services, clock, logger })
-    const app = createApp({ logger, auth, services, corsOrigin: env.CORS_ORIGIN })
+    const app = createApp({
+        logger,
+        auth,
+        services,
+        corsOrigin: env.CORS_ORIGIN,
+        devConsole: env.DEV_CONSOLE,
+    })
     const server = serve({ fetch: app.fetch, port: env.PORT, hostname: env.HOST }, (info) => {
         logger.info({ host: info.address, port: info.port }, 'listening')
     })

@@ -38,6 +38,32 @@ npm run user:create-admin -- --email you@example.org --name 'Your Name'
 
 The CLI prompts for a password of 12–128 characters.
 
+## Try it
+
+Set `DEV_CONSOLE=true` in `.env`, start the app, then open
+<http://127.0.0.1:3000/dev>:
+
+```sh
+cp config/.env.example .env     # then set AUTH_SECRET and DEV_CONSOLE=true
+npm run dev
+```
+
+The flag goes in `.env` rather than in front of the command, so this works the
+same in PowerShell and in a POSIX shell.
+
+The console lists every route with its request shape taken from the same Zod
+schemas that validate the requests, so it cannot drift from the code. It is
+served from the API's own origin, so signing in through it authenticates
+everything you send afterwards. In order:
+
+1. `GET /health` answers anonymously.
+2. `GET /v1/devices` returns 401.
+3. `POST /v1/auth/sign-in/email` with the admin created above.
+4. `GET /v1/devices` now answers, carrying the session cookie.
+
+`DEV_CONSOLE` defaults to false and the console is absent unless it is set. Leave
+it unset in production: the console maps the whole admin surface.
+
 ## Checks and production build
 
 ```sh

@@ -64,6 +64,13 @@ config/deploy/        Caddy, systemd, Mosquitto, Litestream, release script
 Features are grouped under `mesh/` and `alerts/` to stay within the 7-entries
 folder cap.
 
+The development API console is mounted at `/dev` only when `DEV_CONSOLE` is set,
+and is absent otherwise. `src/shared/http/validate.ts` registers each Zod schema
+as it validates, and `src/shared/http/devConsole.ts` builds the OpenAPI document
+from the routes registered on the running app, so the document is derived from
+the code rather than maintained beside it. Routes taking no input are included
+explicitly, and `/api/network.json` is kept despite looking like a static file.
+
 `tsconfig.json` checks source, tooling, and tests without emitting files.
 `config/build/tsconfig.build.json` builds only `src/` into `dist/`. Native package
 imports (`#src/*`) resolve to TypeScript with the `development` condition and to
@@ -305,6 +312,7 @@ See `DEPLOYMENT.md` for the runbook.
 | `PORT`, `HOST` | HTTP listen address (default `127.0.0.1:3000`) |
 | `LOG_LEVEL` | pino level (default `info`) |
 | `DATABASE_PATH` | SQLite file path |
+| `DEV_CONSOLE` | Mounts the API console at `/dev` (default off; development only) |
 | `MQTT_URL`, `MQTT_USERNAME`, `MQTT_PASSWORD` | Subscriber connection; unset `MQTT_URL` disables ingest |
 | `MQTT_TOPIC` | e.g. `"msh/US/2/e/#"` (quote it in env files) |
 | `MESH_CHANNEL_KEY` | Base64 channel key (16 or 32 bytes), required with `MQTT_URL` |
