@@ -33,8 +33,11 @@ export function createAuth(db: Db, config: AuthConfig) {
         plugins: [admin({ defaultRole: 'user', adminRoles: ['admin'] })],
         rateLimit: { enabled: config.rateLimit, storage: 'memory' },
         advanced: {
-            // Caddy is the only client of the app and sets this header.
-            ipAddress: { ipAddressHeaders: ['x-forwarded-for'] },
+            // Caddy is the only client of the app. It sets X-Real-IP to the
+            // caller it resolved through the trusted Cloudflare hop; without a
+            // proxy in front there is no such header and X-Forwarded-For holds
+            // the address Caddy saw. See clientKey() in shared/http/rateLimit.
+            ipAddress: { ipAddressHeaders: ['x-real-ip', 'x-forwarded-for'] },
         },
         telemetry: { enabled: false },
     })
