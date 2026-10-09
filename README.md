@@ -112,3 +112,5 @@ the native `#src/*` alias in `package.json`: `src/*.ts` in development and
 - [Deployment and backups](docs/DEPLOYMENT.md)
 - [MQTT and gateway setup](docs/MQTT.md)
 - [Code quality standards](AGENTS.md)
+- [Cross-repository audit and proposed priorities (October 4, 2026)](docs/reviews/2026-10-04.md)
+- [Backend audit findings and acceptance criteria](docs/reviews/backend-2026-10-04.md)
