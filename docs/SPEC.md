@@ -193,7 +193,23 @@ channel table so adding them later needs no restructuring.
 
 `MeshLink.rssi` is `number | null` in both repositories. RSSI is only known when
 the gateway hears a node directly; NeighborInfo reports SNR only. Backend CI
-checks the exported network types against the web repo's `main` branch.
+checks the exported network types against the web repo at a commit pinned in
+`ci.yml`.
+
+### Changing the shape
+
+The two repositories deploy separately, so no single merge can change both at
+once. Change the shape in three steps rather than two, so that every state in
+between is valid:
+
+1. Add the new field to the backend as optional, and merge. The website does
+   not know about it yet, which is fine.
+2. Adopt it on the website, and merge. In the same pull request on the backend,
+   bump the pinned commit so CI compares against the website that uses it.
+3. Tighten or remove the old field once nothing reads it.
+
+Renaming a field in place is the one move to avoid: it requires both
+repositories to merge simultaneously, and they cannot. Add, migrate, remove.
 
 The site is hosted on a different origin, so the API sets CORS for the site's
 domain. Both share `meshfiredetection.org`, so session cookies are same-site.

@@ -297,8 +297,10 @@ See `DEPLOYMENT.md` for the runbook.
   against the compiled entry point with a temporary SQLite database and MQTT
   disabled. It verifies health, the empty network feed, and clean SIGTERM
   shutdown. `npm run check:contract` compares the actual exported `MeshNode`
-  and `MeshLink` types with the web repo's `main` branch; locally it defaults to
-  the sibling `../web` checkout. On `main`, a second
+  and `MeshLink` types with the web repo at a commit pinned in `ci.yml`, bumped
+  in whichever pull request adopts a change to the shape; locally it defaults to
+  the sibling `../web` checkout, so it compares against whatever is checked out
+  there. On `main`, a second
   workflow builds, uploads a release over SSH, installs production
   dependencies, switches the `current` symlink, restarts, and checks `/health`.
   Migrations run at startup.
