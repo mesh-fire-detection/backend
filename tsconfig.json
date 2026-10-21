@@ -28,5 +28,7 @@
         "forceConsistentCasingInFileNames": true,
         "types": ["node"]
     },
-    "include": ["src", "config", "tests"]
+    "include": ["src", "config", "tests"],
+    // Declares a Vite global for the contract check; see the file.
+    "exclude": ["config/build/webGlobals.d.ts"]
 }
