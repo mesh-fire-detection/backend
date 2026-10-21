@@ -110,6 +110,7 @@ ingest and alert evaluation run inside real transactions.
 | MQTT client | `mqtt` (MQTT.js) |
 | Packet decoding | `@meshtastic/protobufs` + `@bufbuild/protobuf`; AES-CTR via `node:crypto` |
 | Rate limiting | `hono-rate-limiter` (in memory); Better Auth's own limiter on sign-in |
+| Transactional email | Resend, behind a provider interface (see `SPEC.md`) |
 | Logging | `pino` |
 | Config | `node --env-file`, validated by Zod in `src/app/env.ts` |
 | Scheduled jobs | `setInterval` inside the app |

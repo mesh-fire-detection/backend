@@ -55,6 +55,7 @@ Node types, from the site: `base`, `cellular` (gateway with LTE backhaul),
 | Firmware version | Entered by admins at registration |
 | Alerts | User-defined rules plus system alerts; stored with a status; no notifications yet |
 | Website origin | `https://meshfiredetection.org`; API at `api.meshfiredetection.org` |
+| Transactional email | Resend, behind a provider interface. See Email. |
 | API docs | OpenAPI generation deferred; routes validate with Zod so it can be added later |
 
 ## Ingest
@@ -129,6 +130,41 @@ Every device must be registered before its data is accepted.
 - The first admin is created on the server with `npm run user:create-admin`.
 - Admins can change a user's role or disable them; disabling signs them out
   everywhere. Admins cannot change their own role or access.
+
+## Email
+
+The backend sends transactional email: sign-in codes now, and alert
+notifications when those are built. Marketing email is not in scope.
+
+**Provider: Resend.** Chosen for a free tier that covers our volume, a small
+Node API, and domain setup we can complete ourselves. The runner-up is Amazon
+SES, which is cheaper per message at volume but needs an AWS account and
+production-access approval. Prices and allowances were compared in issue #15
+on 2026-10-14; recheck before relying on them.
+
+The provider sits behind an interface in the backend, so switching is a config
+change and a new adapter, not a rewrite. Nothing outside that module knows
+which provider is in use.
+
+**Volume and the daily cap.** Resend's free tier allows 3,000 messages a month
+but no more than 100 a day. With fewer than 100 accounts that is comfortable
+for sign-in codes, but the daily cap is the limit that would bite first: a
+hundred people signing in on the same day, plus resends, would reach it. When
+the system sends notifications as well, the cap is reached sooner.
+
+Rules that follow from this:
+
+- The backend never silently stops sending. If the provider rejects a message
+  because an allowance is exhausted, that is logged as an error and surfaced
+  on `/health`, because a sign-in code that never arrives looks like a broken
+  login.
+- Review usage before enabling notifications, and move to a paid plan or to
+  SES rather than letting codes fail.
+
+**Privacy.** Email addresses are personal data and leave our server when a
+message is sent. Send only what the message needs, never log an address or a
+code, and keep the provider's own logs in mind when deciding what to put in a
+message body.
 
 ## Node status
 
