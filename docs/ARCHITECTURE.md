@@ -40,6 +40,7 @@ src/
   shared/
     auth/             Better Auth instance; session, access guards, roles
     db/               connection, Drizzle schema, migrations runner
+    email/            sender interface, Resend adapter, local preview, templates
     http/             error handler, validation, rate limits
     errors.ts         DomainError, thrown by services
     logger.ts, time.ts
@@ -319,6 +320,10 @@ See `DEPLOYMENT.md` for the runbook.
 | `MQTT_URL`, `MQTT_USERNAME`, `MQTT_PASSWORD` | Subscriber connection; unset `MQTT_URL` disables ingest |
 | `MQTT_TOPIC` | e.g. `"msh/US/2/e/#"` (quote it in env files) |
 | `MESH_CHANNEL_KEY` | Base64 channel key (16 or 32 bytes), required with `MQTT_URL` |
+| `RESEND_API_KEY` | Sending; unset writes messages to `EMAIL_PREVIEW_DIR` instead |
+| `EMAIL_FROM` | The sender address, required with `RESEND_API_KEY` |
+| `EMAIL_REPLY_TO` | Where replies go; optional |
+| `EMAIL_PREVIEW_DIR` | Where unsent messages are written (default `tmp/mail`) |
 | `AUTH_SECRET` | Session signing, 32+ characters |
 | `AUTH_URL` | Public URL of the API |
 | `CORS_ORIGIN` | The website's origin |

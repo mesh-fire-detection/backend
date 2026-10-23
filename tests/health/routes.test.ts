@@ -14,6 +14,7 @@ describe('GET /health', () => {
             status: 'ok',
             database: 'ok',
             mqtt: 'disabled',
+            email: 'ok',
         })
     })
 
@@ -35,5 +36,36 @@ describe('GET /health', () => {
 
         expect(response.status).toBe(503)
         expect(await response.json()).toMatchObject({ status: 'failing', database: 'failing' })
+    })
+
+    it('reports email as disabled when no provider is configured', async () => {
+        const h = createHarness({ emailConfigured: false })
+
+        const response = await h.request('/health')
+
+        expect(response.status).toBe(200)
+        expect(await response.json()).toMatchObject({ status: 'ok', email: 'disabled' })
+    })
+
+    it('fails with 503 once sending has failed repeatedly', async () => {
+        const h = createHarness()
+        h.email.willReturn(
+            { ok: false, failure: { kind: 'rejected', status: 429 } },
+            { ok: false, failure: { kind: 'rejected', status: 429 } },
+            { ok: false, failure: { kind: 'rejected', status: 429 } }
+        )
+        for (let attempt = 0; attempt < 3; attempt++) {
+            await h.services.email.send({
+                template: 'sign-in-code',
+                to: 'ranger@example.org',
+                subject: 'code',
+                text: 'code',
+            })
+        }
+
+        const response = await h.request('/health')
+
+        expect(response.status).toBe(503)
+        expect(await response.json()).toMatchObject({ status: 'failing', email: 'failing' })
     })
 })

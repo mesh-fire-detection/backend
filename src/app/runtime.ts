@@ -3,6 +3,7 @@ import { createServices, type Services } from '#src/app/services'
 import { type MqttState } from '#src/health/schema'
 import { createAuth, type Auth } from '#src/shared/auth/auth'
 import { type Db, openDatabase } from '#src/shared/db/connection'
+import { createEmail, type Email } from '#src/shared/email/configure'
 import { type Logger } from '#src/shared/logger'
 import { type Clock } from '#src/shared/time'
 
@@ -10,6 +11,7 @@ export type Runtime = {
     readonly db: Db
     readonly auth: Auth
     readonly services: Services
+    readonly email: Email
 }
 
 /** Opens the database and builds auth and services from validated config. */
@@ -27,6 +29,16 @@ export function createRuntime(deps: {
         trustedOrigin: env.CORS_ORIGIN,
         rateLimit: true,
     })
+    const email = createEmail({
+        config: {
+            apiKey: env.RESEND_API_KEY,
+            from: env.EMAIL_FROM,
+            replyTo: env.EMAIL_REPLY_TO,
+            previewDir: env.EMAIL_PREVIEW_DIR,
+        },
+        logger,
+        clock,
+    })
     const services = createServices({
         db,
         auth,
@@ -39,6 +51,7 @@ export function createRuntime(deps: {
             linkWindowMin: env.LINK_WINDOW_MIN,
         },
         mqttState: deps.mqttState,
+        email: email.service,
     })
-    return { db, auth, services }
+    return { db, auth, services, email }
 }

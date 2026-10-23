@@ -18,6 +18,7 @@ import { createReadingsRepo } from '#src/mesh/readings/repo'
 import { createReadingsService } from '#src/mesh/readings/service'
 import { type Auth } from '#src/shared/auth/auth'
 import { type Db, pingDatabase, transaction } from '#src/shared/db/connection'
+import { type EmailService } from '#src/shared/email/service'
 import { type Logger } from '#src/shared/logger'
 import { type Clock } from '#src/shared/time'
 import { createUserRepo } from '#src/users/repo'
@@ -37,6 +38,7 @@ export type ServiceDeps = {
     readonly logger: Logger
     readonly config: AppConfig
     readonly mqttState: () => MqttState
+    readonly email: EmailService
 }
 
 /** The only place repos and services are wired together. */
@@ -63,9 +65,11 @@ export function createServices(deps: ServiceDeps) {
     })
 
     return {
+        email: deps.email,
         health: createHealthService({
             databaseOk: () => pingDatabase(db),
             mqttState: deps.mqttState,
+            emailState: () => deps.email.state(),
         }),
         users: createUserService({ repo: createUserRepo(db), auth, clock }),
         devices: createDeviceService({ repo: deviceRepo, clock }),

@@ -19,7 +19,7 @@ try {
     const clock = systemClock
 
     let subscriber: Subscriber | undefined
-    const { db, auth, services } = createRuntime({
+    const { db, auth, services, email } = createRuntime({
         env,
         clock,
         logger,
@@ -51,6 +51,7 @@ try {
         services,
         corsOrigin: env.CORS_ORIGIN,
         devConsole: env.DEV_CONSOLE,
+        emailPreview: email.preview,
     })
     const server = serve({ fetch: app.fetch, port: env.PORT, hostname: env.HOST }, (info) => {
         logger.info({ host: info.address, port: info.port }, 'listening')
