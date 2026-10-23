@@ -14,8 +14,20 @@ ln -sfn "$release_dir" "$app_root/current.new"
 mv -Tf "$app_root/current.new" "$app_root/current"
 
 sudo systemctl restart mesh-backend
-sleep 3
-curl --fail --silent --show-error http://127.0.0.1:3000/health
+
+# Wait for the service rather than guessing at it. A fixed sleep made every
+# deploy report failure while the release was in fact fine: the app migrates
+# SQLite and opens its port in its own time, and three seconds is not it on a
+# 512 MB droplet. Poll until it answers, and fail only if it never does.
+deadline=$((SECONDS + 60))
+until curl --fail --silent --show-error --max-time 5 http://127.0.0.1:3000/health; do
+    if (( SECONDS >= deadline )); then
+        echo "The service did not become healthy within 60 seconds." >&2
+        systemctl --no-pager --lines=40 status mesh-backend >&2 || true
+        exit 1
+    fi
+    sleep 2
+done
 
 # Keep the five newest releases.
 ls -1dt "$app_root"/releases/* | tail -n +6 | xargs -r rm -rf
