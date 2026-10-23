@@ -45,13 +45,19 @@ export function createIngestService(deps: IngestDeps) {
         return device?.enabled === true ? device : undefined
     }
 
-    const storePayload = (device: DeviceRow, payload: MeshPayload, at: Date): AcceptedReading[] => {
+    const storePayload = (
+        device: DeviceRow,
+        payload: MeshPayload,
+        at: Date,
+        liveEligible: boolean
+    ): AcceptedReading[] => {
         switch (payload.kind) {
             case 'telemetry': {
                 if (payload.deviceMetrics !== null) {
                     repo.insertDeviceMetrics({
                         deviceId: device.id,
                         recordedAt: at,
+                        liveEligible,
                         ...payload.deviceMetrics,
                     })
                 }
@@ -60,7 +66,7 @@ export function createIngestService(deps: IngestDeps) {
                     recordedAt: at,
                     ...reading,
                 }))
-                repo.insertReadings(readings)
+                repo.insertReadings(readings.map((reading) => ({ ...reading, liveEligible })))
                 return readings
             }
             case 'neighborInfo': {
@@ -101,64 +107,80 @@ export function createIngestService(deps: IngestDeps) {
         }
     }
 
-    return {
-        /** Stores one decoded packet. Receipt time is the server's, not the node's clock. */
-        handle(packet: MeshPacket, receivedAt: Date): IngestOutcome {
-            const { outcome, readings } = transact((): Stored => {
-                const rejected = (reason: Rejection): Stored => ({
-                    outcome: { accepted: false, reason },
-                    readings: [],
-                })
-
-                const gatewayDevice = enabledDevice(packet.gatewayNodeNum)
-                const gateway =
-                    gatewayDevice === undefined
-                        ? undefined
-                        : gatewayRepo.findByDeviceId(gatewayDevice.id)
-                if (gatewayDevice === undefined || gateway?.enabled !== true) {
-                    return rejected('unknown_gateway')
-                }
-
-                const device = enabledDevice(packet.fromNodeNum)
-                if (device === undefined) return rejected('unregistered_node')
-
-                const windowStart = new Date(receivedAt.getTime() - DEDUPE_WINDOW_MS)
-                if (repo.wasSeenSince(packet.fromNodeNum, packet.packetId, windowStart)) {
-                    return rejected('duplicate')
-                }
-
-                repo.insertPacketSeen({
-                    fromNodeNum: packet.fromNodeNum,
-                    packetId: packet.packetId,
-                    gatewayId: gatewayDevice.id,
-                    receivedAt,
-                })
-                const stored = storePayload(device, packet.payload, receivedAt)
-                if (packet.direct !== null) {
-                    repo.insertLinkObservations([
-                        {
-                            fromDeviceId: device.id,
-                            toDeviceId: gatewayDevice.id,
-                            observedAt: receivedAt,
-                            snr: packet.direct.snr,
-                            rssi: packet.direct.rssi,
-                        },
-                    ])
-                }
-                repo.markHeard(device.id, receivedAt)
-                return {
-                    outcome: { accepted: true, deviceId: device.id, readingCount: stored.length },
-                    readings: stored,
-                }
-            })
-
-            if (readings.length > 0) {
-                try {
-                    onReadings(readings)
-                } catch (error) {
-                    logger.error({ err: error }, 'alert evaluation failed')
-                }
+    /** Caller owns the transaction; evaluation runs only after its outer commit. */
+    const store = (
+        packet: MeshPacket,
+        receivedAt: Date,
+        options?: { readonly recordedAt: Date; readonly liveEligible: boolean }
+    ): Stored => {
+        const rejected = (reason: Rejection): Stored => ({
+            outcome: { accepted: false, reason },
+            readings: [],
+        })
+        const gatewayDevice = enabledDevice(packet.gatewayNodeNum)
+        const gateway =
+            gatewayDevice === undefined ? undefined : gatewayRepo.findByDeviceId(gatewayDevice.id)
+        if (
+            gatewayDevice === undefined ||
+            gateway?.enabled !== true ||
+            (options === undefined && gateway.mqttUsername === null)
+        ) {
+            return rejected('unknown_gateway')
+        }
+        const device = enabledDevice(packet.fromNodeNum)
+        if (device === undefined) return rejected('unregistered_node')
+        if (packet.sourceHash !== undefined && repo.wasAcceptedViaNotehub(packet.sourceHash)) {
+            return rejected('duplicate')
+        }
+        const windowStart = new Date(receivedAt.getTime() - DEDUPE_WINDOW_MS)
+        if (repo.wasSeenSince(packet.fromNodeNum, packet.packetId, windowStart)) {
+            return rejected('duplicate')
+        }
+        repo.insertPacketSeen({
+            fromNodeNum: packet.fromNodeNum,
+            packetId: packet.packetId,
+            sourceHash: packet.sourceHash ?? null,
+            gatewayId: gatewayDevice.id,
+            receivedAt,
+        })
+        const recordedAt = options?.recordedAt ?? receivedAt
+        const liveEligible = options?.liveEligible ?? true
+        const stored = storePayload(device, packet.payload, recordedAt, liveEligible)
+        if (liveEligible) {
+            if (packet.direct !== null) {
+                repo.insertLinkObservations([
+                    {
+                        fromDeviceId: device.id,
+                        toDeviceId: gatewayDevice.id,
+                        observedAt: recordedAt,
+                        ...packet.direct,
+                    },
+                ])
             }
+            repo.markHeard(device.id, recordedAt)
+        }
+        return {
+            outcome: { accepted: true, deviceId: device.id, readingCount: stored.length },
+            readings: liveEligible ? stored : [],
+        }
+    }
+
+    const evaluate = (readings: readonly AcceptedReading[]): void => {
+        if (readings.length === 0) return
+        try {
+            onReadings(readings)
+        } catch (error) {
+            logger.error({ err: error }, 'alert evaluation failed')
+        }
+    }
+
+    return {
+        store,
+        evaluate,
+        /** Stores one MQTT packet at server receipt time. */
+        handle(packet: MeshPacket, receivedAt: Date): IngestOutcome {
+            const { outcome, readings } = transact(() => store(packet, receivedAt))
+            evaluate(readings)
             return outcome
         },
     }

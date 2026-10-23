@@ -28,6 +28,8 @@ describe('decodeEnvelope', () => {
         expect(result).toEqual({
             ok: true,
             packet: {
+                sourceHash: expect.any(String),
+                sourceTime: 1_780_000_000,
                 gatewayNodeNum: GATEWAY_NODE,
                 fromNodeNum: SENSOR_NODE,
                 packetId: 0x12_34_56_78,

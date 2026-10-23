@@ -1,7 +1,7 @@
-import { createDecipheriv } from 'node:crypto'
+import { createDecipheriv, createHash } from 'node:crypto'
 
 import { fromBinary } from '@bufbuild/protobuf'
-import { Mesh, Mqtt, Portnums } from '@meshtastic/protobufs'
+import { Mesh, Mqtt, Portnums, Telemetry } from '@meshtastic/protobufs'
 
 import { decodePayload } from '#src/mesh/ingest/payloads'
 import { type MeshPacket, MeshPacketSchema } from '#src/mesh/ingest/schema'
@@ -75,6 +75,14 @@ export function decodeEnvelope(bytes: Uint8Array, channelKey: Buffer): DecodeRes
 
     const heardDirectly = packet.hopStart > 0 && packet.hopStart === packet.hopLimit
     const result = MeshPacketSchema.safeParse({
+        sourceHash: createHash('sha256')
+            .update(`${packet.from}:${packet.id}:`)
+            .update(plaintext)
+            .digest('hex'),
+        sourceTime:
+            data.portnum === Portnums.PortNum.TELEMETRY_APP
+                ? tryParse(() => fromBinary(Telemetry.TelemetrySchema, data.payload).time)
+                : undefined,
         gatewayNodeNum,
         fromNodeNum: packet.from,
         packetId: packet.id,

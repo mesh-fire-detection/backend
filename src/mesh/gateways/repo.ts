@@ -20,6 +20,14 @@ export function createGatewayRepo(db: Db) {
             return db.select().from(gateways).where(eq(gateways.mqttUsername, mqttUsername)).get()
         },
 
+        findByNotecardUid(notecardUid: string): GatewayRow | undefined {
+            return db.select().from(gateways).where(eq(gateways.notecardUid, notecardUid)).get()
+        },
+
+        findByNotehubTokenHash(tokenHash: string): GatewayRow | undefined {
+            return db.select().from(gateways).where(eq(gateways.notehubTokenHash, tokenHash)).get()
+        },
+
         insert(row: NewGatewayRow): GatewayRow {
             return db.insert(gateways).values(row).returning().get()
         },
@@ -27,7 +35,9 @@ export function createGatewayRepo(db: Db) {
         update(
             deviceId: string,
             patch: {
-                mqttUsername?: string | undefined
+                mqttUsername?: string | null | undefined
+                notecardUid?: string | null | undefined
+                notehubTokenHash?: string | null | undefined
                 enabled?: boolean | undefined
                 updatedAt: Date
             }

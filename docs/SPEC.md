@@ -46,7 +46,7 @@ Node types, from the site: `base`, `cellular` (gateway with LTE backhaul),
 | Repo | New repo, same conventions as the web repo |
 | Hosting | One Hetzner VPS (~$5/month). GitHub is not the live backend. |
 | Database | SQLite, continuously backed up off-server |
-| Ingest | Meshtastic MQTT uplink to our own Mosquitto broker (see Ingest) |
+| Ingest | Meshtastic MQTT uplink; opt-in authenticated Notehub HTTPS adapter for Blues gateways (see Ingest) |
 | Retention | Keep all data indefinitely. Nothing is deleted automatically. |
 | Accounts | Email and password, two roles: `admin` and `user`, created by invite link |
 | Map feed | `/api/network.json` is public and read-only |
@@ -82,7 +82,56 @@ MQTT broker using Meshtastic's built-in MQTT module.
 - Meshtastic delivers duplicate packets. The server stores a packet once per
   sender node number and packet ID within 24 hours. Packet IDs are random
   32-bit numbers and eventually repeat, so they are not unique forever.
-- Receive time is the server's clock, not the node's.
+- For MQTT, receive time is the server's clock, not the node's.
+
+### Blues Notecard / Notehub integration
+
+The backend provides an opt-in `POST /v1/ingest/notehub` adapter for cellular
+gateways using Blues Notecard and Notehub. Gateway firmware must queue the
+original encrypted Meshtastic ServiceEnvelope in an untemplated `mesh.qos`
+Note's body using the [version 1 contract](NOTEHUB.md). The firmware transport
+and real hardware delivery remain follow-up work; implementing this adapter
+does not establish a working cellular gateway.
+
+The following decisions were approved on October 23, 2026:
+
+- Authenticate Notehub delivery over HTTPS with a separate high-entropy bearer
+  credential per gateway. Store only its SHA-256 hash. Trust Notehub to supply
+  the Notecard UID; require that UID and the envelope gateway node number to
+  match the registered, enabled gateway. Sender devices must also be registered
+  and enabled. Browser sessions cannot authorize this endpoint.
+- Keep the original channel encryption and existing telemetry metric names.
+  Accept telemetry only in this first adapter. MQTT behavior for other packet
+  types remains unchanged.
+- Store sensor telemetry time as the reading's `recordedAt`, Notehub capture
+  time and backend receipt time in the delivery record. Missing sensor time
+  falls back to Notehub capture time and is always history-only. Reject capture
+  or sensor times more than five minutes into the future, or sensor time more
+  than five minutes after Notehub capture.
+- Readings older than five minutes at receipt, future readings, and readings
+  older than the sender's last-heard time are history-only. They cannot change
+  last-heard, the live battery value, or live alerts, including later rule
+  duration calculations. Recent readings with a sensor clock use sensor time
+  for last-heard; last-heard never moves backward.
+- Accept one event or an atomic batch of up to 16, with a 64 KiB request limit
+  and at most 4096 decoded bytes per envelope. A 200 response follows commit
+  and reports inserted packets and duplicates. Invalid batches write nothing.
+  Database failures return a retryable 503. Store before evaluating alerts.
+- Keep event IDs and content hashes permanently. Reuse of an event ID with
+  changed content returns 409. For timestamped telemetry, fingerprint the
+  sender, packet ID, and original decrypted Data bytes, retaining that identity
+  indefinitely across Notehub and newly decoded MQTT traffic. Same sender and
+  packet ID with changed content inside MQTT's 24-hour window returns 409 on
+  Notehub delivery. Legacy MQTT rows and clockless packets have only the
+  24-hour cross-path packet check; repeating the same Notehub event is always
+  idempotent. The limitations are explicit in the runbook.
+
+Gateway records can carry an MQTT username, a unique Notecard UID, or both.
+Notecard registration and credential provisioning are explicit admin actions;
+an MQTT username is not required for Notecard gateways. No cloud resources are
+created automatically. See [setup and failure handling](NOTEHUB.md) and the
+[implementation plan](plans/notecard-ingest.md) for outstanding firmware and
+hardware work.
 
 ## Sensor metrics
 
@@ -113,8 +162,10 @@ Every device must be registered before its data is accepted.
     3. The registered-device allowlist above (for senders and gateways).
 - Known limitation: standard Meshtastic channel packets are not signed per
   node, so someone holding the channel key could impersonate a node ID.
-  Per-device message signing is deferred. If ingest ever moves to HTTP, each
-  request is signed with the device's secret key (HMAC-SHA256) and timestamped.
+  Per-device message signing is deferred. Direct device HTTP ingest, if added,
+  requires timestamped HMAC-SHA256 signatures. Notehub delivery is the approved
+  exception: its per-gateway HTTPS credential authenticates the cloud service,
+  with identity binding and durable deduplication as described above.
 
 ## Users and roles
 
@@ -268,7 +319,10 @@ domain. Both share `meshfiredetection.org`, so session cookies are same-site.
 - **Camera nodes.** How vision nodes connect, and whether images are sent at
   all. LoRa packets hold only about 200 bytes. Deferred.
 - **Status thresholds.** See Node status.
-- **HTTP fallback.** Whether any gateway will post over HTTP instead of MQTT.
+- **Notecard field verification.** Implement the gateway firmware transport and
+  capture a real Notehub event to verify the [adapter contract](NOTEHUB.md).
+  Measure latency, durable queue behavior, and event costs before fleet rollout.
+  Direct gateway HTTP fallback remains undecided.
 - **Gateway TLS.** Test MQTT over TLS on the real gateway hardware before
   switching the broker's field listener to TLS.
 - **Real-packet check.** Decryption and decoding are tested against packets

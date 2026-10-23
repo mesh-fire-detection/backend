@@ -73,6 +73,7 @@ try {
                 status: 'ok',
                 database: 'ok',
                 mqtt: 'disabled',
+                notehub: { status: 'disabled', lastReceivedAt: null },
                 // No API key in this run, so sending is off rather than broken.
                 email: 'disabled',
             })

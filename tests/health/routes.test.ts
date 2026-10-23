@@ -14,6 +14,7 @@ describe('GET /health', () => {
             status: 'ok',
             database: 'ok',
             mqtt: 'disabled',
+            notehub: { status: 'disabled', lastReceivedAt: null },
             email: 'ok',
         })
     })

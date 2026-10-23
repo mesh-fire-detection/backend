@@ -23,6 +23,7 @@ describe('parseEnv', () => {
             MQTT_PASSWORD: undefined,
             MQTT_TOPIC: 'msh/US/2/e/#',
             MESH_CHANNEL_KEY: undefined,
+            NOTEHUB_ENABLED: false,
             RESEND_API_KEY: undefined,
             EMAIL_FROM: undefined,
             EMAIL_REPLY_TO: undefined,
@@ -65,6 +66,13 @@ describe('parseEnv', () => {
         expect(() => parseEnv({ ...REQUIRED, MQTT_TOPIC: 'msh/US/2/e/' })).toThrow(
             /MQTT_TOPIC[\S\s]*quote/
         )
+    })
+
+    it('requires a private channel key for Notehub without requiring MQTT', () => {
+        expect(() => parseEnv({ ...REQUIRED, NOTEHUB_ENABLED: 'true' })).toThrow(/MESH_CHANNEL_KEY/)
+        const env = parseEnv({ ...REQUIRED, NOTEHUB_ENABLED: 'true', MESH_CHANNEL_KEY: KEY_16 })
+        expect(env.NOTEHUB_ENABLED).toBe(true)
+        expect(env.MQTT_URL).toBeUndefined()
     })
 
     it('requires a from-address whenever a key is set', () => {

@@ -1,10 +1,11 @@
-import { and, eq, gt } from 'drizzle-orm'
+import { and, eq, gt, isNull, lt, or } from 'drizzle-orm'
 
 import { type Db } from '#src/shared/db/connection'
 import {
     deviceMetrics,
     devices,
     linkObservations,
+    notehubSamples,
     packetsSeen,
     readings,
 } from '#src/shared/db/schema'
@@ -24,6 +25,16 @@ export type ReportedFields = {
 
 export function createIngestRepo(db: Db) {
     return {
+        wasAcceptedViaNotehub(sourceHash: string): boolean {
+            return (
+                db
+                    .select()
+                    .from(notehubSamples)
+                    .where(eq(notehubSamples.sourceHash, sourceHash))
+                    .get() !== undefined
+            )
+        },
+
         wasSeenSince(fromNodeNum: number, packetId: number, since: Date): boolean {
             const row = db
                 .select({ id: packetsSeen.id })
@@ -62,7 +73,11 @@ export function createIngestRepo(db: Db) {
         },
 
         markHeard(deviceId: string, at: Date): void {
-            db.update(devices).set({ lastHeardAt: at }).where(eq(devices.id, deviceId)).run()
+            const newer = or(isNull(devices.lastHeardAt), lt(devices.lastHeardAt, at))
+            db.update(devices)
+                .set({ lastHeardAt: at })
+                .where(and(eq(devices.id, deviceId), newer))
+                .run()
         },
 
         updateReported(deviceId: string, fields: ReportedFields): void {

@@ -128,7 +128,9 @@ export const gateways = sqliteTable('gateways', {
     deviceId: text()
         .primaryKey()
         .references(() => devices.id),
-    mqttUsername: text().notNull().unique(),
+    mqttUsername: text().unique(),
+    notecardUid: text().unique(),
+    notehubTokenHash: text().unique(),
     enabled: integer({ mode: 'boolean' }).notNull().default(true),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -149,9 +151,32 @@ export const packetsSeen = sqliteTable(
             .notNull()
             .references(() => devices.id),
         receivedAt: timestamp().notNull(),
+        sourceHash: text(),
     },
-    (t) => [index('packets_seen_key_idx').on(t.fromNodeNum, t.packetId, t.receivedAt)]
+    (t) => [
+        index('packets_seen_key_idx').on(t.fromNodeNum, t.packetId, t.receivedAt),
+        index('packets_seen_source_hash_idx').on(t.sourceHash),
+    ]
 )
+
+export const notehubEvents = sqliteTable(
+    'notehub_events',
+    {
+        eventId: text().primaryKey(),
+        gatewayId: text()
+            .notNull()
+            .references(() => devices.id),
+        contentHash: text().notNull(),
+        capturedAt: timestamp().notNull(),
+        receivedAt: timestamp().notNull(),
+    },
+    (t) => [index('notehub_events_received_at_idx').on(t.receivedAt)]
+)
+
+export const notehubSamples = sqliteTable('notehub_samples', {
+    sourceHash: text().primaryKey(),
+    receivedAt: timestamp().notNull(),
+})
 
 export const deviceMetrics = sqliteTable(
     'device_metrics',
@@ -161,6 +186,7 @@ export const deviceMetrics = sqliteTable(
             .notNull()
             .references(() => devices.id),
         recordedAt: timestamp().notNull(),
+        liveEligible: integer({ mode: 'boolean' }).notNull().default(true),
         batteryPct: real(),
         voltage: real(),
         uptimeS: integer(),
@@ -177,6 +203,7 @@ export const readings = sqliteTable(
             .notNull()
             .references(() => devices.id),
         recordedAt: timestamp().notNull(),
+        liveEligible: integer({ mode: 'boolean' }).notNull().default(true),
         metric: text().notNull(),
         value: real().notNull(),
     },

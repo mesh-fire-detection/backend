@@ -47,6 +47,11 @@ const PayloadSchema = z.discriminatedUnion('kind', [
 
 /** A decrypted, decoded mesh packet. Validated before ingest logic sees it. */
 export const MeshPacketSchema = z.object({
+    sourceHash: z
+        .string()
+        .regex(/^[\da-f]{64}$/)
+        .optional(),
+    sourceTime: z.number().int().min(0).optional(),
     gatewayNodeNum: NodeNumSchema,
     fromNodeNum: NodeNumSchema,
     packetId: z.number().int().min(1).max(0xff_ff_ff_ff),

@@ -1,7 +1,9 @@
 import { type Health, type MqttState } from '#src/health/schema'
+import { type NotehubHealth } from '#src/mesh/notehub/schema'
 import { type EmailState } from '#src/shared/email/message'
 
 export type HealthProbes = {
+    readonly notehubHealth: () => NotehubHealth
     readonly databaseOk: () => boolean
     readonly mqttState: () => MqttState
     readonly emailState: () => EmailState
@@ -16,10 +18,15 @@ export function createHealthService(probes: HealthProbes) {
     return {
         check(): Health {
             const database = probes.databaseOk() ? 'ok' : 'failing'
+            const notehub = probes.notehubHealth()
             const mqtt = probes.mqttState()
             const email = probes.emailState()
-            const failing = database === 'failing' || mqtt === 'disconnected' || email === 'failing'
-            return { status: failing ? 'failing' : 'ok', database, mqtt, email }
+            const failing =
+                database === 'failing' ||
+                mqtt === 'disconnected' ||
+                email === 'failing' ||
+                notehub.status === 'failing'
+            return { status: failing ? 'failing' : 'ok', database, mqtt, notehub, email }
         },
     }
 }

@@ -29,7 +29,9 @@ type RequestOptions = {
 }
 
 type HarnessOptions = {
+    readonly databasePath?: string | undefined
     /** Mounts the development API console, as the DEV_CONSOLE env flag does. */
+    readonly notehubChannelKey?: Buffer | undefined
     readonly devConsole?: boolean | undefined
     /** False stands in for a deployment with no provider key, as /health reports it. */
     readonly emailConfigured?: boolean | undefined
@@ -39,7 +41,9 @@ type HarnessOptions = {
 
 /** A fresh in-memory database, services, and HTTP app per call, with a controllable clock. */
 export function createHarness({
+    databasePath = ':memory:',
     devConsole,
+    notehubChannelKey,
     emailConfigured = true,
     emailPreview,
 }: HarnessOptions = {}) {
@@ -48,7 +52,7 @@ export function createHarness({
     const clock = () => new Date(now)
     const logger = createLogger('silent')
 
-    const db = openDatabase(':memory:')
+    const db = openDatabase(databasePath)
     const auth = createAuth(db, {
         secret: 'test-secret-that-is-at-least-32-characters',
         baseUrl: 'http://localhost:3000',
@@ -61,7 +65,7 @@ export function createHarness({
         auth,
         clock,
         logger,
-        config: TEST_CONFIG,
+        config: { ...TEST_CONFIG, notehubChannelKey },
         mqttState: () => mqttState,
         email: createEmailService({
             sender: fakeEmail.sender,
