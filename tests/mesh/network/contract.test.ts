@@ -18,7 +18,11 @@ const checkFixture = (source: string) => {
         return spawnSync(
             process.execPath,
             [path.join(rootDir, 'config/build/checkNetworkContract.mjs'), directory],
-            { cwd: rootDir, encoding: 'utf8', timeout: 10_000 }
+            // Generous for the same reason as the Vitest timeout below: this
+            // spawns a real TypeScript compile that competes with the rest of
+            // the suite. Being killed here reads as a contract failure, which
+            // is the most misleading way this could fail.
+            { cwd: rootDir, encoding: 'utf8', timeout: 60_000 }
         )
     } finally {
         rmSync(directory, { recursive: true, force: true })
@@ -31,7 +35,7 @@ const checkFixture = (source: string) => {
  * default made that a coin toss under load, failing a push and passing on the
  * identical retry.
  */
-const SPAWNS_A_COMPILE = { timeout: 30_000 }
+const SPAWNS_A_COMPILE = { timeout: 90_000 }
 
 describe('network contract check', () => {
     it('accepts matching types, including re-exports', SPAWNS_A_COMPILE, () => {
