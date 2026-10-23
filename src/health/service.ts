@@ -1,3 +1,4 @@
+import { APP_VERSION } from '#src/app/version'
 import { type Health, type MqttState } from '#src/health/schema'
 import { type NotehubHealth } from '#src/mesh/notehub/schema'
 import { type EmailState } from '#src/shared/email/message'
@@ -26,7 +27,14 @@ export function createHealthService(probes: HealthProbes) {
                 mqtt === 'disconnected' ||
                 email === 'failing' ||
                 notehub.status === 'failing'
-            return { status: failing ? 'failing' : 'ok', database, mqtt, notehub, email }
+            return {
+                status: failing ? 'failing' : 'ok',
+                version: APP_VERSION,
+                database,
+                mqtt,
+                notehub,
+                email,
+            }
         },
     }
 }
