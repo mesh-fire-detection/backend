@@ -207,6 +207,34 @@ SSL/TLS settings:
 > the miss.** On macOS: `sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder`,
 > then restart the browser.
 
+### Email records
+
+Transactional email goes through Resend (see `SPEC.md`). Add the domain in the
+Resend dashboard and copy the generated values; the records below are the shape
+to expect, not values to type in.
+
+| Name                | Type | Content                      | Proxy status |
+| ------------------- | ---- | ---------------------------- | ------------ |
+| `send`              | TXT  | SPF, authorising Resend       | n/a          |
+| `resend._domainkey` | TXT  | DKIM public key               | n/a          |
+| `send`              | MX   | Resend's bounce host          | n/a          |
+| `_dmarc`            | TXT  | `v=DMARC1; p=none; rua=...`   | n/a          |
+
+Send from the `send` subdomain rather than the root, so a problem with
+automated mail cannot damage the reputation of the domain used for ordinary
+correspondence.
+
+> **Nuance — the proxy does not apply to mail.** TXT and MX records have no
+> proxy setting; the orange cloud is an HTTP feature. Adding mail records does
+> not change how `api` or the website is served.
+
+> **Nuance — start DMARC at `p=none`.** A strict policy before SPF and DKIM are
+> confirmed working will send legitimate sign-in codes to spam. Read the
+> reports for a few weeks, then tighten.
+
+The API key is a secret: it belongs in `/etc/mesh-backend/env` with the others,
+never in the repository.
+
 ## 5. GitHub deploys
 
 The `production` environment of `mesh-fire-detection/backend` holds:
@@ -296,6 +324,9 @@ certificate for `mqtt.meshfiredetection.org`, open `8883/tcp`, move gateways to
 ## Open items
 
 - **Backups:** create an R2 or B2 bucket and enable Litestream.
+- **Email:** create the Resend account, verify `send.meshfiredetection.org`,
+  and put the API key in `/etc/mesh-backend/env`. Nothing sends mail until
+  then; the code lands with #8.
 - **Channel key on devices:** the public firmware and the website's `/firmware`
   build must not contain the key. Options under discussion: a private local
   firmware build with the key in an ignored file, or a provisioning step on the
