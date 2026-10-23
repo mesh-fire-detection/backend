@@ -6,17 +6,23 @@ import ts from 'typescript'
 
 const rootDir = path.resolve(import.meta.dirname, '../..')
 const webDir = path.resolve(rootDir, process.argv[2] ?? '../web')
+// The two files whose exported types must agree.
 const files = [
     path.join(rootDir, 'src/mesh/network/schema.ts'),
     path.join(webDir, 'src/core/content/network/network.ts'),
 ]
+
+// Compiled alongside them, but carrying no exports of its own: the website's
+// contract file reaches Vite globals through its type imports, and this
+// declares them. See the file for why they are declared rather than installed.
+const webGlobals = path.join(rootDir, 'config/build/webGlobals.d.ts')
 
 const config = ts.readConfigFile(path.join(rootDir, 'tsconfig.json'), ts.sys.readFile)
 assert.equal(config.error, undefined, 'Could not read the backend tsconfig.json')
 const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, rootDir, {
     paths: { '@core/*': [path.join(webDir, 'src/core/*.ts')] },
 })
-const program = ts.createProgram(files, parsed.options)
+const program = ts.createProgram([...files, webGlobals], parsed.options)
 const diagnostics = [...parsed.errors, ...ts.getPreEmitDiagnostics(program)]
 assert.equal(
     diagnostics.length,

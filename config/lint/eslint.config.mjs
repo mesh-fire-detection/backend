@@ -54,7 +54,16 @@ const httpImports = {
 
 export default tseslint.config(
     {
-        ignores: ['dist', 'node_modules', 'data', 'logs', 'coverage'],
+        ignores: [
+            'dist',
+            'node_modules',
+            'data',
+            'logs',
+            'coverage',
+            // Ambient declarations for the contract check, deliberately outside
+            // the backend's tsconfig, so the project service cannot parse them.
+            'config/build/webGlobals.d.ts',
+        ],
     },
 
     {
