@@ -12,7 +12,9 @@ import { networkRoutes } from '#src/mesh/network/routes'
 import { readingsRoutes } from '#src/mesh/readings/routes'
 import { access, sessionMiddleware, type AppEnv } from '#src/shared/auth/access'
 import { AUTH_BASE_PATH, type Auth } from '#src/shared/auth/auth'
+import { type PreviewStore } from '#src/shared/email/preview'
 import { DEV_CONSOLE_PATH, devConsoleRoutes } from '#src/shared/http/devConsole'
+import { DEV_MAIL_PATH, devMailRoutes } from '#src/shared/http/devMail'
 import { createErrorHandler, notFound } from '#src/shared/http/handler'
 import { rateLimit } from '#src/shared/http/rateLimit'
 import { type Logger } from '#src/shared/logger'
@@ -25,6 +27,11 @@ export type AppDeps = {
     readonly corsOrigin: string
     /** Mounts the development API console. Off unless explicitly enabled. */
     readonly devConsole?: boolean | undefined
+    /**
+     * Present only when no provider is configured. With the console on, its
+     * messages are readable at /dev/mail so sign-in can be worked on locally.
+     */
+    readonly emailPreview?: PreviewStore | undefined
 }
 
 /** Builds the HTTP app without listening, so tests can drive it through `app.request()`. */
@@ -34,6 +41,7 @@ export function createApp({
     services,
     corsOrigin,
     devConsole = false,
+    emailPreview,
 }: AppDeps): Hono<AppEnv> {
     const app = new Hono<AppEnv>()
 
@@ -66,7 +74,12 @@ export function createApp({
     app.route('/', alertRoutes(services.alerts))
 
     // Last, so the document it builds sees every route above it.
-    if (devConsole) app.route(DEV_CONSOLE_PATH, devConsoleRoutes(app))
+    if (devConsole) {
+        if (emailPreview !== undefined) {
+            app.route(`${DEV_CONSOLE_PATH}${DEV_MAIL_PATH}`, devMailRoutes(emailPreview))
+        }
+        app.route(DEV_CONSOLE_PATH, devConsoleRoutes(app))
+    }
 
     return app
 }

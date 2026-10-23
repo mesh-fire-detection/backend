@@ -6,7 +6,10 @@ import { type MqttState } from '#src/health/schema'
 import { type Role } from '#src/shared/auth/access'
 import { createAuth } from '#src/shared/auth/auth'
 import { openDatabase } from '#src/shared/db/connection'
+import { type PreviewStore } from '#src/shared/email/preview'
+import { createEmailService } from '#src/shared/email/service'
 import { createLogger } from '#src/shared/logger'
+import { createFakeEmail } from '#tests/support/email'
 
 export const SITE_ORIGIN = 'https://meshfiredetection.org'
 export const START = new Date('2026-06-01T12:00:00.000Z')
@@ -28,10 +31,18 @@ type RequestOptions = {
 type HarnessOptions = {
     /** Mounts the development API console, as the DEV_CONSOLE env flag does. */
     readonly devConsole?: boolean | undefined
+    /** False stands in for a deployment with no provider key, as /health reports it. */
+    readonly emailConfigured?: boolean | undefined
+    /** Supplied when a test wants /dev/mail, which the app mounts only with one. */
+    readonly emailPreview?: PreviewStore | undefined
 }
 
 /** A fresh in-memory database, services, and HTTP app per call, with a controllable clock. */
-export function createHarness({ devConsole }: HarnessOptions = {}) {
+export function createHarness({
+    devConsole,
+    emailConfigured = true,
+    emailPreview,
+}: HarnessOptions = {}) {
     let now = START.getTime()
     let mqttState: MqttState = 'disabled'
     const clock = () => new Date(now)
@@ -44,6 +55,7 @@ export function createHarness({ devConsole }: HarnessOptions = {}) {
         trustedOrigin: SITE_ORIGIN,
         rateLimit: false,
     })
+    const fakeEmail = createFakeEmail()
     const services = createServices({
         db,
         auth,
@@ -51,6 +63,11 @@ export function createHarness({ devConsole }: HarnessOptions = {}) {
         logger,
         config: TEST_CONFIG,
         mqttState: () => mqttState,
+        email: createEmailService({
+            sender: fakeEmail.sender,
+            configured: emailConfigured,
+            logger,
+        }),
     })
     const app = createApp({
         logger,
@@ -58,6 +75,7 @@ export function createHarness({ devConsole }: HarnessOptions = {}) {
         services,
         corsOrigin: SITE_ORIGIN,
         devConsole,
+        emailPreview,
     })
 
     const request = (path: string, options: RequestOptions = {}): Promise<Response> => {
@@ -103,6 +121,7 @@ export function createHarness({ devConsole }: HarnessOptions = {}) {
         db,
         auth,
         app,
+        email: fakeEmail,
         services,
         clock,
         request,

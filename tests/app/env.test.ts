@@ -23,6 +23,10 @@ describe('parseEnv', () => {
             MQTT_PASSWORD: undefined,
             MQTT_TOPIC: 'msh/US/2/e/#',
             MESH_CHANNEL_KEY: undefined,
+            RESEND_API_KEY: undefined,
+            EMAIL_FROM: undefined,
+            EMAIL_REPLY_TO: undefined,
+            EMAIL_PREVIEW_DIR: 'tmp/mail',
             STATUS_DEGRADED_MIN: 30,
             STATUS_OFFLINE_MIN: 120,
             LOW_BATTERY_PCT: 20,
@@ -61,6 +65,17 @@ describe('parseEnv', () => {
         expect(() => parseEnv({ ...REQUIRED, MQTT_TOPIC: 'msh/US/2/e/' })).toThrow(
             /MQTT_TOPIC[\S\s]*quote/
         )
+    })
+
+    it('requires a from-address whenever a key is set', () => {
+        expect(() => parseEnv({ ...REQUIRED, RESEND_API_KEY: 'test-key' })).toThrow(/EMAIL_FROM/)
+        expect(
+            parseEnv({ ...REQUIRED, RESEND_API_KEY: 'test-key', EMAIL_FROM: 'a@b.org' }).EMAIL_FROM
+        ).toBe('a@b.org')
+    })
+
+    it('runs without a key, which is how development sends nothing', () => {
+        expect(parseEnv(REQUIRED).RESEND_API_KEY).toBeUndefined()
     })
 
     it('requires the offline threshold to exceed the degraded one', () => {

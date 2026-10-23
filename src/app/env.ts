@@ -38,6 +38,17 @@ const EnvSchema = z
             .default('msh/US/2/e/#'),
         MESH_CHANNEL_KEY: optionalText,
 
+        /**
+         * Leave unset to run without sending (local development). Messages are
+         * then written to EMAIL_PREVIEW_DIR and listed at /dev/mail instead.
+         */
+        RESEND_API_KEY: optionalText,
+        /** The sender, e.g. `Mesh Fire Detection <no-reply@send.meshfiredetection.org>`. */
+        EMAIL_FROM: optionalText,
+        /** Where replies should go. People reply to automated mail regardless. */
+        EMAIL_REPLY_TO: optionalText,
+        EMAIL_PREVIEW_DIR: z.string().min(1).default('tmp/mail'),
+
         AUTH_SECRET: z.string().min(32, 'AUTH_SECRET must be at least 32 characters'),
         /** Public URL of this API, e.g. https://api.meshfiredetection.org */
         AUTH_URL: z.url(),
@@ -54,6 +65,13 @@ const EnvSchema = z
                 code: 'custom',
                 path: ['STATUS_OFFLINE_MIN'],
                 message: 'must be greater than STATUS_DEGRADED_MIN',
+            })
+        }
+        if (env.RESEND_API_KEY !== undefined && env.EMAIL_FROM === undefined) {
+            ctx.addIssue({
+                code: 'custom',
+                path: ['EMAIL_FROM'],
+                message: 'required with RESEND_API_KEY: the address messages are sent from',
             })
         }
         if (env.MQTT_URL === undefined) return

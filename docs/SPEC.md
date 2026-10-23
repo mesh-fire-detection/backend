@@ -161,6 +161,19 @@ Rules that follow from this:
 - Review usage before enabling notifications, and move to a paid plan or to
   SES rather than letting codes fail.
 
+**Failure handling.** A send is retried once, and only when the request never
+completed, using the provider's idempotency key so a timed-out request that was
+in fact accepted cannot deliver twice. A rejection is not retried: it is our
+mistake or an exhausted allowance, and repeating it only burns more of what is
+left. There is no queue surviving a restart, because a code expires in minutes
+and delivering it afterwards is worthless.
+
+**Local development.** Without an API key the backend writes messages to
+`EMAIL_PREVIEW_DIR` and lists them at `/dev/mail`, which exists only when
+`DEV_CONSOLE` is on. Logs record that a message was sent and under which
+template, never the recipient and never the code: a code in a log file is a
+code anyone with the log can use.
+
 **Privacy.** Email addresses are personal data and leave our server when a
 message is sent. Send only what the message needs, never log an address or a
 code, and keep the provider's own logs in mind when deciding what to put in a
