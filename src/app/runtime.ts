@@ -45,6 +45,9 @@ export function createRuntime(deps: {
         clock,
         logger,
         config: {
+            notehubChannelKey: env.NOTEHUB_ENABLED
+                ? Buffer.from(env.MESH_CHANNEL_KEY ?? '', 'base64')
+                : undefined,
             statusDegradedMin: env.STATUS_DEGRADED_MIN,
             statusOfflineMin: env.STATUS_OFFLINE_MIN,
             lowBatteryPct: env.LOW_BATTERY_PCT,

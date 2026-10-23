@@ -69,4 +69,41 @@ describe('gateway routes', () => {
         expect(asUser.status).toBe(403)
         expect(anonymous.status).toBe(401)
     })
+
+    it('registers a Notecard without an MQTT username and enforces unique identities', async () => {
+        const { h, admin } = await setup()
+        h.services.devices.register(deviceInput({ id: 'cel-02', nodeId: 0x0b }))
+        const post = (body: object) =>
+            h.request('/v1/gateways', { method: 'POST', cookie: admin.cookie, body })
+        const created = await post({ deviceId: 'cel-01', notecardUid: 'dev:860322068012345' })
+        expect(created.status).toBe(201)
+        expect(await created.json()).toMatchObject({
+            gateway: { mqttUsername: null, notecardUid: 'dev:860322068012345' },
+        })
+        const duplicate = await post({ deviceId: 'cel-02', notecardUid: 'dev:860322068012345' })
+        const missing = await post({ deviceId: 'cel-02' })
+        const invalid = await post({ deviceId: 'cel-02', notecardUid: 'not-a-uid' })
+        expect(duplicate.status).toBe(409)
+        expect(missing.status).toBe(400)
+        expect(invalid.status).toBe(400)
+    })
+
+    it('requires a transport identity after updates and supports adding a Notecard to MQTT', async () => {
+        const { h, admin } = await setup()
+        h.services.gateways.register({ deviceId: 'cel-01', mqttUsername: 'gw-cel-01' })
+        const patch = (body: object) =>
+            h.request('/v1/gateways/cel-01', { method: 'PATCH', cookie: admin.cookie, body })
+        const onlyRemoval = await patch({ mqttUsername: null })
+        const add = await patch({ notecardUid: 'dev:860322068012345' })
+        const switchTransport = await patch({ mqttUsername: null })
+        const lastRemoval = await patch({ notecardUid: null })
+        expect(onlyRemoval.status).toBe(400)
+        expect(add.status).toBe(200)
+        expect(switchTransport.status).toBe(200)
+        expect(lastRemoval.status).toBe(400)
+        expect(h.services.gateways.list()[0]).toMatchObject({
+            mqttUsername: null,
+            notecardUid: 'dev:860322068012345',
+        })
+    })
 })

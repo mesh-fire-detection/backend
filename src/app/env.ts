@@ -37,6 +37,7 @@ const EnvSchema = z
             })
             .default('msh/US/2/e/#'),
         MESH_CHANNEL_KEY: optionalText,
+        NOTEHUB_ENABLED: z.stringbool().default(false),
 
         /**
          * Leave unset to run without sending (local development). Messages are
@@ -74,14 +75,14 @@ const EnvSchema = z
                 message: 'required with RESEND_API_KEY: the address messages are sent from',
             })
         }
-        if (env.MQTT_URL === undefined) return
+        if (env.MQTT_URL === undefined && !env.NOTEHUB_ENABLED) return
         const keyBytes = Buffer.from(env.MESH_CHANNEL_KEY ?? '', 'base64').length
         if (keyBytes !== 16 && keyBytes !== 32) {
             ctx.addIssue({
                 code: 'custom',
                 path: ['MESH_CHANNEL_KEY'],
                 message:
-                    'required with MQTT_URL: a private base64 AES key of 16 or 32 bytes (default keys are rejected)',
+                    'required with MQTT_URL or NOTEHUB_ENABLED: a private base64 AES key of 16 or 32 bytes (default keys are rejected)',
             })
         }
     })

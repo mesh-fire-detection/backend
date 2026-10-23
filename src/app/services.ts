@@ -14,6 +14,8 @@ import { createIngestRepo } from '#src/mesh/ingest/repo'
 import { createIngestService } from '#src/mesh/ingest/service'
 import { createNetworkRepo } from '#src/mesh/network/repo'
 import { createNetworkService } from '#src/mesh/network/service'
+import { createNotehubRepo } from '#src/mesh/notehub/repo'
+import { createNotehubService } from '#src/mesh/notehub/service'
 import { createReadingsRepo } from '#src/mesh/readings/repo'
 import { createReadingsService } from '#src/mesh/readings/service'
 import { type Auth } from '#src/shared/auth/auth'
@@ -28,6 +30,7 @@ export type AppConfig = {
     readonly statusDegradedMin: number
     readonly statusOfflineMin: number
     readonly lowBatteryPct: number
+    readonly notehubChannelKey?: Buffer | undefined
     readonly linkWindowMin: number
 }
 
@@ -64,26 +67,40 @@ export function createServices(deps: ServiceDeps) {
         thresholds: { offlineMin: config.statusOfflineMin, lowBatteryPct: config.lowBatteryPct },
     })
 
+    const ingest = createIngestService({
+        deviceRepo,
+        gatewayRepo,
+        repo: createIngestRepo(db),
+        transact,
+        onReadings: (readings) => {
+            evaluation.onReadings(readings)
+        },
+        logger,
+    })
+    const notehub = createNotehubService({
+        repo: createNotehubRepo(db),
+        gatewayRepo,
+        deviceRepo,
+        ingest,
+        transact,
+        clock,
+        logger,
+        channelKey: config.notehubChannelKey,
+    })
+
     return {
         email: deps.email,
         health: createHealthService({
             databaseOk: () => pingDatabase(db),
+            notehubHealth: () => notehub.health(),
             mqttState: deps.mqttState,
             emailState: () => deps.email.state(),
         }),
         users: createUserService({ repo: createUserRepo(db), auth, clock }),
         devices: createDeviceService({ repo: deviceRepo, clock }),
         gateways: createGatewayService({ repo: gatewayRepo, deviceRepo, clock }),
-        ingest: createIngestService({
-            deviceRepo,
-            gatewayRepo,
-            repo: createIngestRepo(db),
-            transact,
-            onReadings: (readings) => {
-                evaluation.onReadings(readings)
-            },
-            logger,
-        }),
+        ingest,
+        notehub,
         network: createNetworkService({
             repo: networkRepo,
             deviceRepo,

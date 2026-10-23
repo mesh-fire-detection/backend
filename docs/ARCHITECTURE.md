@@ -30,6 +30,52 @@ the VPS; it does not pass through Cloudflare, Caddy, or the HTTP application.
 Mosquitto and the Node app are separate processes on the same VPS. The app
 subscribes to Mosquitto through its loopback-only listener.
 
+### Notehub entry point
+
+The backend has an opt-in Notehub adapter for this additional path:
+
+```text
+Sensor → LoRa → gateway firmware → Notecard → Notehub → HTTPS API
+    → validated shared ingest logic → SQLite
+```
+
+`NOTEHUB_ENABLED` enables the adapter and requires `MESH_CHANNEL_KEY`, independently
+of MQTT. `mesh/notehub/routes.ts` declares public session access with a mandatory
+machine credential guard before bounded body parsing and Zod validation. It
+accepts `POST /v1/ingest/notehub`; user/admin sessions grant no submission rights.
+The service authenticates a gateway-specific bearer token by SHA-256 hash,
+checks the Notehub Notecard UID and encrypted envelope's gateway node number,
+and decodes telemetry with the same decoder as MQTT.
+
+One outer SQLite transaction covers each batch: authorization, duplicate checks,
+shared ingest storage, and durable Notehub receipts. Shared ingest separates
+storage from evaluation so alerts run only after the outer commit. Notehub uses
+the sensor timestamp (or Notehub capture time for clockless history); MQTT keeps
+server receipt-time semantics. History-only readings and device metrics carry
+`liveEligible = false`; live battery lookup and rule duration queries exclude
+them. Last-heard updates are monotonic.
+
+`notehub_events` stores the globally unique event ID, gateway ID, normalized
+content hash, capture time, and server receipt time. `notehub_samples` stores
+permanent fingerprints for timestamped source telemetry. `packets_seen.sourceHash`
+allows newly decoded MQTT packets to be reconciled with Notehub. MQTT checks
+permanent Notehub fingerprints before its ordinary 24-hour packet check. Existing
+packet rows have a null hash; clockless cross-path deduplication retains the
+24-hour limitation. No records are automatically pruned.
+
+The adapter accepts a single event or an atomic batch of 16, with a 64 KiB body
+limit and 4096-byte envelope limit. It returns 200 with `{ inserted, duplicates }`,
+400 for invalid data, 401 for missing/invalid credentials, 403 for identity or
+enablement failures, 409 for conflicting identities, 413 for request size, and
+503 for disabled ingest or storage failure. Retries cannot partially commit.
+`/health` includes Notehub status and the latest newly recorded event receipt;
+storage failure makes health fail until a successful delivery. Waiting for the
+first event is explicit. External monitoring must check receipt freshness.
+
+The Notecard firmware transport and hardware verification remain dependencies.
+See [the contract and deployment runbook](NOTEHUB.md) and
+[implementation checklist](plans/notecard-ingest.md).
+
 ## Source layout
 
 ```
@@ -51,6 +97,7 @@ src/
     gateways/         which devices may forward packets
     ingest/           decode.ts, payloads.ts, subscriber.ts (MQTT), service, repo
     network/          builds /api/network.json
+    notehub/          HTTPS adapter, cloud identity checks, durable receipts
     readings/         sensor and battery history
     nodeId.ts
   alerts/
@@ -167,18 +214,21 @@ admin plugin. `users.role` is `admin` or `user`; `users.banned` means disabled.
 | `longitude`, `latitude`, `elevationM`, `antennaHeightM` | Registered location |
 | `firmware`, `deployedOn`, `note` | |
 | `enabled` | Disabled devices are ignored at ingest and hidden from the map |
-| `lastHeardAt` | Updated on every accepted packet |
+| `lastHeardAt` | Updated monotonically by accepted MQTT packets and eligible live Notehub telemetry |
 | `reportedName`, `reportedLongitude`, `reportedLatitude`, `reportedAltitudeM`, `reportedAt` | Last NodeInfo / Position from the node |
 | `createdAt`, `updatedAt` | |
 
-**gateways**: `deviceId` (primary key), `mqttUsername` (unique), `enabled`,
-timestamps. Broker credentials themselves live in Mosquitto's password file.
+**gateways**: `deviceId` (primary key), nullable unique `mqttUsername`, nullable
+unique `notecardUid`, nullable unique `notehubTokenHash`, `enabled`, timestamps.
+At least one transport identity is required by the service. Broker credentials
+themselves live in Mosquitto's password file. Notehub tokens are write-only
+admin inputs, never returned by registration/list/update responses.
 
 **packets_seen**: `fromNodeNum`, `packetId`, `gatewayId`, `receivedAt`.
 Indexed on (`fromNodeNum`, `packetId`, `receivedAt`); not unique (see ingest).
 
 **device_metrics**: `deviceId`, `recordedAt`, `batteryPct`, `voltage`,
-`uptimeS`.
+`uptimeS`, `liveEligible` (true for existing and MQTT data).
 
 **readings**: one row per value, so alert rules work on any metric.
 
@@ -187,6 +237,7 @@ Indexed on (`fromNodeNum`, `packetId`, `receivedAt`); not unique (see ingest).
 | `deviceId`, `recordedAt` | Indexed together, and with `metric` |
 | `metric` | Sensor-provided name, e.g. `environmentMetrics.temperature` |
 | `value` | Real number |
+| `liveEligible` | False for delayed, out-of-order, future, or clockless Notehub history |
 
 **link_observations**: `fromDeviceId`, `toDeviceId`, `observedAt`, `snr`,
 `rssi` (nullable). The feed uses the newest observation per unordered pair,
@@ -249,7 +300,7 @@ single resources return `{ <item>: {...} }`.
 | GET, POST | `/v1/devices` | List or register devices |
 | GET, PATCH | `/v1/devices/:id` | View, edit, enable or disable |
 | GET, POST | `/v1/gateways` | List or register gateways |
-| PATCH | `/v1/gateways/:deviceId` | Change MQTT username, enable or disable |
+| PATCH | `/v1/gateways/:deviceId` | Change MQTT username/Notecard UID, rotate or revoke Notehub token, enable or disable |
 | GET, POST | `/v1/users` | List users; invite (returns the one-time token) |
 | PATCH | `/v1/users/:id` | Change role, disable |
 
@@ -317,9 +368,10 @@ See `DEPLOYMENT.md` for the runbook.
 | `LOG_LEVEL` | pino level (default `info`) |
 | `DATABASE_PATH` | SQLite file path |
 | `DEV_CONSOLE` | Mounts the API console at `/dev` (default off; development only) |
-| `MQTT_URL`, `MQTT_USERNAME`, `MQTT_PASSWORD` | Subscriber connection; unset `MQTT_URL` disables ingest |
+| `MQTT_URL`, `MQTT_USERNAME`, `MQTT_PASSWORD` | Subscriber connection; unset `MQTT_URL` disables MQTT ingest |
 | `MQTT_TOPIC` | e.g. `"msh/US/2/e/#"` (quote it in env files) |
-| `MESH_CHANNEL_KEY` | Base64 channel key (16 or 32 bytes), required with `MQTT_URL` |
+| `MESH_CHANNEL_KEY` | Base64 channel key (16 or 32 bytes), required with `MQTT_URL` or `NOTEHUB_ENABLED` |
+| `NOTEHUB_ENABLED` | Enable authenticated Notehub HTTPS ingest (default false); also requires `MESH_CHANNEL_KEY` |
 | `RESEND_API_KEY` | Sending; unset writes messages to `EMAIL_PREVIEW_DIR` instead |
 | `EMAIL_FROM` | The sender address, required with `RESEND_API_KEY` |
 | `EMAIL_REPLY_TO` | Where replies go; optional |

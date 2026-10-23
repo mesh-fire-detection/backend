@@ -2,6 +2,8 @@
 
 Node 24 / TypeScript backend for the Meshtastic fire-detection mesh. It stores
 MQTT uplink packets in SQLite, serves the network map, and evaluates alert rules.
+An opt-in Notehub HTTPS adapter stores telemetry forwarded by Blues gateways;
+the Notecard gateway firmware and real hardware verification are still pending.
 
 ## Local development
 
@@ -111,6 +113,8 @@ the native `#src/*` alias in `package.json`: `src/*.ts` in development and
 - [Architecture and API](docs/ARCHITECTURE.md)
 - [Deployment and backups](docs/DEPLOYMENT.md)
 - [MQTT and gateway setup](docs/MQTT.md)
+- [Blues Notecard / Notehub API and setup](docs/NOTEHUB.md)
+- [Notecard implementation checklist and remaining dependencies](docs/plans/notecard-ingest.md)
 - [Code quality standards](AGENTS.md)
 - [Cross-repository audit and proposed priorities (October 4, 2026)](docs/reviews/2026-10-04.md)
 - [Backend audit findings and acceptance criteria](docs/reviews/backend-2026-10-04.md)

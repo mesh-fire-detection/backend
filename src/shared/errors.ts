@@ -1,4 +1,5 @@
-export type DomainErrorKind = 'bad_request' | 'forbidden' | 'not_found' | 'conflict'
+export type DomainErrorKind =
+    'bad_request' | 'unauthorized' | 'forbidden' | 'not_found' | 'conflict' | 'unavailable'
 
 /**
  * Thrown by services for expected failures. The HTTP layer maps `kind` to a

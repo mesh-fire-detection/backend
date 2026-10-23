@@ -26,12 +26,14 @@ export function createEvaluationRepo(db: Db) {
                 SELECT MIN(r.recorded_at) AS startedAt
                 FROM readings r
                 WHERE r.device_id = ${deviceId}
+                  AND r.live_eligible = 1
                   AND r.metric = ${metric}
                   AND r.recorded_at <= ${at.getTime()}
                   AND ${matches('r', comparison, threshold)}
                   AND r.recorded_at > COALESCE((
                       SELECT MAX(b.recorded_at) FROM readings b
                       WHERE b.device_id = ${deviceId}
+                        AND b.live_eligible = 1
                         AND b.metric = ${metric}
                         AND b.recorded_at <= ${at.getTime()}
                         AND NOT (${matches('b', comparison, threshold)})

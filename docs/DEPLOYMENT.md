@@ -7,6 +7,12 @@ that broke and how it was fixed.
 
 ## Current production
 
+For the optional Notehub HTTPS adapter, follow [NOTEHUB.md](NOTEHUB.md) to enable
+`NOTEHUB_ENABLED`, register gateway identities, and provision route credentials.
+It uses the existing HTTPS API host and requires no new public listener. The
+gateway firmware and hardware verification remain pending; this documentation
+does not assert the adapter has been deployed or provisioned in production.
+
 | Item            | Value                                                                   |
 | --------------- | ----------------------------------------------------------------------- |
 | Server          | DigitalOcean droplet, Ubuntu 24.04, 1 vCPU / 512 MB RAM / 10 GB, NYC1   |

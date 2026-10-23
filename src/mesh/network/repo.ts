@@ -15,6 +15,7 @@ export function createNetworkRepo(db: Db) {
                 WHERE dm.id = (
                     SELECT latest.id FROM device_metrics latest
                     WHERE latest.device_id = dm.device_id AND latest.battery_pct IS NOT NULL
+                      AND latest.live_eligible = 1
                     ORDER BY latest.recorded_at DESC, latest.id DESC
                     LIMIT 1
                 )
