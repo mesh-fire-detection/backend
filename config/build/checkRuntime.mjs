@@ -73,6 +73,8 @@ try {
                 status: 'ok',
                 database: 'ok',
                 mqtt: 'disabled',
+                // No API key in this run, so sending is off rather than broken.
+                email: 'disabled',
             })
             ready = true
             break
