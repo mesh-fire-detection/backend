@@ -25,8 +25,16 @@ const checkFixture = (source: string) => {
     }
 }
 
+/**
+ * Each case spawns a TypeScript compile, which takes about a second idle and
+ * longer when the rest of the suite is running beside it. Vitest's five-second
+ * default made that a coin toss under load, failing a push and passing on the
+ * identical retry.
+ */
+const SPAWNS_A_COMPILE = { timeout: 30_000 }
+
 describe('network contract check', () => {
-    it('accepts matching types, including re-exports', () => {
+    it('accepts matching types, including re-exports', SPAWNS_A_COMPILE, () => {
         const result = checkFixture(`export type { MeshNode, MeshLink } from ${backendSchema}`)
         expect(result.error).toBeUndefined()
         expect(result.status, result.stderr).toBe(0)
@@ -63,7 +71,7 @@ describe('network contract check', () => {
             link: 'BackendLink',
             message: 'MeshNode field types differ',
         },
-    ])('rejects $label', ({ node, link, message }) => {
+    ])('rejects $label', SPAWNS_A_COMPILE, ({ node, link, message }) => {
         const result = checkFixture(`
             import type { MeshNode as BackendNode, MeshLink as BackendLink } from ${backendSchema}
             export type MeshNode = ${node}
