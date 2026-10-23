@@ -34,11 +34,24 @@ jobs:
 
             # The contract check compares types against the website and does not
             # vary by platform, so one runner is enough.
+            #
+            # Pinned to a commit rather than tracking the website's main. The
+            # backend is a consumer of that contract, and a consumer chooses
+            # when to adopt a new version of it; tracking main instead lets a
+            # change over there turn this repository red without anyone
+            # touching it, which is how CI spent October 9 to 21 broken.
+            #
+            # Bump this in the pull request that adopts the change, so the
+            # commit that updates the shape and the commit that accepts it are
+            # reviewed together. `npm run check:contract` runs against the
+            # sibling `../web` checkout locally, so test the new SHA before
+            # pinning it.
             - if: matrix.os == 'ubuntu-latest'
               uses: actions/checkout@v4
               with:
                   repository: mesh-fire-detection/web
-                  ref: main
+                  # web@0b09134, 2026-10-06
+                  ref: 0b09134f7e47c992642267c19aad361350cb9bb0
                   path: web
                   persist-credentials: false
             - if: matrix.os == 'ubuntu-latest'
