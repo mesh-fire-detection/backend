@@ -9,6 +9,8 @@ const EmailStateSchema = z.enum(['ok', 'failing', 'disabled'])
 
 export const HealthSchema = z.object({
     status: z.enum(['ok', 'failing']),
+    /** The running release, so a deploy can be confirmed rather than inferred. */
+    version: z.string(),
     database: z.enum(['ok', 'failing']),
     mqtt: MqttStateSchema,
     notehub: NotehubHealthSchema,

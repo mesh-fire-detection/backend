@@ -2,6 +2,7 @@ import { Scalar } from '@scalar/hono-api-reference'
 import { Hono } from 'hono'
 import { generateSpecs } from 'hono-openapi'
 
+import { APP_VERSION } from '#src/app/version'
 import { access, type AppEnv } from '#src/shared/auth/access'
 
 /** Where the console and its OpenAPI document are mounted. */
@@ -16,8 +17,7 @@ const SESSION_COOKIE = 'better-auth.session_token'
 const documentation = {
     info: {
         title: 'Mesh Fire Detection API',
-        // Kept in step with package.json by hand; nothing reads it at runtime.
-        version: '0.1.0',
+        version: APP_VERSION,
         description:
             'Development console. Request shapes come from the same Zod schemas that validate ' +
             'the requests, so this document cannot drift from the routes.',

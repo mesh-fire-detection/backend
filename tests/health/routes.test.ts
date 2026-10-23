@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { APP_VERSION } from '#src/app/version'
 import { HealthSchema } from '#src/health/schema'
 import { createHarness } from '#tests/support/harness'
 
@@ -12,11 +13,22 @@ describe('GET /health', () => {
         expect(response.status).toBe(200)
         expect(HealthSchema.parse(await response.json())).toEqual({
             status: 'ok',
+            version: APP_VERSION,
             database: 'ok',
             mqtt: 'disabled',
             notehub: { status: 'disabled', lastReceivedAt: null },
             email: 'ok',
         })
+    })
+
+    it('reports a real version, so a deploy can be confirmed from outside', async () => {
+        const h = createHarness()
+
+        const response = await h.request('/health')
+
+        const { version } = (await response.json()) as { version: string }
+        expect(version).toMatch(/^\d+\.\d+\.\d+/)
+        expect(version).not.toBe('unknown')
     })
 
     it('fails with 503 when the broker connection is lost', async () => {

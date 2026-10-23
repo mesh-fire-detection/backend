@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { access, mkdtemp, rm } from 'node:fs/promises'
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -9,6 +9,9 @@ import process from 'node:process'
 import { setTimeout as delay } from 'node:timers/promises'
 
 const rootDir = path.resolve(import.meta.dirname, '../..')
+// The compiled app reports this on /health, so the check proves the build
+// knows its own version rather than asserting a number written twice.
+const { version } = JSON.parse(await readFile(path.join(rootDir, 'package.json'), 'utf8'))
 const directory = await mkdtemp(path.join(tmpdir(), 'mesh-runtime-'))
 const databasePath = path.join(directory, 'mesh.db')
 let child
@@ -71,6 +74,7 @@ try {
             assert.equal(response.status, 200)
             assert.deepEqual(await response.json(), {
                 status: 'ok',
+                version,
                 database: 'ok',
                 mqtt: 'disabled',
                 notehub: { status: 'disabled', lastReceivedAt: null },
