@@ -2,6 +2,7 @@ import { type Env } from '#src/app/env'
 import { createServices, type Services } from '#src/app/services'
 import { type MqttState } from '#src/health/schema'
 import { createAuth, type Auth } from '#src/shared/auth/auth'
+import { createSignInMailer } from '#src/shared/auth/signIn'
 import { type Db, openDatabase } from '#src/shared/db/connection'
 import { createEmail, type Email } from '#src/shared/email/configure'
 import { type Logger } from '#src/shared/logger'
@@ -23,12 +24,6 @@ export function createRuntime(deps: {
 }): Runtime {
     const { env, clock, logger } = deps
     const db = openDatabase(env.DATABASE_PATH)
-    const auth = createAuth(db, {
-        secret: env.AUTH_SECRET,
-        baseUrl: env.AUTH_URL,
-        trustedOrigin: env.CORS_ORIGIN,
-        rateLimit: true,
-    })
     const email = createEmail({
         config: {
             apiKey: env.RESEND_API_KEY,
@@ -38,6 +33,19 @@ export function createRuntime(deps: {
         },
         logger,
         clock,
+    })
+    // Email is built first: auth sends sign-in codes through it.
+    const auth = createAuth(db, {
+        secret: env.AUTH_SECRET,
+        baseUrl: env.AUTH_URL,
+        trustedOrigin: env.CORS_ORIGIN,
+        rateLimit: true,
+        mailer: createSignInMailer({
+            db,
+            email: email.service,
+            siteOrigin: env.CORS_ORIGIN,
+            logger,
+        }),
     })
     const services = createServices({
         db,

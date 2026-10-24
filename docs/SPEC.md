@@ -175,10 +175,30 @@ Every device must be registered before its data is accepted.
 | `user` | Everything public, plus sensor history, own alert rules, alerts |
 | `admin` | Everything, plus device registration, gateways, users, all rules and alerts |
 
-- There is no open sign-up. An admin invites an email address with a role and
-  receives a single-use link token (valid 7 days) to send by hand. The invitee
-  chooses a name and password (12+ characters) when accepting.
-- The first admin is created on the server with `npm run user:create-admin`.
+### Signing in
+
+A person types their address and receives an email holding a six-digit code and
+a link. The link carries the same code, so there is **one token, one ten-minute
+expiry and one counter of three attempts** however it is used. A link with its
+own separate token would quietly double the attempts an attacker gets while the
+page still promised three.
+
+The link opens a page that completes the sign-in with a button rather than on
+load. Mail security scanners fetch links before the person does; a code spent
+by a robot leaves someone staring at "expired" with no way to know why.
+
+Only an address with an existing, enabled account receives anything. An unknown
+address gets a byte-identical response and no email, so the endpoint cannot be
+used to discover who has an account. How a person *becomes* an account —
+invitation, or a node of theirs the network has heard — is separate.
+
+Requests for a code are rate limited more tightly than the rest of the API,
+because each one spends from a daily email allowance shared by everybody.
+
+- Passwords remain enabled but unadvertised, for the bootstrap admin created
+  with `npm run user:create-admin` on a fresh server. The website never offers
+  them, and they are expected to go once that script no longer needs them.
+- There is no open sign-up.
 - Admins can change a user's role or disable them; disabling signs them out
   everywhere. Admins cannot change their own role or access.
 

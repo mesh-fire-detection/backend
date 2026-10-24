@@ -84,7 +84,8 @@ src/
   app/                env.ts, runtime.ts, services.ts (wiring), server.ts (routes),
                       jobs.ts, createAdmin.ts (CLI)
   shared/
-    auth/             Better Auth instance; session, access guards, roles
+    auth/             Better Auth instance; session, access guards, roles,
+                      and who may receive a sign-in code
     db/               connection, Drizzle schema, migrations runner
     email/            sender interface, Resend adapter, local preview, templates
     http/             error handler, validation, rate limits
@@ -154,7 +155,7 @@ ingest and alert evaluation run inside real transactions.
 | API docs | Deferred (`@hono/zod-openapi` when needed) |
 | Database | SQLite via `better-sqlite3` (WAL mode) |
 | ORM and migrations | Drizzle ORM + `drizzle-kit` |
-| Auth | Better Auth (email and password, sessions, admin plugin for roles and bans) |
+| Auth | Better Auth: emailed sign-in codes, sessions, admin plugin for roles and bans |
 | MQTT client | `mqtt` (MQTT.js) |
 | Packet decoding | `@meshtastic/protobufs` + `@bufbuild/protobuf`; AES-CTR via `node:crypto` |
 | Rate limiting | `hono-rate-limiter` (in memory); Better Auth's own limiter on sign-in |
@@ -280,7 +281,9 @@ single resources return `{ <item>: {...} }`.
 | GET | `/api/network.json` | `{ nodes: MeshNode[], links: MeshLink[] }`, cached 30 s |
 | GET | `/health` | App, database, and MQTT state; 503 when failing |
 | POST | `/v1/invites/accept` | `{ token, name, password }` → creates the account |
-| * | `/v1/auth/*` | Better Auth: `sign-in/email`, `sign-out`, `get-session`, … |
+| POST | `/v1/auth/email-otp/send-verification-otp` | Emails a sign-in code, to a known address only |
+| POST | `/v1/auth/sign-in/email-otp` | Exchanges the code for a session |
+| * | `/v1/auth/*` | Better Auth: `sign-out`, `get-session`, … |
 
 **User** (logged in)
 
@@ -305,7 +308,8 @@ single resources return `{ <item>: {...} }`.
 | PATCH | `/v1/users/:id` | Change role, disable |
 
 Rate limits: 600 requests per 15 minutes per client on `/v1/*`, 120 per minute
-on the map feed, 10 per 15 minutes on invite acceptance, plus Better Auth's
+on the map feed, 10 per 15 minutes on invite acceptance and on sign-in code
+requests, plus Better Auth's
 sign-in limiter.
 
 ## Network feed assembly

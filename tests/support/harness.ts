@@ -5,6 +5,7 @@ import { createServices, type AppConfig } from '#src/app/services'
 import { type MqttState } from '#src/health/schema'
 import { type Role } from '#src/shared/auth/access'
 import { createAuth } from '#src/shared/auth/auth'
+import { createSignInMailer } from '#src/shared/auth/signIn'
 import { openDatabase } from '#src/shared/db/connection'
 import { type PreviewStore } from '#src/shared/email/preview'
 import { createEmailService } from '#src/shared/email/service'
@@ -50,16 +51,29 @@ export function createHarness({
     let now = START.getTime()
     let mqttState: MqttState = 'disabled'
     const clock = () => new Date(now)
-    const logger = createLogger('silent')
+    const logLines: string[] = []
+    // Captured rather than silenced: several rules here are about what must
+    // never be written down, and a test can only check what it can read.
+    const logger = createLogger('debug', {
+        write: (line: string) => {
+            logLines.push(line)
+        },
+    })
 
     const db = openDatabase(databasePath)
+    const fakeEmail = createFakeEmail()
+    const emailService = createEmailService({
+        sender: fakeEmail.sender,
+        configured: emailConfigured,
+        logger,
+    })
     const auth = createAuth(db, {
         secret: 'test-secret-that-is-at-least-32-characters',
         baseUrl: 'http://localhost:3000',
         trustedOrigin: SITE_ORIGIN,
         rateLimit: false,
+        mailer: createSignInMailer({ db, email: emailService, siteOrigin: SITE_ORIGIN, logger }),
     })
-    const fakeEmail = createFakeEmail()
     const services = createServices({
         db,
         auth,
@@ -67,11 +81,7 @@ export function createHarness({
         logger,
         config: { ...TEST_CONFIG, notehubChannelKey },
         mqttState: () => mqttState,
-        email: createEmailService({
-            sender: fakeEmail.sender,
-            configured: emailConfigured,
-            logger,
-        }),
+        email: emailService,
     })
     const app = createApp({
         logger,
@@ -111,14 +121,22 @@ export function createHarness({
         return cookies.join('; ')
     }
 
-    /** Creates an account with the given role and returns its id and session cookie. */
-    const signInAs = async (role: Role): Promise<{ id: string; cookie: string }> => {
+    /** An account with the given role, not signed in. */
+    const createUser = async (
+        role: Role
+    ): Promise<{ id: string; email: string; password: string }> => {
         const email = `${role}-${randomUUID()}@example.org`
         const password = 'correct horse battery'
         const { user } = await auth.api.createUser({
             body: { email, name: `Test ${role}`, password, role },
         })
-        return { id: user.id, cookie: await signIn(email, password) }
+        return { id: user.id, email, password }
+    }
+
+    /** Creates an account with the given role and returns its id and session cookie. */
+    const signInAs = async (role: Role): Promise<{ id: string; cookie: string }> => {
+        const { id, email, password } = await createUser(role)
+        return { id, cookie: await signIn(email, password) }
     }
 
     return {
@@ -131,6 +149,9 @@ export function createHarness({
         request,
         signIn,
         signInAs,
+        createUser,
+        /** Everything written to the log, for rules about what must not be. */
+        logs: () => logLines.join(''),
         setMqttState: (state: MqttState) => {
             mqttState = state
         },

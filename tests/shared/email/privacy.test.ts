@@ -5,6 +5,8 @@ import { signInCode } from '#src/shared/email/templates'
 import { createLogger } from '#src/shared/logger'
 import { createFakeEmail } from '#tests/support/email'
 
+const LINK = 'https://meshfiredetection.org/sign-in?email=a%40b.org&code=314159'
+
 const ADDRESS = 'ranger@example.org'
 const CODE = '314159'
 
@@ -25,7 +27,7 @@ describe('what the logs may contain', () => {
         const email = createFakeEmail()
         const service = createEmailService({ sender: email.sender, configured: true, logger })
 
-        await service.send(signInCode(ADDRESS, CODE, 10))
+        await service.send(signInCode(ADDRESS, CODE, LINK, 10))
 
         const written = lines.join('\n')
         expect(written).toContain('sign-in-code')
@@ -39,7 +41,7 @@ describe('what the logs may contain', () => {
         email.willReturn({ ok: false, failure: { kind: 'rejected', status: 429 } })
         const service = createEmailService({ sender: email.sender, configured: true, logger })
 
-        await service.send(signInCode(ADDRESS, CODE, 10))
+        await service.send(signInCode(ADDRESS, CODE, LINK, 10))
 
         const written = lines.join('\n')
         expect(written).toContain('rejected with 429')

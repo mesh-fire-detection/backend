@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createPreviewStore } from '#src/shared/email/preview'
 import { signInCode } from '#src/shared/email/templates'
 
+const LINK = 'https://meshfiredetection.org/sign-in?email=a%40b.org&code=314159'
+
 const AT = new Date('2026-06-01T12:00:00.000Z')
 const directories: string[] = []
 
@@ -27,7 +29,7 @@ describe('the preview store, which stands in for a provider locally', () => {
         const directory = temporaryDirectory()
         const store = createPreviewStore(directory, () => AT)
 
-        await store.sender.send(signInCode('ranger@example.org', '314159', 10))
+        await store.sender.send(signInCode('ranger@example.org', '314159', LINK, 10))
 
         const [file] = fs.readdirSync(directory)
         expect(file).toContain('sign-in-code')
@@ -39,8 +41,8 @@ describe('the preview store, which stands in for a provider locally', () => {
     it('lists messages newest first for /dev/mail', async () => {
         const store = createPreviewStore(temporaryDirectory(), () => AT)
 
-        await store.sender.send(signInCode('first@example.org', '111111', 10))
-        await store.sender.send(signInCode('second@example.org', '222222', 10))
+        await store.sender.send(signInCode('first@example.org', '111111', LINK, 10))
+        await store.sender.send(signInCode('second@example.org', '222222', LINK, 10))
 
         expect(store.list().map((message) => message.to)).toEqual([
             'second@example.org',
@@ -53,7 +55,7 @@ describe('the preview store, which stands in for a provider locally', () => {
         fs.writeFileSync(directory, 'in the way', 'utf8')
         const store = createPreviewStore(path.join(directory, 'mail'), () => AT)
 
-        const result = await store.sender.send(signInCode('ranger@example.org', '314159', 10))
+        const result = await store.sender.send(signInCode('ranger@example.org', '314159', LINK, 10))
 
         expect(result.ok).toBe(true)
         expect(store.list()).toHaveLength(1)
@@ -62,7 +64,7 @@ describe('the preview store, which stands in for a provider locally', () => {
     it('reports success, so local sign-in behaves as it would in production', async () => {
         const store = createPreviewStore(temporaryDirectory(), () => AT)
 
-        const result = await store.sender.send(signInCode('ranger@example.org', '314159', 10))
+        const result = await store.sender.send(signInCode('ranger@example.org', '314159', LINK, 10))
 
         expect(result.ok).toBe(true)
     })
