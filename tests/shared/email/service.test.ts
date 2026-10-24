@@ -6,9 +6,7 @@ import { signInCode } from '#src/shared/email/templates'
 import { createLogger } from '#src/shared/logger'
 import { createFakeEmail } from '#tests/support/email'
 
-const LINK = 'https://meshfiredetection.org/sign-in?email=a%40b.org&code=314159'
-
-const MESSAGE: EmailMessage = signInCode('ranger@example.org', '314159', LINK, 10)
+const MESSAGE: EmailMessage = signInCode('ranger@example.org', '314159', 10)
 const UNREACHABLE: SendResult = { ok: false, failure: { kind: 'unreachable' } }
 const REJECTED: SendResult = { ok: false, failure: { kind: 'rejected', status: 422 } }
 const QUOTA: SendResult = { ok: false, failure: { kind: 'rejected', status: 429 } }

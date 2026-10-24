@@ -177,15 +177,18 @@ Every device must be registered before its data is accepted.
 
 ### Signing in
 
-A person types their address and receives an email holding a six-digit code and
-a link. The link carries the same code, so there is **one token, one ten-minute
-expiry and one counter of three attempts** however it is used. A link with its
-own separate token would quietly double the attempts an attacker gets while the
-page still promised three.
+A person types their address and receives a six-digit code, good for ten
+minutes and three attempts.
 
-The link opens a page that completes the sign-in with a button rather than on
-load. Mail security scanners fetch links before the person does; a code spent
-by a robot leaves someone staring at "expired" with no way to know why.
+**A code and no link.** A link saves one tap when mail and browser share a
+device, and costs three things: the code appears in a URL and so in browser
+history, a landing page is needed to stop mail security scanners spending the
+token before the person arrives, and it helps not at all when someone reads
+mail on a phone and browses on a laptop. Phones offer codes straight from the
+notification now, which was most of the argument for links in the first place.
+
+Adding one later is small, and the token design does not change: whatever
+carries the code, there is one code, one expiry and one attempt counter.
 
 Only an address with an existing, enabled account receives anything. An unknown
 address gets a byte-identical response and no email, so the endpoint cannot be

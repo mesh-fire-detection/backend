@@ -3,8 +3,6 @@ import { describe, expect, it } from 'vitest'
 import { createResendSender } from '#src/shared/email/resend'
 import { signInCode } from '#src/shared/email/templates'
 
-const LINK = 'https://meshfiredetection.org/sign-in?email=a%40b.org&code=314159'
-
 const ENDPOINT = 'https://api.example.test/emails'
 
 type Call = { readonly url: string; readonly init: RequestInit }
@@ -36,7 +34,7 @@ describe('the Resend adapter', () => {
     it('posts the message and returns the provider id', async () => {
         const { sender, calls } = senderWith(() => json({ id: 'resend-123' }))
 
-        const result = await sender.send(signInCode('ranger@example.org', '314159', LINK, 10))
+        const result = await sender.send(signInCode('ranger@example.org', '314159', 10))
 
         expect(result).toEqual({ ok: true, id: 'resend-123' })
         const body = JSON.parse(bodyOf(calls[0])) as Record<string, unknown>
@@ -50,7 +48,7 @@ describe('the Resend adapter', () => {
     it('sends an idempotency key, so a retried timeout cannot deliver twice', async () => {
         const { sender, calls } = senderWith(() => json({ id: 'resend-123' }))
 
-        await sender.send(signInCode('ranger@example.org', '314159', LINK, 10))
+        await sender.send(signInCode('ranger@example.org', '314159', 10))
 
         const headers = calls[0]?.init.headers as Record<string, string>
         expect(headers['idempotency-key']).toMatch(/^[\da-f-]{36}$/)
@@ -60,7 +58,7 @@ describe('the Resend adapter', () => {
     it('reports a rejection with its status rather than throwing', async () => {
         const { sender } = senderWith(() => json({ message: 'rate limited' }, 429))
 
-        const result = await sender.send(signInCode('ranger@example.org', '314159', LINK, 10))
+        const result = await sender.send(signInCode('ranger@example.org', '314159', 10))
 
         expect(result).toEqual({ ok: false, failure: { kind: 'rejected', status: 429 } })
     })
@@ -70,7 +68,7 @@ describe('the Resend adapter', () => {
             throw new TypeError('fetch failed')
         })
 
-        const result = await sender.send(signInCode('ranger@example.org', '314159', LINK, 10))
+        const result = await sender.send(signInCode('ranger@example.org', '314159', 10))
 
         expect(result).toEqual({ ok: false, failure: { kind: 'unreachable' } })
     })
@@ -78,7 +76,7 @@ describe('the Resend adapter', () => {
     it('falls back to the idempotency key when the body carries no id', async () => {
         const { sender } = senderWith(() => json({}))
 
-        const result = await sender.send(signInCode('ranger@example.org', '314159', LINK, 10))
+        const result = await sender.send(signInCode('ranger@example.org', '314159', 10))
 
         expect(result.ok && result.id).toMatch(/^[\da-f-]{36}$/)
     })
@@ -96,7 +94,7 @@ describe('the Resend adapter', () => {
             }) as unknown as typeof globalThis.fetch,
         })
 
-        await sender.send(signInCode('ranger@example.org', '314159', LINK, 10))
+        await sender.send(signInCode('ranger@example.org', '314159', 10))
 
         expect(calls[0]).not.toContain('reply_to')
     })

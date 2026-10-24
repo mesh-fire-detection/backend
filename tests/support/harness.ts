@@ -72,7 +72,7 @@ export function createHarness({
         baseUrl: 'http://localhost:3000',
         trustedOrigin: SITE_ORIGIN,
         rateLimit: false,
-        mailer: createSignInMailer({ db, email: emailService, siteOrigin: SITE_ORIGIN, logger }),
+        mailer: createSignInMailer({ db, email: emailService, logger }),
     })
     const services = createServices({
         db,

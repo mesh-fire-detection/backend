@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { type Db } from '#src/shared/db/connection'
 import { users } from '#src/shared/db/schema'
 import { type EmailService } from '#src/shared/email/service'
-import { signInCode, signInLink } from '#src/shared/email/templates'
+import { signInCode } from '#src/shared/email/templates'
 import { type Logger } from '#src/shared/logger'
 
 /** Six digits, ten minutes, three attempts: short enough to matter, long enough to type. */
@@ -14,8 +14,6 @@ export const CODE_ATTEMPTS = 3
 export type SignInMailerDeps = {
     readonly db: Db
     readonly email: EmailService
-    /** Where the link points: the website, not the API. */
-    readonly siteOrigin: string
     readonly logger: Logger
 }
 
@@ -27,7 +25,7 @@ export type SignInMailerDeps = {
  * an account, and nothing is sent, so the endpoint cannot be used to find out
  * who has an account here.
  */
-export function createSignInMailer({ db, email, siteOrigin, logger: parent }: SignInMailerDeps) {
+export function createSignInMailer({ db, email, logger: parent }: SignInMailerDeps) {
     const logger = parent.child({ component: 'sign-in' })
 
     /**
@@ -52,14 +50,7 @@ export function createSignInMailer({ db, email, siteOrigin, logger: parent }: Si
                 logger.info('sign-in requested for an address that cannot receive one')
                 return
             }
-            await email.send(
-                signInCode(
-                    address,
-                    code,
-                    signInLink(siteOrigin, address, code),
-                    CODE_TTL_SECONDS / 60
-                )
-            )
+            await email.send(signInCode(address, code, CODE_TTL_SECONDS / 60))
         },
     }
 }

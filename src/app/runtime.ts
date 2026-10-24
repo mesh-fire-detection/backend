@@ -40,12 +40,7 @@ export function createRuntime(deps: {
         baseUrl: env.AUTH_URL,
         trustedOrigin: env.CORS_ORIGIN,
         rateLimit: true,
-        mailer: createSignInMailer({
-            db,
-            email: email.service,
-            siteOrigin: env.CORS_ORIGIN,
-            logger,
-        }),
+        mailer: createSignInMailer({ db, email: email.service, logger }),
     })
     const services = createServices({
         db,

@@ -11,10 +11,7 @@ function previewWith(code: string) {
     const store = createPreviewStore('', () => AT)
     return {
         store,
-        send: () =>
-            store.sender.send(
-                signInCode('ranger@example.org', code, 'https://example.org/sign-in', 10)
-            ),
+        send: () => store.sender.send(signInCode('ranger@example.org', code, 10)),
     }
 }
 

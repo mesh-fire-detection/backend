@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import { CODE_ATTEMPTS } from '#src/shared/auth/signIn'
-import { createHarness, SITE_ORIGIN } from '#tests/support/harness'
+import { createHarness } from '#tests/support/harness'
 
 /** The code Better Auth generated, read from the message we were asked to send. */
 function codeFrom(h: ReturnType<typeof createHarness>): string {
     const message = h.email.sent.at(-1)
     expect(message, 'no sign-in email was sent').toBeDefined()
-    const match = /Or type this code: (\d{6})/.exec(message?.text ?? '')
+    const match = /sign-in code is (\d{6})/.exec(message?.text ?? '')
     expect(match, `no code in: ${message?.text ?? ''}`).not.toBeNull()
     return match?.[1] ?? ''
 }
@@ -43,20 +43,11 @@ describe('signing in with an emailed code', () => {
         expect(((await signedIn.json()) as { user: { id: string } }).user.id).toBe(id)
 
         const message = h.email.sent.at(-1)
-        expect(message?.text).toContain(`${SITE_ORIGIN}/sign-in?`)
         expect(message?.text).toContain(code)
         expect(message?.subject).toContain(code)
-    })
-
-    it('puts the same code in the link as in the message, so there is one token', async () => {
-        const { h, email } = await withAccount()
-
-        await request(h, email)
-        const code = codeFrom(h)
-        const link = /(https:\/\/\S+)/.exec(h.email.sent.at(-1)?.text ?? '')?.[1] ?? ''
-
-        expect(new URL(link).searchParams.get('code')).toBe(code)
-        expect(new URL(link).searchParams.get('email')).toBe(email)
+        // No link: a code in a URL reaches browser history, and a link helps
+        // only when mail and browser share a device. See the template.
+        expect(message?.text).not.toContain('http')
     })
 
     it('refuses a wrong code, and stops after the attempt limit', async () => {
