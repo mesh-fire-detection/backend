@@ -215,31 +215,48 @@ SSL/TLS settings:
 
 ### Email records
 
-Transactional email goes through Resend (see `SPEC.md`). Add the domain in the
-Resend dashboard and copy the generated values; the records below are the shape
-to expect, not values to type in.
+Transactional email goes through Resend (see `SPEC.md`), sending from the
+subdomain `send.meshfiredetection.org`. As built on October 24, 2026:
 
-| Name                | Type | Content                      | Proxy status |
-| ------------------- | ---- | ---------------------------- | ------------ |
-| `send`              | TXT  | SPF, authorising Resend       | n/a          |
-| `resend._domainkey` | TXT  | DKIM public key               | n/a          |
-| `send`              | MX   | Resend's bounce host          | n/a          |
-| `_dmarc`            | TXT  | `v=DMARC1; p=none; rua=...`   | n/a          |
+| Name                     | Type  | Content                | Proxy status |
+| ------------------------ | ----- | ---------------------- | ------------ |
+| `send.send`              | CNAME | `send.forge.rmta.net`  | DNS only     |
+| `rsend.send`             | CNAME | `rsend.forge.rmta.net` | DNS only     |
+| `resend._domainkey.send` | TXT   | DKIM public key        | n/a          |
+| `_dmarc`                 | TXT   | `v=DMARC1; p=none; rua=...` | n/a     |
 
-Send from the `send` subdomain rather than the root, so a problem with
-automated mail cannot damage the reputation of the domain used for ordinary
-correspondence.
+The first three come from Resend; let its Cloudflare integration add them
+rather than typing them, which also keeps this table from going stale again.
+The DMARC record is ours: Resend does not supply one, and without it nothing
+tells receivers what to do when a message fails the other checks.
 
-> **Nuance — the proxy does not apply to mail.** TXT and MX records have no
-> proxy setting; the orange cloud is an HTTP feature. Adding mail records does
-> not change how `api` or the website is served.
+> **Nuance — the shape of this changed, and may change again.** Resend used to
+> publish an MX to Amazon SES and an SPF include; it now delegates both through
+> those CNAMEs to its own infrastructure, which is why no MX or SPF record
+> appears on `send`. Trust the dashboard over this table.
 
-> **Nuance — start DMARC at `p=none`.** A strict policy before SPF and DKIM are
-> confirmed working will send legitimate sign-in codes to spam. Read the
-> reports for a few weeks, then tighten.
+**Why a subdomain.** Sending reputation attaches to the name mail comes from.
+Automated mail is where trouble shows up, and on `send.` that stains a name
+only machines use. The root also already carries an SPF record from Email
+Routing, and a domain may have exactly one, so sending from the root would mean
+merging into it rather than adding a record.
+
+> **Nuance — the proxy does not apply to mail.** CNAMEs used for mail must be
+> set to DNS only; an orange cloud would point them at Cloudflare's HTTP proxy.
+> TXT records have no proxy setting at all.
+
+> **Nuance — start DMARC at `p=none`.** A strict policy before DKIM is
+> confirmed working sends legitimate sign-in mail to spam, which is a slow
+> failure to diagnose because nothing errors.
+
+**Verified is not delivered.** A green tick means the records parse, not that
+anyone receives your mail. Send a test to a real Gmail and a real Outlook
+address and look at where it lands.
 
 The API key is a secret: it belongs in `/etc/mesh-backend/env` with the others,
-never in the repository.
+never in the repository. The backend reports `"email": "ok"` on `/health` once
+a key is configured, and `"disabled"` until then, so one curl confirms the
+whole chain.
 
 ## 5. GitHub deploys
 
@@ -330,9 +347,10 @@ certificate for `mqtt.meshfiredetection.org`, open `8883/tcp`, move gateways to
 ## Open items
 
 - **Backups:** create an R2 or B2 bucket and enable Litestream.
-- **Email:** create the Resend account, verify `send.meshfiredetection.org`,
-  and put the API key in `/etc/mesh-backend/env`. Nothing sends mail until
-  then; the code lands with #8.
+- **Email:** the Resend account exists and `send.meshfiredetection.org` is
+  verified. Remaining: create a sending-only API key, put it in
+  `/etc/mesh-backend/env` with `EMAIL_FROM` and `EMAIL_REPLY_TO`, and restart.
+  `/health` reports `"email": "disabled"` until then. See #20.
 - **Channel key on devices:** the public firmware and the website's `/firmware`
   build must not contain the key. Options under discussion: a private local
   firmware build with the key in an ignored file, or a provisioning step on the
