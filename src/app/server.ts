@@ -60,6 +60,10 @@ export function createApp({
         })
     )
     app.use('/v1/*', rateLimit(600, 15))
+    // Asking for a sign-in code spends an email, and the provider's free tier
+    // allows a hundred a day. Tighter than the general limit because the cost
+    // is not ours alone: exhausting the allowance stops everyone signing in.
+    app.use(`${AUTH_BASE_PATH}/email-otp/*`, rateLimit(10, 15))
     app.use(sessionMiddleware(auth))
 
     // Better Auth enforces its own access rules on every endpoint under this path.

@@ -9,7 +9,10 @@ const AT = new Date('2026-06-01T12:00:00.000Z')
 /** The store the app would build when no provider key is configured. */
 function previewWith(code: string) {
     const store = createPreviewStore('', () => AT)
-    return { store, send: () => store.sender.send(signInCode('ranger@example.org', code, 10)) }
+    return {
+        store,
+        send: () => store.sender.send(signInCode('ranger@example.org', code, 10)),
+    }
 }
 
 describe('GET /dev/mail', () => {

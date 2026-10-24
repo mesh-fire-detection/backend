@@ -8,6 +8,13 @@ import { type EmailMessage } from '#src/shared/email/message'
  * outdoors, by someone who asked for it ten seconds ago.
  */
 
+/**
+ * A code and no link, deliberately. A link saves one tap when the mail and the
+ * browser are on the same device, and costs the code appearing in a URL, a
+ * landing page to stop mail scanners spending it, and nothing at all when
+ * someone reads mail on a phone and browses on a laptop. Phones offer codes
+ * from the notification now, which was most of the argument for links.
+ */
 export function signInCode(to: string, code: string, validForMinutes: number): EmailMessage {
     return {
         template: 'sign-in-code',

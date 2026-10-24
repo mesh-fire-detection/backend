@@ -175,10 +175,33 @@ Every device must be registered before its data is accepted.
 | `user` | Everything public, plus sensor history, own alert rules, alerts |
 | `admin` | Everything, plus device registration, gateways, users, all rules and alerts |
 
-- There is no open sign-up. An admin invites an email address with a role and
-  receives a single-use link token (valid 7 days) to send by hand. The invitee
-  chooses a name and password (12+ characters) when accepting.
-- The first admin is created on the server with `npm run user:create-admin`.
+### Signing in
+
+A person types their address and receives a six-digit code, good for ten
+minutes and three attempts.
+
+**A code and no link.** A link saves one tap when mail and browser share a
+device, and costs three things: the code appears in a URL and so in browser
+history, a landing page is needed to stop mail security scanners spending the
+token before the person arrives, and it helps not at all when someone reads
+mail on a phone and browses on a laptop. Phones offer codes straight from the
+notification now, which was most of the argument for links in the first place.
+
+Adding one later is small, and the token design does not change: whatever
+carries the code, there is one code, one expiry and one attempt counter.
+
+Only an address with an existing, enabled account receives anything. An unknown
+address gets a byte-identical response and no email, so the endpoint cannot be
+used to discover who has an account. How a person *becomes* an account —
+invitation, or a node of theirs the network has heard — is separate.
+
+Requests for a code are rate limited more tightly than the rest of the API,
+because each one spends from a daily email allowance shared by everybody.
+
+- Passwords remain enabled but unadvertised, for the bootstrap admin created
+  with `npm run user:create-admin` on a fresh server. The website never offers
+  them, and they are expected to go once that script no longer needs them.
+- There is no open sign-up.
 - Admins can change a user's role or disable them; disabling signs them out
   everywhere. Admins cannot change their own role or access.
 
