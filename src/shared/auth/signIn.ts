@@ -1,9 +1,6 @@
-import { eq } from 'drizzle-orm'
-
-import { type Db } from '#src/shared/db/connection'
-import { users } from '#src/shared/db/schema'
+import { type Membership } from '#src/shared/auth/membership'
 import { type EmailService } from '#src/shared/email/service'
-import { signInCode } from '#src/shared/email/templates'
+import { joinCode, signInCode } from '#src/shared/email/templates'
 import { type Logger } from '#src/shared/logger'
 
 /** Six digits, ten minutes, three attempts: short enough to matter, long enough to type. */
@@ -11,48 +8,56 @@ export const CODE_LENGTH = 6
 export const CODE_TTL_SECONDS = 10 * 60
 export const CODE_ATTEMPTS = 3
 
-export type SignInMailerDeps = {
-    readonly db: Db
+/** The two kinds of code we send. Better Auth has others; we answer none of them. */
+type CodeKind = 'sign-in' | 'email-verification'
+
+export type CodeMailerDeps = {
+    readonly membership: Membership
     readonly email: EmailService
     readonly logger: Logger
 }
 
 /**
- * Sends the sign-in message, and decides who gets one.
+ * Sends sign-in and join codes, and decides who gets one.
  *
- * Better Auth issues and verifies the code; this only chooses whether to put
- * it in an email. An address with no account is answered exactly as one with
- * an account, and nothing is sent, so the endpoint cannot be used to find out
- * who has an account here.
+ * Better Auth issues and verifies the codes; this only chooses whether to put
+ * one in an email. An address that may not have one is answered exactly as one
+ * that may, and nothing is sent, so the endpoints cannot be used to find out
+ * who has an account or an invite here.
+ *
+ * A sign-in code goes only to a member. A join code — Better Auth's
+ * email-verification type — goes only to an invited address that is not a
+ * member yet. Every other type Better Auth knows, such as password reset, is
+ * never sent.
  */
-export function createSignInMailer({ db, email, logger: parent }: SignInMailerDeps) {
-    const logger = parent.child({ component: 'sign-in' })
+export function createCodeMailer({ membership, email, logger: parent }: CodeMailerDeps) {
+    const logger = parent.child({ component: 'codes' })
 
-    /**
-     * Only an existing, enabled account may receive a code. How a person
-     * becomes an account — invitation, or a node of theirs the network has
-     * heard — is #9 and #29; this is the gate those routes arrive through.
-     */
-    const mayReceiveCode = (address: string): boolean => {
-        const user = db
-            .select({ banned: users.banned })
-            .from(users)
-            .where(eq(users.email, address))
-            .get()
-        return user !== undefined && user.banned !== true
+    const quietlyRefuse = (kind: CodeKind) => {
+        // Deliberately quiet: no address, no reason, nothing a caller probing
+        // addresses could learn from a log either.
+        logger.info({ kind }, 'code requested for an address that cannot receive one')
     }
 
     return {
-        async send(address: string, code: string): Promise<void> {
-            if (!mayReceiveCode(address)) {
-                // Deliberately quiet: no address, no reason, nothing a caller
-                // probing addresses could learn from a log either.
-                logger.info('sign-in requested for an address that cannot receive one')
+        async send(address: string, code: string, type: string): Promise<void> {
+            const minutes = CODE_TTL_SECONDS / 60
+            if (type === 'sign-in') {
+                if (membership.mayReceiveSignInCode(address)) {
+                    await email.send(signInCode(address, code, minutes))
+                } else {
+                    quietlyRefuse(type)
+                }
                 return
             }
-            await email.send(signInCode(address, code, CODE_TTL_SECONDS / 60))
+            if (type !== 'email-verification') return
+            if (membership.mayJoin(address)) {
+                await email.send(joinCode(address, code, minutes))
+            } else {
+                quietlyRefuse(type)
+            }
         },
     }
 }
 
-export type SignInMailer = ReturnType<typeof createSignInMailer>
+export type CodeMailer = ReturnType<typeof createCodeMailer>

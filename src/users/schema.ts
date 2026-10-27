@@ -12,14 +12,11 @@ export const DisplayNameSchema = z.string().trim().min(1).max(80)
 export const InviteUserSchema = z.object({ email: EmailSchema, role: RoleSchema }).strict()
 export type InviteUser = z.infer<typeof InviteUserSchema>
 
-export const AcceptInviteSchema = z
-    .object({
-        token: z.string().min(1).max(200),
-        name: DisplayNameSchema,
-        password: PasswordSchema,
-    })
-    .strict()
-export type AcceptInvite = z.infer<typeof AcceptInviteSchema>
+export const InviteParamsSchema = z.object({ id: z.string().min(1).max(64) })
+
+/** Asking to join. The name is used only if this turns out to be a new person. */
+export const JoinSchema = z.object({ email: EmailSchema, name: DisplayNameSchema }).strict()
+export type Join = z.infer<typeof JoinSchema>
 
 export const UpdateUserSchema = z
     .object({ role: RoleSchema.optional(), disabled: z.boolean().optional() })
@@ -34,15 +31,17 @@ export const UserSchema = z.object({
     email: z.string(),
     name: z.string(),
     role: RoleSchema,
+    status: z.enum(['subscriber', 'member']),
     disabled: z.boolean(),
     createdAt: z.iso.datetime(),
 })
 export type User = z.infer<typeof UserSchema>
 
+/** An address on the allowlist that has not joined yet. */
 export const InviteSchema = z.object({
     id: z.string(),
     email: z.string(),
     role: RoleSchema,
-    expiresAt: z.iso.datetime(),
+    createdAt: z.iso.datetime(),
 })
 export type Invite = z.infer<typeof InviteSchema>

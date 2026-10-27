@@ -93,20 +93,24 @@ explicitly).
 All public ones are rate limited and answer identically whether or not an
 address is known, so none of them can be used to find out who is here.
 
-| Method | Path                    | Does                                                                     |
-| ------ | ----------------------- | ------------------------------------------------------------------------ |
-| POST   | `/v1/subscribe`         | Creates a subscriber if new; sends a confirmation link                   |
-| POST   | `/v1/subscribe/confirm` | Confirms, from the token in that link                                    |
-| POST   | `/v1/unsubscribe`       | Unsubscribes, from the token in any update; also RFC 8058 one-click      |
-| POST   | `/v1/join`              | Checks eligibility, sends a join code if eligible                        |
-| POST   | `/v1/join/verify`       | Checks the code; makes the person a member, registers the node, signs in |
-| POST   | `/v1/devices`           | Opened to members by #12; registering an existing node adds you to it    |
-| GET    | `/v1/me/devices`        | The devices you are on                                                   |
+| Method | Path                              | Does                                                                                 |
+| ------ | --------------------------------- | ------------------------------------------------------------------------------------ |
+| POST   | `/v1/subscribe`                   | Creates a subscriber if new; sends a confirmation link                               |
+| POST   | `/v1/subscribe/confirm`           | Confirms, from the token in that link                                                |
+| POST   | `/v1/unsubscribe`                 | Unsubscribes, from the token in any update; also RFC 8058 one-click                  |
+| POST   | `/v1/join`                        | Checks eligibility, sends a join code if eligible                                    |
+| POST   | `/v1/auth/email-otp/verify-email` | Better Auth's: checks the code; our hook makes the person a member and signs them in |
+| POST   | `/v1/devices`                     | Opened to members by #12; registering an existing node adds you to it                |
+| GET    | `/v1/me/devices`                  | The devices you are on                                                               |
 
 **Join codes are Better Auth's**, using the email-OTP plugin's verification
 type rather than a second token scheme: one code, ten minutes, three attempts,
-the same as sign-in. `/v1/join/verify` wraps the library's check and does the
-membership change, and any device registration, in one transaction.
+the same as sign-in. Verifying is Better Auth's own `verify-email` endpoint,
+which is public under `/v1/auth/*`, so the membership change hangs off its
+verification hooks rather than off a route of ours: there is no way to verify
+an address that skips it. It runs in one transaction. Built for invitations on
+October 27, 2026; joining with a node will register the device from the same
+hook.
 
 **Joining when already a member** sends a sign-in code instead, so the person
 is not stuck, and the response is the same as for anyone else.

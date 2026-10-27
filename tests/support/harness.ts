@@ -5,7 +5,8 @@ import { createServices, type AppConfig } from '#src/app/services'
 import { type MqttState } from '#src/health/schema'
 import { type Role } from '#src/shared/auth/access'
 import { createAuth } from '#src/shared/auth/auth'
-import { createSignInMailer } from '#src/shared/auth/signIn'
+import { createMembership } from '#src/shared/auth/membership'
+import { createCodeMailer } from '#src/shared/auth/signIn'
 import { openDatabase } from '#src/shared/db/connection'
 import { type PreviewStore } from '#src/shared/email/preview'
 import { createEmailService } from '#src/shared/email/service'
@@ -67,12 +68,14 @@ export function createHarness({
         configured: emailConfigured,
         logger,
     })
+    const membership = createMembership({ db, clock })
     const auth = createAuth(db, {
         secret: 'test-secret-that-is-at-least-32-characters',
         baseUrl: 'http://localhost:3000',
         trustedOrigin: SITE_ORIGIN,
         rateLimit: false,
-        mailer: createSignInMailer({ db, email: emailService, logger }),
+        mailer: createCodeMailer({ membership, email: emailService, logger }),
+        membership,
     })
     const services = createServices({
         db,

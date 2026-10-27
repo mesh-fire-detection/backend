@@ -31,6 +31,13 @@ export const users = sqliteTable('users', {
     banned: integer({ mode: 'boolean' }).default(false),
     banReason: text(),
     banExpires: timestamp(),
+    /**
+     * Ours, not Better Auth's. One row per person from their first contact: a
+     * `subscriber` can never sign in, a `member` can. See `auth/membership.ts`.
+     */
+    status: text({ enum: ['subscriber', 'member'] })
+        .notNull()
+        .default('member'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
 })
@@ -84,16 +91,18 @@ export const verifications = sqliteTable('verifications', {
     updatedAt: updatedAt(),
 })
 
-/** Single-use invite links. Only a SHA-256 hash of the token is stored. */
+/**
+ * The allowlist: an address that may join, and the role it joins as. No token,
+ * because the emailed code proves the address; no expiry, because an admin who
+ * changes their mind deletes the invite.
+ */
 export const invites = sqliteTable('invites', {
     id: text().primaryKey(),
-    tokenHash: text().notNull().unique(),
-    email: text().notNull(),
+    email: text().notNull().unique(),
     role: text({ enum: ['admin', 'user'] }).notNull(),
     invitedById: text()
         .notNull()
         .references(() => users.id),
-    expiresAt: timestamp().notNull(),
     acceptedAt: timestamp(),
     acceptedUserId: text().references(() => users.id),
     createdAt: createdAt(),

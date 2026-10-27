@@ -1,86 +1,80 @@
 import { describe, expect, it } from 'vitest'
 
-import { InviteSchema, UserSchema } from '#src/users/schema'
+import { InviteSchema } from '#src/users/schema'
 import { createHarness } from '#tests/support/harness'
 
+const invite = (
+    h: ReturnType<typeof createHarness>,
+    cookie: string,
+    email: string,
+    role: 'admin' | 'user' = 'user'
+) => h.request('/v1/users', { method: 'POST', cookie, body: { email, role } })
+
 describe('users and invites', () => {
-    it('lets an admin invite a user who then accepts and signs in', async () => {
+    it('puts an address on the allowlist without emailing anyone', async () => {
         const h = createHarness()
         const admin = await h.signInAs('admin')
 
-        const invited = await h.request('/v1/users', {
-            method: 'POST',
-            cookie: admin.cookie,
-            body: { email: 'Ranger@Example.org', role: 'user' },
-        })
+        const invited = await invite(h, admin.cookie, 'Ranger@Example.org')
+
         expect(invited.status).toBe(201)
-        const { token, invite } = (await invited.json()) as { token: string; invite: unknown }
-        expect(InviteSchema.parse(invite).email).toBe('ranger@example.org')
-
-        const accepted = await h.request('/v1/invites/accept', {
-            method: 'POST',
-            body: { token, name: 'Ranger', password: 'a long enough password' },
-        })
-        expect(accepted.status).toBe(201)
-        const { user } = (await accepted.json()) as { user: unknown }
-        expect(UserSchema.parse(user)).toMatchObject({ role: 'user', disabled: false })
-
-        await expect(h.signIn('ranger@example.org', 'a long enough password')).resolves.toContain(
-            '='
-        )
+        const body = (await invited.json()) as { invite: unknown }
+        expect(InviteSchema.parse(body.invite).email).toBe('ranger@example.org')
+        // No token comes back: the emailed code is what proves the address.
+        expect(body).not.toHaveProperty('token')
+        expect(h.email.sent).toHaveLength(0)
     })
 
-    it('rejects a reused, unknown, or expired invite with one message', async () => {
+    it('refuses to invite an address twice, or one that is already a member', async () => {
         const h = createHarness()
         const admin = await h.signInAs('admin')
-        const body = { name: 'Ranger', password: 'a long enough password' }
+        const member = await h.createUser('user')
 
-        const first = h.services.users.invite(
-            { email: 'a@example.org', role: 'user' },
-            { id: admin.id, role: 'admin' }
-        )
-        await h.request('/v1/invites/accept', {
-            method: 'POST',
-            body: { ...body, token: first.token },
-        })
-        const reused = await h.request('/v1/invites/accept', {
-            method: 'POST',
-            body: { ...body, token: first.token },
-        })
-        const unknown = await h.request('/v1/invites/accept', {
-            method: 'POST',
-            body: { ...body, token: 'nope' },
-        })
-        const expiring = h.services.users.invite(
-            { email: 'b@example.org', role: 'user' },
-            { id: admin.id, role: 'admin' }
-        )
-        h.advance(8 * 24 * 60 * 60 * 1000)
-        const expired = await h.request('/v1/invites/accept', {
-            method: 'POST',
-            body: { ...body, token: expiring.token },
-        })
+        await invite(h, admin.cookie, 'twice@example.org')
+        const again = await invite(h, admin.cookie, 'twice@example.org')
+        const existing = await invite(h, admin.cookie, member.email)
 
-        for (const response of [reused, unknown, expired]) {
-            expect(response.status).toBe(400)
-            expect(await response.json()).toEqual({
-                error: { code: 'bad_request', message: 'Invite is invalid or has expired' },
-            })
-        }
+        expect(again.status).toBe(409)
+        expect(existing.status).toBe(409)
     })
 
-    it('rejects inviting an email that already has an account', async () => {
+    it('lists open invites and removes one nobody has used', async () => {
         const h = createHarness()
         const admin = await h.signInAs('admin')
-        await h.services.users.createAdmin('taken@example.org', 'Taken', 'a long enough password')
+        const created = await invite(h, admin.cookie, 'maybe@example.org')
+        const { id } = InviteSchema.parse(((await created.json()) as { invite: unknown }).invite)
 
-        const response = await h.request('/v1/users', {
-            method: 'POST',
+        const listed = await h.request('/v1/invites', { cookie: admin.cookie })
+        const removed = await h.request(`/v1/invites/${id}`, {
+            method: 'DELETE',
             cookie: admin.cookie,
-            body: { email: 'taken@example.org', role: 'user' },
+        })
+        const removedAgain = await h.request(`/v1/invites/${id}`, {
+            method: 'DELETE',
+            cookie: admin.cookie,
+        })
+        const after = await h.request('/v1/invites', { cookie: admin.cookie })
+
+        expect(((await listed.json()) as { invites: unknown[] }).invites).toHaveLength(1)
+        expect(removed.status).toBe(204)
+        expect(removedAgain.status).toBe(404)
+        expect(((await after.json()) as { invites: unknown[] }).invites).toHaveLength(0)
+    })
+
+    it('keeps invites to admins', async () => {
+        const h = createHarness()
+        const ranger = await h.signInAs('user')
+
+        const asUser = await h.request('/v1/invites', { cookie: ranger.cookie })
+        const inviting = await invite(h, ranger.cookie, 'friend@example.org')
+        const removing = await h.request('/v1/invites/some-id', {
+            method: 'DELETE',
+            cookie: ranger.cookie,
         })
 
-        expect(response.status).toBe(409)
+        expect(asUser.status).toBe(403)
+        expect(inviting.status).toBe(403)
+        expect(removing.status).toBe(403)
     })
 
     it('disables a user, ending their sessions and blocking sign-in', async () => {

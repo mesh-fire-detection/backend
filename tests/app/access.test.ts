@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { createHarness } from '#tests/support/harness'
 
 /** Routes anyone may call. Everything else must turn away an anonymous request. */
-const PUBLIC_ROUTES = new Set(['GET /health', 'GET /api/network.json', 'POST /v1/invites/accept'])
+const PUBLIC_ROUTES = new Set(['GET /health', 'GET /api/network.json', 'POST /v1/join'])
 const AUTH_PREFIX = '/v1/auth/'
 
 describe('route access', () => {

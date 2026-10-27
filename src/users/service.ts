@@ -1,21 +1,18 @@
-import { createHash, randomBytes, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 
-import { RoleSchema, type Role, type Viewer } from '#src/shared/auth/access'
+import { RoleSchema, type Viewer } from '#src/shared/auth/access'
 import { type Auth } from '#src/shared/auth/auth'
+import { isMember, type Membership } from '#src/shared/auth/membership'
 import { DomainError, notFound } from '#src/shared/errors'
-import { type Clock, MS_PER_MINUTE } from '#src/shared/time'
-import { type UserRepo, type UserRow } from '#src/users/repo'
+import { type Clock } from '#src/shared/time'
+import { type InviteRow, type UserRepo, type UserRow } from '#src/users/repo'
 import {
-    type AcceptInvite,
     type Invite,
     type InviteUser,
+    type Join,
     type UpdateUser,
     type User,
 } from '#src/users/schema'
-
-const INVITE_TTL_MS = 7 * 24 * 60 * MS_PER_MINUTE
-
-const hashToken = (token: string): string => createHash('sha256').update(token).digest('hex')
 
 function toUser(row: UserRow): User {
     return {
@@ -24,7 +21,17 @@ function toUser(row: UserRow): User {
         name: row.name,
         // Better Auth stores role as free text; anything unexpected gets least privilege.
         role: RoleSchema.catch('user').parse(row.role),
+        status: row.status,
         disabled: row.banned === true,
+        createdAt: row.createdAt.toISOString(),
+    }
+}
+
+function toInvite(row: InviteRow): Invite {
+    return {
+        id: row.id,
+        email: row.email,
+        role: row.role,
         createdAt: row.createdAt.toISOString(),
     }
 }
@@ -32,24 +39,15 @@ function toUser(row: UserRow): User {
 export function createUserService(deps: {
     readonly repo: UserRepo
     readonly auth: Auth
+    readonly membership: Membership
     readonly clock: Clock
 }) {
-    const { repo, auth, clock } = deps
+    const { repo, auth, membership, clock } = deps
 
-    const createAccount = async (
-        email: string,
-        name: string,
-        password: string,
-        role: Role
-    ): Promise<User> => {
-        if (repo.findByEmail(email) !== undefined) {
-            throw new DomainError('conflict', 'An account with that email already exists')
-        }
+    /** Asks Better Auth for a code; the code mailer decides whether it is sent. */
+    const sendCode = async (email: string, type: 'sign-in' | 'email-verification') => {
         // Called without request headers, Better Auth treats this as a trusted server call.
-        const { user } = await auth.api.createUser({ body: { email, name, password, role } })
-        const row = repo.findById(user.id)
-        if (row === undefined) throw new Error('created user is missing')
-        return toUser(row)
+        await auth.api.sendVerificationOTP({ body: { email, type } })
     }
 
     return {
@@ -57,58 +55,77 @@ export function createUserService(deps: {
             return repo.list().map((row) => toUser(row))
         },
 
-        /** Returns the raw token once. Only its hash is stored. */
-        invite(input: InviteUser, invitedBy: Viewer): { invite: Invite; token: string } {
-            if (repo.findByEmail(input.email) !== undefined) {
-                throw new DomainError('conflict', 'An account with that email already exists')
+        /** Puts an address on the allowlist. Nothing is emailed; the person asks to join. */
+        invite(input: InviteUser, invitedBy: Viewer): { invite: Invite } {
+            const existing = repo.findByEmail(input.email)
+            if (existing?.status === 'member') {
+                throw new DomainError('conflict', 'That address is already a member')
             }
-            const token = randomBytes(32).toString('base64url')
-            const now = clock()
+            if (repo.findInviteByEmail(input.email) !== undefined) {
+                throw new DomainError('conflict', 'That address is already invited')
+            }
             const row = repo.insertInvite({
                 id: randomUUID(),
-                tokenHash: hashToken(token),
                 email: input.email,
                 role: input.role,
                 invitedById: invitedBy.id,
-                expiresAt: new Date(now.getTime() + INVITE_TTL_MS),
-                createdAt: now,
+                createdAt: clock(),
             })
-            return {
-                invite: {
-                    id: row.id,
-                    email: row.email,
-                    role: row.role,
-                    expiresAt: row.expiresAt.toISOString(),
-                },
-                token,
-            }
+            return { invite: toInvite(row) }
         },
 
-        async acceptInvite(input: AcceptInvite): Promise<User> {
-            const now = clock()
-            const invite = repo.findInviteByTokenHash(hashToken(input.token))
-            // One message for every failure, so tokens cannot be probed.
-            const invalid = new DomainError('bad_request', 'Invite is invalid or has expired')
-            if (invite === undefined || invite.expiresAt <= now) throw invalid
-            if (!repo.claimInvite(invite.id, now)) throw invalid
+        listInvites(): Invite[] {
+            return repo.listOpenInvites().map((row) => toInvite(row))
+        },
 
-            try {
-                const user = await createAccount(
-                    invite.email,
-                    input.name,
-                    input.password,
-                    invite.role
-                )
-                repo.setInviteUser(invite.id, user.id)
-                return user
-            } catch (error) {
-                repo.releaseInvite(invite.id)
-                throw error
+        removeInvite(id: string): void {
+            if (!repo.deleteOpenInvite(id)) throw notFound('Invite')
+        },
+
+        /**
+         * Answers every address the same way, and sends at most one code:
+         * a join code to an invited address, a sign-in code to someone who is
+         * already a member, and nothing to anyone else.
+         *
+         * An invited address gets its row now, as a subscriber, because Better
+         * Auth verifies only addresses it can find. It cannot sign in until the
+         * code makes it a member (see `auth/membership.ts`).
+         */
+        async join(input: Join): Promise<void> {
+            const existing = repo.findByEmail(input.email)
+            if (existing !== undefined && isMember(existing.status, existing.banned)) {
+                await sendCode(input.email, 'sign-in')
+                return
             }
+            if (!membership.mayJoin(input.email)) return
+
+            const now = clock()
+            if (existing === undefined) {
+                repo.insertSubscriber({
+                    id: randomUUID(),
+                    email: input.email,
+                    name: input.name,
+                    at: now,
+                })
+            } else {
+                // A subscriber joining names themselves now; the footer form never asked.
+                repo.rename(existing.id, input.name, now)
+            }
+            await sendCode(input.email, 'email-verification')
         },
 
         async createAdmin(email: string, name: string, password: string): Promise<User> {
-            return createAccount(email.toLowerCase(), name, password, 'admin')
+            const address = email.toLowerCase()
+            if (repo.findByEmail(address) !== undefined) {
+                throw new DomainError('conflict', 'An account with that email already exists')
+            }
+            // Called without request headers, Better Auth treats this as a trusted server call.
+            const { user } = await auth.api.createUser({
+                body: { email: address, name, password, role: 'admin' },
+            })
+            const row = repo.findById(user.id)
+            if (row === undefined) throw new Error('created user is missing')
+            return toUser(row)
         },
 
         update(id: string, input: UpdateUser, actor: Viewer): User {

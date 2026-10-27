@@ -30,3 +30,23 @@ export function signInCode(to: string, code: string, validForMinutes: number): E
         ].join('\n'),
     }
 }
+
+/** Sent to an invited address that asked to join. Same shape as sign-in, on purpose. */
+export function joinCode(to: string, code: string, validForMinutes: number): EmailMessage {
+    return {
+        template: 'join-code',
+        to,
+        subject: `${code} is your code to join Mesh Fire Detection`,
+        text: [
+            `Your code to join is ${code}.`,
+            '',
+            `It works once, and expires in ${validForMinutes} minutes.`,
+            '',
+            'Joining also signs you up for occasional project updates; you can',
+            'stop them at any time.',
+            '',
+            'If you did not ask to join, you can ignore this message. Nothing',
+            'happens without the code.',
+        ].join('\n'),
+    }
+}

@@ -19,6 +19,7 @@ import { createNotehubService } from '#src/mesh/notehub/service'
 import { createReadingsRepo } from '#src/mesh/readings/repo'
 import { createReadingsService } from '#src/mesh/readings/service'
 import { type Auth } from '#src/shared/auth/auth'
+import { createMembership } from '#src/shared/auth/membership'
 import { type Db, pingDatabase, transaction } from '#src/shared/db/connection'
 import { type EmailService } from '#src/shared/email/service'
 import { type Logger } from '#src/shared/logger'
@@ -96,7 +97,12 @@ export function createServices(deps: ServiceDeps) {
             mqttState: deps.mqttState,
             emailState: () => deps.email.state(),
         }),
-        users: createUserService({ repo: createUserRepo(db), auth, clock }),
+        users: createUserService({
+            repo: createUserRepo(db),
+            auth,
+            membership: createMembership({ db, clock }),
+            clock,
+        }),
         devices: createDeviceService({ repo: deviceRepo, clock }),
         gateways: createGatewayService({ repo: gatewayRepo, deviceRepo, clock }),
         ingest,

@@ -48,7 +48,7 @@ Node types, from the site: `base`, `cellular` (gateway with LTE backhaul),
 | Database | SQLite, continuously backed up off-server |
 | Ingest | Meshtastic MQTT uplink; opt-in authenticated Notehub HTTPS adapter for Blues gateways (see Ingest) |
 | Retention | Keep all data indefinitely. Nothing is deleted automatically. |
-| Accounts | Email and password, two roles: `admin` and `user`, created by invite link |
+| Accounts | A code emailed to a member; two roles, `admin` and `user`. Members join by invitation, or with a node they connected |
 | Map feed | `/api/network.json` is public and read-only |
 | Sensor metrics | Generic: stored under the name the sensor reports; no fixed list |
 | Link RSSI | Nullable; real values only, never estimated |
@@ -190,10 +190,28 @@ notification now, which was most of the argument for links in the first place.
 Adding one later is small, and the token design does not change: whatever
 carries the code, there is one code, one expiry and one attempt counter.
 
-Only an address with an existing, enabled account receives anything. An unknown
-address gets a byte-identical response and no email, so the endpoint cannot be
-used to discover who has an account. How a person *becomes* an account —
-invitation, or a node of theirs the network has heard — is separate.
+Only a member receives anything. Every person is one row with a status:
+a `subscriber` can never sign in, a `member` can unless disabled. An address
+that is not a member gets a byte-identical response and no email, so the
+endpoint cannot be used to discover who has an account. A session held by
+anyone who is not a member counts as signed out.
+
+### Joining
+
+Two ways in (backend#9): an address an admin has invited, or a node the person
+connected on the website (arrives with device registration, backend#12).
+
+An invitation puts an address on the allowlist and sends nothing. The person
+asks to join with their address and name and receives a six-digit code, the
+same kind as for signing in; entering it makes them a member with the role the
+invite named, marks the invite used, and signs them in. One transaction does
+both, and it runs on Better Auth's own verification step, so there is no route
+to a verified address that skips it.
+
+Asking to join answers every address the same way. An invited address gets a
+join code; a member gets a sign-in code instead, so they are not stuck; anyone
+else gets nothing, and nothing about them is stored. An invite withdrawn while
+its code is unused makes the code worthless.
 
 Requests for a code are rate limited more tightly than the rest of the API,
 because each one spends from a daily email allowance shared by everybody.
@@ -201,7 +219,8 @@ because each one spends from a daily email allowance shared by everybody.
 - Passwords remain enabled but unadvertised, for the bootstrap admin created
   with `npm run user:create-admin` on a fresh server. The website never offers
   them, and they are expected to go once that script no longer needs them.
-- There is no open sign-up.
+- There is no open sign-up: only an invitation or a connected node makes someone
+  a member.
 - Admins can change a user's role or disable them; disabling signs them out
   everywhere. Admins cannot change their own role or access.
 
