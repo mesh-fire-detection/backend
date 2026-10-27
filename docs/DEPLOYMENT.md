@@ -16,7 +16,7 @@ does not assert the adapter has been deployed or provisioned in production.
 | Item            | Value                                                                   |
 | --------------- | ----------------------------------------------------------------------- |
 | Server          | DigitalOcean droplet, Ubuntu 24.04, 1 vCPU / 512 MB RAM / 10 GB, NYC1   |
-| Public IP       | `137.184.129.131`                                                       |
+| Public IP       | `134.209.217.98`                                                        |
 | API             | `https://api.meshfiredetection.org` (Cloudflare proxied → Caddy → Node) |
 | MQTT field port | `mqtt.meshfiredetection.org:1884` (DNS only, direct to Mosquitto)       |
 | Website         | `https://meshfiredetection.org` (GitHub Pages behind Cloudflare)        |
@@ -24,6 +24,15 @@ does not assert the adapter has been deployed or provisioned in production.
 
 Installed versions at first deploy: Node 24.21, Caddy 2.11.7, Mosquitto 2.0.18,
 Litestream 0.5.17.
+
+> **Nuance — production moved droplets, and this page lagged behind.** The
+> first deploy ran on `137.184.129.131`. Production is now a droplet built from a
+> snapshot of it (hostname `snapshots-s-1vcpu-512mb-10gb-nyc1`): `DEPLOY_HOST`
+> and the `api` record pointed at it while this page and the `mqtt` record still
+> named the old address. The `mqtt` record was moved on October 27, 2026. To
+> confirm which machine is live, compare `readlink /opt/mesh-backend/current`
+> with the latest Deploy run, and check `/var/log/caddy/api.log` for recent
+> requests from Cloudflare.
 
 Secrets are never written to this repository. On the server they live in:
 
@@ -171,10 +180,10 @@ MESH_CHANNEL_KEY=<base64 private channel key>
 
 DNS records (zone `meshfiredetection.org`):
 
-| Name   | Type | Content           | Proxy status           |
-| ------ | ---- | ----------------- | ---------------------- |
-| `api`  | A    | `137.184.129.131` | Proxied (orange cloud) |
-| `mqtt` | A    | `137.184.129.131` | DNS only (grey cloud)  |
+| Name   | Type | Content          | Proxy status           |
+| ------ | ---- | ---------------- | ---------------------- |
+| `api`  | A    | `134.209.217.98` | Proxied (orange cloud) |
+| `mqtt` | A    | `134.209.217.98` | DNS only (grey cloud)  |
 
 `mqtt` must be grey: Cloudflare's proxy carries only HTTP(S), so an orange
 `mqtt` record sends gateways to Cloudflare instead of Mosquitto. A grey record
@@ -218,12 +227,12 @@ SSL/TLS settings:
 Transactional email goes through Resend (see `SPEC.md`), sending from the
 subdomain `send.meshfiredetection.org`. As built on October 24, 2026:
 
-| Name                     | Type  | Content                | Proxy status |
-| ------------------------ | ----- | ---------------------- | ------------ |
-| `send.send`              | CNAME | `send.forge.rmta.net`  | DNS only     |
-| `rsend.send`             | CNAME | `rsend.forge.rmta.net` | DNS only     |
-| `resend._domainkey.send` | TXT   | DKIM public key        | n/a          |
-| `_dmarc`                 | TXT   | `v=DMARC1; p=none; rua=...` | n/a     |
+| Name                     | Type  | Content                     | Proxy status |
+| ------------------------ | ----- | --------------------------- | ------------ |
+| `send.send`              | CNAME | `send.forge.rmta.net`       | DNS only     |
+| `rsend.send`             | CNAME | `rsend.forge.rmta.net`      | DNS only     |
+| `resend._domainkey.send` | TXT   | DKIM public key             | n/a          |
+| `_dmarc`                 | TXT   | `v=DMARC1; p=none; rua=...` | n/a          |
 
 The first three come from Resend; let its Cloudflare integration add them
 rather than typing them, which also keeps this table from going stale again.
@@ -264,10 +273,10 @@ The `production` environment of `mesh-fire-detection/backend` holds:
 
 | Secret               | Value                                                            |
 | -------------------- | ---------------------------------------------------------------- |
-| `DEPLOY_HOST`        | `137.184.129.131`                                                |
+| `DEPLOY_HOST`        | `134.209.217.98`                                                 |
 | `DEPLOY_USER`        | `root`                                                           |
 | `DEPLOY_SSH_KEY`     | private key whose public half is in `/root/.ssh/authorized_keys` |
-| `DEPLOY_KNOWN_HOSTS` | output of `ssh-keyscan 137.184.129.131`                          |
+| `DEPLOY_KNOWN_HOSTS` | output of `ssh-keyscan 134.209.217.98`                           |
 
 Create the deploy key once, on the server or a laptop, then remove the private
 half from wherever it was created after pasting it into GitHub:
@@ -294,7 +303,7 @@ the service, and checks `/health`. Database migrations run when the app starts.
 ## 6. First admin
 
 ```sh
-ssh -t root@137.184.129.131 'cd /opt/mesh-backend/current && sudo -u mesh node --env-file=/etc/mesh-backend/env dist/app/createAdmin.js --email you@example.org --name "Your Name"'
+ssh -t root@134.209.217.98 'cd /opt/mesh-backend/current && sudo -u mesh node --env-file=/etc/mesh-backend/env dist/app/createAdmin.js --email you@example.org --name "Your Name"'
 ```
 
 Type the password when prompted (12–128 characters).
@@ -302,7 +311,7 @@ Type the password when prompted (12–128 characters).
 ## 7. Verification
 
 ```sh
-ssh root@137.184.129.131 curl -s http://127.0.0.1:3000/health   # on the server
+ssh root@134.209.217.98 curl -s http://127.0.0.1:3000/health   # on the server
 curl -s https://api.meshfiredetection.org/health                 # through Cloudflare
 ```
 
@@ -347,10 +356,12 @@ certificate for `mqtt.meshfiredetection.org`, open `8883/tcp`, move gateways to
 ## Open items
 
 - **Backups:** create an R2 or B2 bucket and enable Litestream.
-- **Email:** the Resend account exists and `send.meshfiredetection.org` is
-  verified. Remaining: create a sending-only API key, put it in
-  `/etc/mesh-backend/env` with `EMAIL_FROM` and `EMAIL_REPLY_TO`, and restart.
-  `/health` reports `"email": "disabled"` until then. See #20.
+- **Email:** a sending-only Resend key and `EMAIL_FROM` are in
+  `/etc/mesh-backend/env` (October 27, 2026) and `/health` reports
+  `"email": "ok"`, which means only that a key is configured. Remaining: create
+  the first admin (section 6), request a sign-in code for it, and confirm the
+  mail lands in a Gmail and an Outlook inbox. `EMAIL_REPLY_TO` is empty; point
+  it at a Cloudflare Email Routing address once one exists. See #20.
 - **Channel key on devices:** the public firmware and the website's `/firmware`
   build must not contain the key. Options under discussion: a private local
   firmware build with the key in an ignored file, or a provisioning step on the
