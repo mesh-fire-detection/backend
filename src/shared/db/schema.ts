@@ -115,10 +115,10 @@ export const invites = sqliteTable('invites', {
 })
 
 /**
- * Nodes a member connected in their browser and brought with them. Not
- * registered devices: that needs a device ID and deployment details (#12), and
- * these rows are what registration will start from. A node can be on several
- * members, as two people often build one together (#11).
+ * Nodes a member connected in their browser and brought with them. Not yet
+ * registered: that needs an ID and deployment details (#12), and these rows
+ * are what registration will start from. A node can be on several members,
+ * as two people often build one together (#11).
  */
 export const memberNodes = sqliteTable(
     'member_nodes',
@@ -162,7 +162,7 @@ export const subscriptions = sqliteTable('subscriptions', {
 
 // ── Mesh ────────────────────────────────────────────────────────────────────
 
-export const devices = sqliteTable('devices', {
+export const nodes = sqliteTable('nodes', {
     id: text().primaryKey(),
     nodeNum: integer().notNull().unique(),
     name: text().notNull(),
@@ -186,9 +186,9 @@ export const devices = sqliteTable('devices', {
 })
 
 export const gateways = sqliteTable('gateways', {
-    deviceId: text()
+    nodeId: text()
         .primaryKey()
-        .references(() => devices.id),
+        .references(() => nodes.id),
     mqttUsername: text().unique(),
     notecardUid: text().unique(),
     notehubTokenHash: text().unique(),
@@ -210,7 +210,7 @@ export const packetsSeen = sqliteTable(
         packetId: integer().notNull(),
         gatewayId: text()
             .notNull()
-            .references(() => devices.id),
+            .references(() => nodes.id),
         receivedAt: timestamp().notNull(),
         sourceHash: text(),
     },
@@ -226,7 +226,7 @@ export const notehubEvents = sqliteTable(
         eventId: text().primaryKey(),
         gatewayId: text()
             .notNull()
-            .references(() => devices.id),
+            .references(() => nodes.id),
         contentHash: text().notNull(),
         capturedAt: timestamp().notNull(),
         receivedAt: timestamp().notNull(),
@@ -243,16 +243,16 @@ export const deviceMetrics = sqliteTable(
     'device_metrics',
     {
         id: integer().primaryKey({ autoIncrement: true }),
-        deviceId: text()
+        nodeId: text()
             .notNull()
-            .references(() => devices.id),
+            .references(() => nodes.id),
         recordedAt: timestamp().notNull(),
         liveEligible: integer({ mode: 'boolean' }).notNull().default(true),
         batteryPct: real(),
         voltage: real(),
         uptimeS: integer(),
     },
-    (t) => [index('device_metrics_device_time_idx').on(t.deviceId, t.recordedAt)]
+    (t) => [index('device_metrics_node_time_idx').on(t.nodeId, t.recordedAt)]
 )
 
 /** One row per value. Metric names come from the sensor, e.g. `environmentMetrics.temperature`. */
@@ -260,17 +260,17 @@ export const readings = sqliteTable(
     'readings',
     {
         id: integer().primaryKey({ autoIncrement: true }),
-        deviceId: text()
+        nodeId: text()
             .notNull()
-            .references(() => devices.id),
+            .references(() => nodes.id),
         recordedAt: timestamp().notNull(),
         liveEligible: integer({ mode: 'boolean' }).notNull().default(true),
         metric: text().notNull(),
         value: real().notNull(),
     },
     (t) => [
-        index('readings_device_time_idx').on(t.deviceId, t.recordedAt),
-        index('readings_device_metric_time_idx').on(t.deviceId, t.metric, t.recordedAt),
+        index('readings_node_time_idx').on(t.nodeId, t.recordedAt),
+        index('readings_node_metric_time_idx').on(t.nodeId, t.metric, t.recordedAt),
     ]
 )
 
@@ -278,12 +278,12 @@ export const linkObservations = sqliteTable(
     'link_observations',
     {
         id: integer().primaryKey({ autoIncrement: true }),
-        fromDeviceId: text()
+        fromNodeId: text()
             .notNull()
-            .references(() => devices.id),
-        toDeviceId: text()
+            .references(() => nodes.id),
+        toNodeId: text()
             .notNull()
-            .references(() => devices.id),
+            .references(() => nodes.id),
         observedAt: timestamp().notNull(),
         snr: real().notNull(),
         rssi: real(),
@@ -300,7 +300,7 @@ export const alertRules = sqliteTable(
         ownerId: text()
             .notNull()
             .references(() => users.id),
-        deviceId: text().references(() => devices.id),
+        nodeId: text().references(() => nodes.id),
         metric: text().notNull(),
         comparison: text({ enum: ['above', 'below'] }).notNull(),
         threshold: real().notNull(),
@@ -321,9 +321,9 @@ export const alerts = sqliteTable(
         id: text().primaryKey(),
         kind: text({ enum: ['rule', 'offline', 'low_battery'] }).notNull(),
         ruleId: text().references(() => alertRules.id),
-        deviceId: text()
+        nodeId: text()
             .notNull()
-            .references(() => devices.id),
+            .references(() => nodes.id),
         status: text({ enum: ['open', 'acknowledged', 'resolved'] }).notNull(),
         triggerValue: real(),
         openedAt: timestamp().notNull(),
@@ -331,8 +331,8 @@ export const alerts = sqliteTable(
     },
     (t) => [
         index('alerts_status_idx').on(t.status),
-        index('alerts_rule_device_idx').on(t.ruleId, t.deviceId, t.openedAt),
-        index('alerts_kind_device_idx').on(t.kind, t.deviceId, t.status),
+        index('alerts_rule_node_idx').on(t.ruleId, t.nodeId, t.openedAt),
+        index('alerts_kind_node_idx').on(t.kind, t.nodeId, t.status),
     ]
 )
 

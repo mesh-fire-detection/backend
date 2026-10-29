@@ -3,7 +3,7 @@
 Status: agreed October 27, 2026. Built locally on October 27: membership
 status, joining by invitation (API only) and with a node, subscriptions, and
 the website pages. Nodes are recorded against members (`member_nodes`); turning
-them into registered devices is still #12.
+them into registered nodes is still #12.
 
 Covers backend #9 (who may join), #29 (subscriptions) and the website half of
 both (web#3, web#8). Ships together with the sign-in pages already built on the
@@ -12,9 +12,9 @@ website.
 **Changed on October 27, after review:** the website offers only the node
 route (the invited route stays, through the API); nodes stay in the browser
 until the person is a member and are then recorded against them rather than
-registered as devices, so the #12 registration core and the device-ID question
+registered as nodes, so the #12 registration core and the node-ID question
 (#15 Q06) are no longer part of this release. Sections below that describe
-device registration on joining are superseded by that.
+node registration on joining are superseded by that.
 
 The issues hold the reasoning; this is the build plan that reconciles them.
 Where an issue and this plan disagree, the issue is out of date: fix it.
@@ -51,7 +51,7 @@ Either of (#9):
    invites with `POST /v1/users` as today, or `npm run user:invite` on the
    server.
 2. **The person connected a node on `/connect`** and joins from there. Joining
-   registers the node as a device (#12) and puts them on it.
+   registers the node (#12) and puts them on it.
 
 **What route 2 does and does not prove.** The website cannot verify that a node
 is real: anything the page reports about it can be typed by hand. This was
@@ -60,29 +60,29 @@ gateway has heard the node. What keeps it honest:
 
 - The email address is always proven with a code before anything is created.
 - Joins are rate limited per caller and per address.
-- A device someone registered but the network has never heard has no
-  `lastHeardAt`, which is visible to admins and in the device list.
+- A node someone registered but the network has never heard has no
+  `lastHeardAt`, which is visible to admins and in the node list.
 
 **Two people, one node.** Connecting a node that is already registered adds you
 to it as an equal co-owner, and the same is true when joining with it (#11,
 #12). Possession of the hardware is the claim. So a node number is never
 "taken"; that is how two people who built a node together both get on it.
 
-## Devices, as far as this release needs them
+## Nodes, as far as this release needs them
 
 From #11 and #12, unchanged:
 
-- `device_members(deviceId, userId, …)` rather than an owner column.
-- Any member may register a device. Only what a builder knows while holding the
+- `node_members(nodeId, userId, …)` rather than an owner column.
+- Any member may register a node. Only what a builder knows while holding the
   node is required; location, antenna height and deployment date are filled in
   later, so those columns become nullable.
 - The node's hardware identifier (`MyNodeInfo.device_id`) is stored next to its
   node number, nullable.
-- Every registered device is visible to every signed-in person. **Nobody is
+- Every registered node is visible to every signed-in person. **Nobody is
   named as an owner** on any shared view (#15 Q10); a person sees only that a
-  device is theirs. No visibility flag yet.
+  node is theirs. No visibility flag yet.
 
-The `/devices` page itself (web#5) follows this release.
+The `/nodes` page itself (web#5) follows this release.
 
 ## Data
 
@@ -92,7 +92,7 @@ The `/devices` page itself (web#5) follows this release.
   `unsubscribed`), hashed confirm and unsubscribe tokens, `confirmedAt`,
   `unsubscribedAt`, `source` (`footer` or `join`). Consent is recorded here:
   when, from where, and the wording shown.
-- `device_members` and the `devices` changes above, from #12.
+- `node_members` and the `nodes` changes above, from #12.
 
 `notification_channels` stays reserved for alert delivery, which has different
 urgency and rules. Updates get their own table so consent and unsubscribe state
@@ -111,8 +111,8 @@ address is known, so none of them can be used to find out who is here.
 | POST   | `/v1/unsubscribe`                 | Unsubscribes, from the token in any update; also RFC 8058 one-click                  |
 | POST   | `/v1/join`                        | Checks eligibility, sends a join code if eligible                                    |
 | POST   | `/v1/auth/email-otp/verify-email` | Better Auth's: checks the code; our hook makes the person a member and signs them in |
-| POST   | `/v1/devices`                     | Opened to members by #12; registering an existing node adds you to it                |
-| GET    | `/v1/me/devices`                  | The devices you are on                                                               |
+| POST   | `/v1/nodes`                       | Opened to members by #12; registering an existing node adds you to it                |
+| GET    | `/v1/me/nodes`                    | The nodes you are on                                                                 |
 
 **Join codes are Better Auth's**, using the email-OTP plugin's verification
 type rather than a second token scheme: one code, ten minutes, three attempts,
@@ -120,7 +120,7 @@ the same as sign-in. Verifying is Better Auth's own `verify-email` endpoint,
 which is public under `/v1/auth/*`, so the membership change hangs off its
 verification hooks rather than off a route of ours: there is no way to verify
 an address that skips it. It runs in one transaction. Built for invitations on
-October 27, 2026; joining with a node will register the device from the same
+October 27, 2026; joining with a node will register the node from the same
 hook.
 
 **Joining when already a member** sends a sign-in code instead, so the person
@@ -166,7 +166,7 @@ one is sent.
 | `/account`           | Built (web#8 asked for `/profile`). Adds your nodes and your updates setting                                                   |
 | `/subscribe/confirm` | **Confirm subscription** button, from the email link                                                                           |
 | `/unsubscribe`       | **Unsubscribe** button, from the email link                                                                                    |
-| `/privacy`           | Rewritten for the session cookie, codes, subscriptions and device membership                                                   |
+| `/privacy`           | Rewritten for the session cookie, codes, subscriptions and node membership                                                     |
 
 Join says plainly that it also subscribes you (web#3). The invited route on
 `/join` answers the same way whether or not the address is on the list: **If
@@ -188,8 +188,8 @@ address, and `/health` already reports email trouble.
 1. Backend: status, invites as the allowlist, the sign-in gate, migration.
    Ship-blocking.
 2. Backend: subscriptions and their emails.
-3. Backend: the #12 core — `device_members`, nullable deployment fields,
-   `device_id`, member registration.
+3. Backend: the #12 core — `node_members`, nullable deployment fields,
+   the hardware `device_id`, member registration.
 4. Backend: join, both routes.
 5. Website: sign-in fixes, footer, confirm and unsubscribe pages, `/join`.
 6. Website: `/connect` join and add, `/account` additions.
@@ -198,7 +198,7 @@ address, and `/health` already reports email trouble.
 
 ## Open questions
 
-- **How a self-registered device gets its ID** (`sen-07`; #11, #15 Q06). It is
+- **How a self-registered node gets its ID** (`sen-07`; #11, #15 Q06). It is
   the primary key and public, so it is chosen before route 2 can ship.
   Recommendation: the server assigns it, as #15 suggests.
 - **Whether a node really carries our private channel key** (web#6), since

@@ -28,7 +28,7 @@ describe('route access', () => {
             const [method = 'GET', path = '/'] = key.split(' ', 2)
             const concrete = path
                 .replace(':id', '00000000-0000-4000-8000-000000000000')
-                .replace(':deviceId', 'cel-01')
+                .replace(':nodeId', 'cel-01')
             const response = await h.request(concrete, {
                 method,
                 ...(method !== 'GET' && method !== 'DELETE' && { body: {} }),

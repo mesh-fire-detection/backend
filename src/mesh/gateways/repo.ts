@@ -9,11 +9,11 @@ type NewGatewayRow = typeof gateways.$inferInsert
 export function createGatewayRepo(db: Db) {
     return {
         list(): GatewayRow[] {
-            return db.select().from(gateways).orderBy(asc(gateways.deviceId)).all()
+            return db.select().from(gateways).orderBy(asc(gateways.nodeId)).all()
         },
 
-        findByDeviceId(deviceId: string): GatewayRow | undefined {
-            return db.select().from(gateways).where(eq(gateways.deviceId, deviceId)).get()
+        findByNodeId(nodeId: string): GatewayRow | undefined {
+            return db.select().from(gateways).where(eq(gateways.nodeId, nodeId)).get()
         },
 
         findByMqttUsername(mqttUsername: string): GatewayRow | undefined {
@@ -33,7 +33,7 @@ export function createGatewayRepo(db: Db) {
         },
 
         update(
-            deviceId: string,
+            nodeId: string,
             patch: {
                 mqttUsername?: string | null | undefined
                 notecardUid?: string | null | undefined
@@ -45,7 +45,7 @@ export function createGatewayRepo(db: Db) {
             return db
                 .update(gateways)
                 .set(patch)
-                .where(eq(gateways.deviceId, deviceId))
+                .where(eq(gateways.nodeId, nodeId))
                 .returning()
                 .get()
         },

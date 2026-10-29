@@ -6,14 +6,14 @@ import { createRuleRepo } from '#src/alerts/rules/repo'
 import { createRuleService } from '#src/alerts/rules/service'
 import { type MqttState } from '#src/health/schema'
 import { createHealthService } from '#src/health/service'
-import { createDeviceRepo } from '#src/mesh/devices/repo'
-import { createDeviceService } from '#src/mesh/devices/service'
 import { createGatewayRepo } from '#src/mesh/gateways/repo'
 import { createGatewayService } from '#src/mesh/gateways/service'
 import { createIngestRepo } from '#src/mesh/ingest/repo'
 import { createIngestService } from '#src/mesh/ingest/service'
 import { createNetworkRepo } from '#src/mesh/network/repo'
 import { createNetworkService } from '#src/mesh/network/service'
+import { createNodeRepo } from '#src/mesh/nodes/repo'
+import { createNodeService } from '#src/mesh/nodes/service'
 import { createNotehubRepo } from '#src/mesh/notehub/repo'
 import { createNotehubService } from '#src/mesh/notehub/service'
 import { createReadingsRepo } from '#src/mesh/readings/repo'
@@ -52,7 +52,7 @@ export function createServices(deps: ServiceDeps) {
     const { db, auth, clock, logger, config } = deps
     const transact = <T>(fn: () => T): T => transaction(db, fn)
 
-    const deviceRepo = createDeviceRepo(db)
+    const nodeRepo = createNodeRepo(db)
     const gatewayRepo = createGatewayRepo(db)
     const networkRepo = createNetworkRepo(db)
     const ruleRepo = createRuleRepo(db)
@@ -64,14 +64,14 @@ export function createServices(deps: ServiceDeps) {
         ruleRepo,
         alertRepo,
         alerts,
-        deviceRepo,
+        nodeRepo,
         networkRepo,
         transact,
         thresholds: { offlineMin: config.statusOfflineMin, lowBatteryPct: config.lowBatteryPct },
     })
 
     const ingest = createIngestService({
-        deviceRepo,
+        nodeRepo,
         gatewayRepo,
         repo: createIngestRepo(db),
         transact,
@@ -83,7 +83,7 @@ export function createServices(deps: ServiceDeps) {
     const notehub = createNotehubService({
         repo: createNotehubRepo(db),
         gatewayRepo,
-        deviceRepo,
+        nodeRepo,
         ingest,
         transact,
         clock,
@@ -107,13 +107,13 @@ export function createServices(deps: ServiceDeps) {
             siteUrl: config.siteUrl,
             clock,
         }),
-        devices: createDeviceService({ repo: deviceRepo, clock }),
-        gateways: createGatewayService({ repo: gatewayRepo, deviceRepo, clock }),
+        nodes: createNodeService({ repo: nodeRepo, clock }),
+        gateways: createGatewayService({ repo: gatewayRepo, nodeRepo, clock }),
         ingest,
         notehub,
         network: createNetworkService({
             repo: networkRepo,
-            deviceRepo,
+            nodeRepo,
             clock,
             thresholds: {
                 degradedMin: config.statusDegradedMin,
@@ -122,8 +122,8 @@ export function createServices(deps: ServiceDeps) {
             },
             linkWindowMin: config.linkWindowMin,
         }),
-        readings: createReadingsService({ repo: createReadingsRepo(db), deviceRepo, clock }),
-        rules: createRuleService({ repo: ruleRepo, deviceRepo, clock }),
+        readings: createReadingsService({ repo: createReadingsRepo(db), nodeRepo, clock }),
+        rules: createRuleService({ repo: ruleRepo, nodeRepo, clock }),
         alerts,
         evaluation,
     }

@@ -3,7 +3,7 @@ import { and, eq, gt, isNull, lt, or } from 'drizzle-orm'
 import { type Db } from '#src/shared/db/connection'
 import {
     deviceMetrics,
-    devices,
+    nodes,
     linkObservations,
     notehubSamples,
     packetsSeen,
@@ -72,16 +72,16 @@ export function createIngestRepo(db: Db) {
                 .run()
         },
 
-        markHeard(deviceId: string, at: Date): void {
-            const newer = or(isNull(devices.lastHeardAt), lt(devices.lastHeardAt, at))
-            db.update(devices)
+        markHeard(nodeId: string, at: Date): void {
+            const newer = or(isNull(nodes.lastHeardAt), lt(nodes.lastHeardAt, at))
+            db.update(nodes)
                 .set({ lastHeardAt: at })
-                .where(and(eq(devices.id, deviceId), newer))
+                .where(and(eq(nodes.id, nodeId), newer))
                 .run()
         },
 
-        updateReported(deviceId: string, fields: ReportedFields): void {
-            db.update(devices).set(fields).where(eq(devices.id, deviceId)).run()
+        updateReported(nodeId: string, fields: ReportedFields): void {
+            db.update(nodes).set(fields).where(eq(nodes.id, nodeId)).run()
         },
     }
 }

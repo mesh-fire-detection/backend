@@ -63,8 +63,8 @@ describe('ingest service', () => {
 
         const outcome = h.services.ingest.handle(temperature(31.5), h.clock())
 
-        expect(outcome).toEqual({ accepted: true, deviceId: 'sen-01', readingCount: 1 })
-        expect(h.services.devices.get('sen-01').lastHeardAt).toBe(h.clock().toISOString())
+        expect(outcome).toEqual({ accepted: true, nodeId: 'sen-01', readingCount: 1 })
+        expect(h.services.nodes.get('sen-01').lastHeardAt).toBe(h.clock().toISOString())
         expect(
             h.services.readings.readings('sen-01', { metric: 'environmentMetrics.temperature' })
                 .readings
@@ -84,7 +84,7 @@ describe('ingest service', () => {
             packet({ portnum: PortNum.TEXT_MESSAGE_APP, payload: new Uint8Array([1]), from: 0x99 }),
             h.clock()
         )
-        h.services.devices.update('sen-01', { enabled: false })
+        h.services.nodes.update('sen-01', { enabled: false })
         const disabled = h.services.ingest.handle(temperature(20), h.clock())
 
         expect(unregistered).toEqual({ accepted: false, reason: 'unregistered_node' })
@@ -152,15 +152,15 @@ describe('ingest service', () => {
             h.clock()
         )
         h.services.ingest.handle(
-            packet({ portnum: PortNum.NODEINFO_APP, payload: nodeInfo('Renamed On Device') }),
+            packet({ portnum: PortNum.NODEINFO_APP, payload: nodeInfo('Renamed On Node') }),
             h.clock()
         )
 
-        const device = h.services.devices.get('sen-01')
-        expect(device.name).toBe('Rattlesnake Ridge 1')
-        expect(device.position).toEqual([-114.05, 46.9])
-        expect(device.reported).toEqual({
-            name: 'Renamed On Device',
+        const node = h.services.nodes.get('sen-01')
+        expect(node.name).toBe('Rattlesnake Ridge 1')
+        expect(node.position).toEqual([-114.05, 46.9])
+        expect(node.reported).toEqual({
+            name: 'Renamed On Node',
             position: [expect.closeTo(-114, 6), expect.closeTo(47, 6)],
             altitudeM: 1600,
             at: h.clock().toISOString(),
@@ -204,7 +204,7 @@ describe('ingest service', () => {
         const owner = await h.signInAs('user')
         h.services.rules.create(
             {
-                deviceId: 'sen-01',
+                nodeId: 'sen-01',
                 metric: 'environmentMetrics.temperature',
                 comparison: 'above',
                 threshold: 50,

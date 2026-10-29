@@ -29,7 +29,7 @@ describe('createApp', () => {
         const h = createHarness()
         const admin = await h.signInAs('admin')
 
-        const response = await h.app.request('/v1/devices', {
+        const response = await h.app.request('/v1/nodes', {
             method: 'POST',
             headers: { cookie: admin.cookie, 'content-type': 'application/json' },
             body: '{not json',

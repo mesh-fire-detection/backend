@@ -12,14 +12,14 @@ import { validate } from '#src/shared/http/validate'
 export function readingsRoutes(service: ReadingsService) {
     return new Hono<AppEnv>()
         .get(
-            '/v1/devices/:id/readings',
+            '/v1/nodes/:id/readings',
             access('user'),
             validate('param', HistoryParamsSchema),
             validate('query', ReadingsQuerySchema),
             (c) => c.json(service.readings(c.req.valid('param').id, c.req.valid('query')))
         )
         .get(
-            '/v1/devices/:id/metrics',
+            '/v1/nodes/:id/metrics',
             access('user'),
             validate('param', HistoryParamsSchema),
             validate('query', MetricsQuerySchema),

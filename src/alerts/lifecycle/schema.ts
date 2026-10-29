@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { IsoTimestampSchema } from '#src/mesh/devices/schema'
+import { IsoTimestampSchema } from '#src/mesh/nodes/schema'
 
 const AlertKindSchema = z.enum(['rule', 'offline', 'low_battery'])
 export type AlertKind = z.infer<typeof AlertKindSchema>
@@ -35,7 +35,7 @@ export const AlertSchema = z.object({
     ruleId: z.string().nullable(),
     /** The rule's metric; null for system alerts. */
     metric: z.string().nullable(),
-    deviceId: z.string(),
+    nodeId: z.string(),
     status: AlertStatusSchema,
     triggerValue: z.number().nullable(),
     openedAt: IsoTimestampSchema,

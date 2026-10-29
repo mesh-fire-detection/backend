@@ -8,11 +8,11 @@ import { seedMesh } from '#tests/support/seed'
 const MINUTE = 60_000
 
 describe('GET /api/network.json', () => {
-    it('serves every enabled device in the website’s MeshNode shape without a session', async () => {
+    it('serves every enabled node in the website’s MeshNode shape without a session', async () => {
         const h = createHarness()
         seedMesh(h)
-        h.services.devices.update('sen-02', { enabled: false, note: 'retired' })
-        h.services.devices.update('sen-01', { note: 'South slope' })
+        h.services.nodes.update('sen-02', { enabled: false, note: 'retired' })
+        h.services.nodes.update('sen-01', { note: 'South slope' })
 
         const response = await h.request('/api/network.json')
 
@@ -41,11 +41,11 @@ describe('GET /api/network.json', () => {
         const h = createHarness()
         seedMesh(h)
         h.db.$client
-            .prepare('UPDATE devices SET last_heard_at = ? WHERE id = ?')
+            .prepare('UPDATE nodes SET last_heard_at = ? WHERE id = ?')
             .run(h.clock().getTime() - 45 * MINUTE, 'sen-01')
         h.db.$client
             .prepare(
-                'INSERT INTO device_metrics (device_id, recorded_at, battery_pct) VALUES (?, ?, ?)'
+                'INSERT INTO device_metrics (node_id, recorded_at, battery_pct) VALUES (?, ?, ?)'
             )
             .run('sen-01', h.clock().getTime() - 50 * MINUTE, 72.4)
 
@@ -59,7 +59,7 @@ describe('GET /api/network.json', () => {
         seedMesh(h)
         const first = h.services.network.get()
 
-        h.services.devices.update('sen-01', { name: 'Renamed' })
+        h.services.nodes.update('sen-01', { name: 'Renamed' })
         const cached = h.services.network.get()
         h.advance(30_000)
         const fresh = h.services.network.get()
@@ -73,7 +73,7 @@ describe('GET /api/network.json', () => {
         seedMesh(h)
         h.db.$client
             .prepare(
-                'INSERT INTO link_observations (from_device_id, to_device_id, observed_at, snr) VALUES (?, ?, ?, ?)'
+                'INSERT INTO link_observations (from_node_id, to_node_id, observed_at, snr) VALUES (?, ?, ?, ?)'
             )
             .run(
                 'sen-01',

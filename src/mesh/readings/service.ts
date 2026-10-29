@@ -1,4 +1,4 @@
-import { type DeviceRepo } from '#src/mesh/devices/repo'
+import { type NodeRepo } from '#src/mesh/nodes/repo'
 import { type ReadingsRepo } from '#src/mesh/readings/repo'
 import {
     MAX_RANGE_DAYS,
@@ -16,14 +16,14 @@ export const MAX_ROWS = 10_000
 
 export function createReadingsService(deps: {
     readonly repo: ReadingsRepo
-    readonly deviceRepo: DeviceRepo
+    readonly nodeRepo: NodeRepo
     readonly clock: Clock
 }) {
-    const { repo, deviceRepo, clock } = deps
+    const { repo, nodeRepo, clock } = deps
 
     /** Defaults to the last 24 hours ending now. */
-    const resolveRange = (deviceId: string, query: MetricsQuery): { from: Date; to: Date } => {
-        if (deviceRepo.findById(deviceId) === undefined) throw notFound('Device')
+    const resolveRange = (nodeId: string, query: MetricsQuery): { from: Date; to: Date } => {
+        if (nodeRepo.findById(nodeId) === undefined) throw notFound('Node')
 
         const to = query.to === undefined ? clock() : new Date(query.to)
         const from = new Date(query.from ?? to.getTime() - DEFAULT_RANGE_MS)
@@ -35,9 +35,9 @@ export function createReadingsService(deps: {
     }
 
     return {
-        readings(deviceId: string, query: ReadingsQuery): ReadingsResponse {
-            const range = resolveRange(deviceId, query)
-            const rows = repo.readings(deviceId, { ...range, metric: query.metric }, MAX_ROWS + 1)
+        readings(nodeId: string, query: ReadingsQuery): ReadingsResponse {
+            const range = resolveRange(nodeId, query)
+            const rows = repo.readings(nodeId, { ...range, metric: query.metric }, MAX_ROWS + 1)
             return {
                 from: range.from.toISOString(),
                 to: range.to.toISOString(),
@@ -50,9 +50,9 @@ export function createReadingsService(deps: {
             }
         },
 
-        metrics(deviceId: string, query: MetricsQuery): MetricsResponse {
-            const range = resolveRange(deviceId, query)
-            const rows = repo.deviceMetrics(deviceId, range, MAX_ROWS + 1)
+        metrics(nodeId: string, query: MetricsQuery): MetricsResponse {
+            const range = resolveRange(nodeId, query)
+            const rows = repo.deviceMetrics(nodeId, range, MAX_ROWS + 1)
             return {
                 from: range.from.toISOString(),
                 to: range.to.toISOString(),

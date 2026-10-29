@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-import { DeviceIdSchema, IsoTimestampSchema } from '#src/mesh/devices/schema'
 import { MetricNameSchema } from '#src/mesh/ingest/schema'
+import { NodeIdSchema, IsoTimestampSchema } from '#src/mesh/nodes/schema'
 
 /** Longest range one request may ask for, so a query cannot scan years of data. */
 export const MAX_RANGE_DAYS = 31
@@ -19,7 +19,7 @@ export type ReadingsQuery = z.infer<typeof ReadingsQuerySchema>
 export const MetricsQuerySchema = TimeRangeSchema
 export type MetricsQuery = z.infer<typeof MetricsQuerySchema>
 
-export const HistoryParamsSchema = z.object({ id: DeviceIdSchema })
+export const HistoryParamsSchema = z.object({ id: NodeIdSchema })
 
 const ReadingSchema = z.object({
     metric: z.string(),

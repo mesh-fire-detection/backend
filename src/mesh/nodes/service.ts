@@ -1,15 +1,15 @@
-import { type DeviceRepo, type DeviceRow, type DeviceRowPatch } from '#src/mesh/devices/repo'
-import { type Device, type RegisterDevice, type UpdateDevice } from '#src/mesh/devices/schema'
-import { formatNodeId } from '#src/mesh/nodeId'
+import { formatMeshId } from '#src/mesh/meshId'
+import { type NodeRepo, type NodeRow, type NodeRowPatch } from '#src/mesh/nodes/repo'
+import { type Node, type RegisterNode, type UpdateNode } from '#src/mesh/nodes/schema'
 import { DomainError, notFound } from '#src/shared/errors'
 import { type Clock } from '#src/shared/time'
 
-function toDevice(row: DeviceRow): Device {
+function toNode(row: NodeRow): Node {
     const hasReportedPosition = row.reportedLongitude !== null && row.reportedLatitude !== null
 
     return {
         id: row.id,
-        nodeId: formatNodeId(row.nodeNum),
+        meshId: formatMeshId(row.nodeNum),
         name: row.name,
         type: row.type,
         position: [row.longitude, row.latitude],
@@ -36,16 +36,16 @@ function toDevice(row: DeviceRow): Device {
     }
 }
 
-function toPatch(input: UpdateDevice): DeviceRowPatch {
-    const { nodeId, position, ...rest } = input
+function toPatch(input: UpdateNode): NodeRowPatch {
+    const { meshId, position, ...rest } = input
     return {
         ...rest,
-        ...(nodeId !== undefined && { nodeNum: nodeId }),
+        ...(meshId !== undefined && { nodeNum: meshId }),
         ...(position !== undefined && { longitude: position[0], latitude: position[1] }),
     }
 }
 
-export function createDeviceService(deps: { readonly repo: DeviceRepo; readonly clock: Clock }) {
+export function createNodeService(deps: { readonly repo: NodeRepo; readonly clock: Clock }) {
     const { repo, clock } = deps
 
     const assertNodeNumFree = (nodeNum: number, exceptId?: string): void => {
@@ -53,32 +53,32 @@ export function createDeviceService(deps: { readonly repo: DeviceRepo; readonly 
         if (holder !== undefined && holder.id !== exceptId) {
             throw new DomainError(
                 'conflict',
-                `Node ${formatNodeId(nodeNum)} is already registered as ${holder.id}`
+                `Mesh ID ${formatMeshId(nodeNum)} is already registered to ${holder.id}`
             )
         }
     }
 
     return {
-        list(): Device[] {
-            return repo.list().map((row) => toDevice(row))
+        list(): Node[] {
+            return repo.list().map((row) => toNode(row))
         },
 
-        get(id: string): Device {
+        get(id: string): Node {
             const row = repo.findById(id)
-            if (row === undefined) throw notFound('Device')
-            return toDevice(row)
+            if (row === undefined) throw notFound('Node')
+            return toNode(row)
         },
 
-        register(input: RegisterDevice): Device {
+        register(input: RegisterNode): Node {
             if (repo.findById(input.id) !== undefined) {
-                throw new DomainError('conflict', `Device ${input.id} already exists`)
+                throw new DomainError('conflict', `Node ${input.id} already exists`)
             }
-            assertNodeNumFree(input.nodeId)
+            assertNodeNumFree(input.meshId)
 
             const now = clock()
             const row = repo.insert({
                 id: input.id,
-                nodeNum: input.nodeId,
+                nodeNum: input.meshId,
                 name: input.name,
                 type: input.type,
                 longitude: input.position[0],
@@ -92,18 +92,18 @@ export function createDeviceService(deps: { readonly repo: DeviceRepo; readonly 
                 createdAt: now,
                 updatedAt: now,
             })
-            return toDevice(row)
+            return toNode(row)
         },
 
-        update(id: string, input: UpdateDevice): Device {
-            if (repo.findById(id) === undefined) throw notFound('Device')
-            if (input.nodeId !== undefined) assertNodeNumFree(input.nodeId, id)
+        update(id: string, input: UpdateNode): Node {
+            if (repo.findById(id) === undefined) throw notFound('Node')
+            if (input.meshId !== undefined) assertNodeNumFree(input.meshId, id)
 
             const row = repo.update(id, { ...toPatch(input), updatedAt: clock() })
-            if (row === undefined) throw notFound('Device')
-            return toDevice(row)
+            if (row === undefined) throw notFound('Node')
+            return toNode(row)
         },
     }
 }
 
-export type DeviceService = ReturnType<typeof createDeviceService>
+export type NodeService = ReturnType<typeof createNodeService>

@@ -1,7 +1,7 @@
-import { type DeviceRepo, type DeviceRow } from '#src/mesh/devices/repo'
 import { type GatewayRepo } from '#src/mesh/gateways/repo'
 import { type IngestRepo } from '#src/mesh/ingest/repo'
 import { type MeshPacket, type MeshPayload } from '#src/mesh/ingest/schema'
+import { type NodeRepo, type NodeRow } from '#src/mesh/nodes/repo'
 import { type Logger } from '#src/shared/logger'
 import { MS_PER_MINUTE } from '#src/shared/time'
 
@@ -13,7 +13,7 @@ import { MS_PER_MINUTE } from '#src/shared/time'
 export const DEDUPE_WINDOW_MS = 24 * 60 * MS_PER_MINUTE
 
 export type AcceptedReading = {
-    readonly deviceId: string
+    readonly nodeId: string
     readonly metric: string
     readonly value: number
     readonly recordedAt: Date
@@ -22,13 +22,13 @@ export type AcceptedReading = {
 type Rejection = 'unknown_gateway' | 'unregistered_node' | 'duplicate'
 
 export type IngestOutcome =
-    | { readonly accepted: true; readonly deviceId: string; readonly readingCount: number }
+    | { readonly accepted: true; readonly nodeId: string; readonly readingCount: number }
     | { readonly accepted: false; readonly reason: Rejection }
 
 type Stored = { readonly outcome: IngestOutcome; readonly readings: readonly AcceptedReading[] }
 
 export type IngestDeps = {
-    readonly deviceRepo: DeviceRepo
+    readonly nodeRepo: NodeRepo
     readonly gatewayRepo: GatewayRepo
     readonly repo: IngestRepo
     readonly transact: <T>(fn: () => T) => T
@@ -38,15 +38,15 @@ export type IngestDeps = {
 }
 
 export function createIngestService(deps: IngestDeps) {
-    const { deviceRepo, gatewayRepo, repo, transact, onReadings, logger } = deps
+    const { nodeRepo, gatewayRepo, repo, transact, onReadings, logger } = deps
 
-    const enabledDevice = (nodeNum: number): DeviceRow | undefined => {
-        const device = deviceRepo.findByNodeNum(nodeNum)
-        return device?.enabled === true ? device : undefined
+    const enabledNode = (nodeNum: number): NodeRow | undefined => {
+        const node = nodeRepo.findByNodeNum(nodeNum)
+        return node?.enabled === true ? node : undefined
     }
 
     const storePayload = (
-        device: DeviceRow,
+        node: NodeRow,
         payload: MeshPayload,
         at: Date,
         liveEligible: boolean
@@ -55,14 +55,14 @@ export function createIngestService(deps: IngestDeps) {
             case 'telemetry': {
                 if (payload.deviceMetrics !== null) {
                     repo.insertDeviceMetrics({
-                        deviceId: device.id,
+                        nodeId: node.id,
                         recordedAt: at,
                         liveEligible,
                         ...payload.deviceMetrics,
                     })
                 }
                 const readings = payload.readings.map((reading) => ({
-                    deviceId: device.id,
+                    nodeId: node.id,
                     recordedAt: at,
                     ...reading,
                 }))
@@ -72,13 +72,13 @@ export function createIngestService(deps: IngestDeps) {
             case 'neighborInfo': {
                 repo.insertLinkObservations(
                     payload.neighbors.flatMap((neighbor) => {
-                        const heard = deviceRepo.findByNodeNum(neighbor.nodeNum)
-                        return heard === undefined || heard.id === device.id
+                        const heard = nodeRepo.findByNodeNum(neighbor.nodeNum)
+                        return heard === undefined || heard.id === node.id
                             ? []
                             : [
                                   {
-                                      fromDeviceId: heard.id,
-                                      toDeviceId: device.id,
+                                      fromNodeId: heard.id,
+                                      toNodeId: node.id,
                                       observedAt: at,
                                       snr: neighbor.snr,
                                       rssi: null,
@@ -89,7 +89,7 @@ export function createIngestService(deps: IngestDeps) {
                 return []
             }
             case 'position': {
-                repo.updateReported(device.id, {
+                repo.updateReported(node.id, {
                     reportedLatitude: payload.latitude,
                     reportedLongitude: payload.longitude,
                     reportedAltitudeM: payload.altitudeM,
@@ -98,7 +98,7 @@ export function createIngestService(deps: IngestDeps) {
                 return []
             }
             case 'nodeInfo': {
-                repo.updateReported(device.id, { reportedName: payload.longName, reportedAt: at })
+                repo.updateReported(node.id, { reportedName: payload.longName, reportedAt: at })
                 return []
             }
             case 'other': {
@@ -117,18 +117,18 @@ export function createIngestService(deps: IngestDeps) {
             outcome: { accepted: false, reason },
             readings: [],
         })
-        const gatewayDevice = enabledDevice(packet.gatewayNodeNum)
+        const gatewayNode = enabledNode(packet.gatewayNodeNum)
         const gateway =
-            gatewayDevice === undefined ? undefined : gatewayRepo.findByDeviceId(gatewayDevice.id)
+            gatewayNode === undefined ? undefined : gatewayRepo.findByNodeId(gatewayNode.id)
         if (
-            gatewayDevice === undefined ||
+            gatewayNode === undefined ||
             gateway?.enabled !== true ||
             (options === undefined && gateway.mqttUsername === null)
         ) {
             return rejected('unknown_gateway')
         }
-        const device = enabledDevice(packet.fromNodeNum)
-        if (device === undefined) return rejected('unregistered_node')
+        const node = enabledNode(packet.fromNodeNum)
+        if (node === undefined) return rejected('unregistered_node')
         if (packet.sourceHash !== undefined && repo.wasAcceptedViaNotehub(packet.sourceHash)) {
             return rejected('duplicate')
         }
@@ -140,27 +140,27 @@ export function createIngestService(deps: IngestDeps) {
             fromNodeNum: packet.fromNodeNum,
             packetId: packet.packetId,
             sourceHash: packet.sourceHash ?? null,
-            gatewayId: gatewayDevice.id,
+            gatewayId: gatewayNode.id,
             receivedAt,
         })
         const recordedAt = options?.recordedAt ?? receivedAt
         const liveEligible = options?.liveEligible ?? true
-        const stored = storePayload(device, packet.payload, recordedAt, liveEligible)
+        const stored = storePayload(node, packet.payload, recordedAt, liveEligible)
         if (liveEligible) {
             if (packet.direct !== null) {
                 repo.insertLinkObservations([
                     {
-                        fromDeviceId: device.id,
-                        toDeviceId: gatewayDevice.id,
+                        fromNodeId: node.id,
+                        toNodeId: gatewayNode.id,
                         observedAt: recordedAt,
                         ...packet.direct,
                     },
                 ])
             }
-            repo.markHeard(device.id, recordedAt)
+            repo.markHeard(node.id, recordedAt)
         }
         return {
-            outcome: { accepted: true, deviceId: device.id, readingCount: stored.length },
+            outcome: { accepted: true, nodeId: node.id, readingCount: stored.length },
             readings: liveEligible ? stored : [],
         }
     }

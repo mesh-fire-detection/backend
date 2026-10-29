@@ -68,9 +68,9 @@ served from the API's own origin, so signing in through it authenticates
 everything you send afterwards. In order:
 
 1. `GET /health` answers anonymously.
-2. `GET /v1/devices` returns 401.
+2. `GET /v1/nodes` returns 401.
 3. `POST /v1/auth/sign-in/email` with the admin created above.
-4. `GET /v1/devices` now answers, carrying the session cookie.
+4. `GET /v1/nodes` now answers, carrying the session cookie.
 
 `DEV_CONSOLE` defaults to false and the console is absent unless it is set. Leave
 it unset in production: the console maps the whole admin surface.

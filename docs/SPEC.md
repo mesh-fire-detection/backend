@@ -17,8 +17,8 @@ Node types, from the site: `base`, `cellular` (gateway with LTE backhaul),
 ## Goals
 
 1. Receive data from the mesh and store it.
-2. Accept data only from registered devices.
-3. Let admins register and manage devices.
+2. Accept data only from registered nodes.
+3. Let admins register and manage nodes.
 4. Serve the network map and sensor data to the website.
 5. Let users define their own alert rules and see the alerts they trigger.
 6. Run as cheaply as possible.
@@ -40,23 +40,23 @@ Node types, from the site: `base`, `cellular` (gateway with LTE backhaul),
 
 ## Decisions
 
-| Topic | Decision |
-| --- | --- |
-| Runtime | Node 24, TypeScript, ESM |
-| Repo | New repo, same conventions as the web repo |
-| Hosting | One Hetzner VPS (~$5/month). GitHub is not the live backend. |
-| Database | SQLite, continuously backed up off-server |
-| Ingest | Meshtastic MQTT uplink; opt-in authenticated Notehub HTTPS adapter for Blues gateways (see Ingest) |
-| Retention | Keep all data indefinitely. Nothing is deleted automatically. |
-| Accounts | A code emailed to a member; two roles, `admin` and `user`. Members join by invitation, or with a node they connected |
-| Map feed | `/api/network.json` is public and read-only |
-| Sensor metrics | Generic: stored under the name the sensor reports; no fixed list |
-| Link RSSI | Nullable; real values only, never estimated |
-| Firmware version | Entered by admins at registration |
-| Alerts | User-defined rules plus system alerts; stored with a status; no notifications yet |
-| Website origin | `https://meshfiredetection.org`; API at `api.meshfiredetection.org` |
-| Transactional email | Resend, behind a provider interface. See Email. |
-| API docs | OpenAPI generation deferred; routes validate with Zod so it can be added later |
+| Topic               | Decision                                                                                                             |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Runtime             | Node 24, TypeScript, ESM                                                                                             |
+| Repo                | New repo, same conventions as the web repo                                                                           |
+| Hosting             | One Hetzner VPS (~$5/month). GitHub is not the live backend.                                                         |
+| Database            | SQLite, continuously backed up off-server                                                                            |
+| Ingest              | Meshtastic MQTT uplink; opt-in authenticated Notehub HTTPS adapter for Blues gateways (see Ingest)                   |
+| Retention           | Keep all data indefinitely. Nothing is deleted automatically.                                                        |
+| Accounts            | A code emailed to a member; two roles, `admin` and `user`. Members join by invitation, or with a node they connected |
+| Map feed            | `/api/network.json` is public and read-only                                                                          |
+| Sensor metrics      | Generic: stored under the name the sensor reports; no fixed list                                                     |
+| Link RSSI           | Nullable; real values only, never estimated                                                                          |
+| Firmware version    | Entered by admins at registration                                                                                    |
+| Alerts              | User-defined rules plus system alerts; stored with a status; no notifications yet                                    |
+| Website origin      | `https://meshfiredetection.org`; API at `api.meshfiredetection.org`                                                  |
+| Transactional email | Resend, behind a provider interface. See Email.                                                                      |
+| API docs            | OpenAPI generation deferred; routes validate with Zod so it can be added later                                       |
 
 ## Ingest
 
@@ -98,7 +98,7 @@ The following decisions were approved on October 23, 2026:
 - Authenticate Notehub delivery over HTTPS with a separate high-entropy bearer
   credential per gateway. Store only its SHA-256 hash. Trust Notehub to supply
   the Notecard UID; require that UID and the envelope gateway node number to
-  match the registered, enabled gateway. Sender devices must also be registered
+  match the registered, enabled gateway. Sender nodes must also be registered
   and enabled. Browser sessions cannot authorize this endpoint.
 - Keep the original channel encryption and existing telemetry metric names.
   Accept telemetry only in this first adapter. MQTT behavior for other packet
@@ -149,31 +149,32 @@ sensor does not set are not stored. Float sensor values are rounded to
 float32 precision. No derived values (such as US EPA AQI) are computed; add
 them only by a decision here.
 
-## Device identity
+## Node identity
 
-Every device must be registered before its data is accepted.
+Every node must be registered before its data is accepted.
 
-- A device has a human ID (`cel-01`, matching the site) and a Meshtastic node
-  number (`!a1b2c3d4`). Both are unique.
+- A node has an ID (`cel-01`, matching the site) and a mesh ID (`!a1b2c3d4`,
+  the text form of its node number, which Meshtastic calls its node ID). Both
+  are unique.
 - Packets from unregistered or disabled node numbers are dropped and logged.
 - Network security has three parts:
     1. A private channel key shared only by our nodes.
     2. Separate broker credentials per gateway, with topic ACLs.
-    3. The registered-device allowlist above (for senders and gateways).
+    3. The registered-node allowlist above (for senders and gateways).
 - Known limitation: standard Meshtastic channel packets are not signed per
-  node, so someone holding the channel key could impersonate a node ID.
-  Per-device message signing is deferred. Direct device HTTP ingest, if added,
+  node, so someone holding the channel key could impersonate a mesh ID.
+  Per-node message signing is deferred. Direct node HTTP ingest, if added,
   requires timestamped HMAC-SHA256 signatures. Notehub delivery is the approved
   exception: its per-gateway HTTPS credential authenticates the cloud service,
   with identity binding and durable deduplication as described above.
 
 ## Users and roles
 
-| Role | Can |
-| --- | --- |
-| public (no login) | View the network map and `/health` |
-| `user` | Everything public, plus sensor history, own alert rules, alerts |
-| `admin` | Everything, plus device registration, gateways, users, all rules and alerts |
+| Role              | Can                                                                       |
+| ----------------- | ------------------------------------------------------------------------- |
+| public (no login) | View the network map and `/health`                                        |
+| `user`            | Everything public, plus sensor history, own alert rules, alerts           |
+| `admin`           | Everything, plus node registration, gateways, users, all rules and alerts |
 
 ### Signing in
 
@@ -207,7 +208,7 @@ says only that the browser has connected one. The website cannot prove that,
 and the claim is accepted on purpose so a builder can join at their bench;
 the address is still proven with a code. Once a member, the website sends the
 nodes the browser connected, and they are recorded against the member
-(`member_nodes`). They are not registered devices: that needs a device ID and
+(`member_nodes`). They are not yet registered: that needs an ID and
 deployment details (backend#12), and these records are where registration will
 start. Two members can bring the same node.
 
@@ -346,7 +347,7 @@ history and owner.
 
 Alert lifecycle: `open` → `acknowledged` → `resolved`, or `open` → `resolved`.
 An alert resolves automatically when the condition clears (the node comes
-back, the reading no longer matches, the device is disabled), and can also be
+back, the reading no longer matches, the node is disabled), and can also be
 resolved by hand. Every change is recorded with who made it (or the system),
 when, and an optional note.
 
@@ -362,7 +363,7 @@ channel table so adding them later needs no restructuring.
 - `MeshNode`: `id`, `name`, `type`, `status`, `position` as
   `[longitude, latitude]`, `elevationM`, `antennaHeightM`, `batteryPct`
   (null if never reported), `lastHeartbeatMin` (null if never heard),
-  `firmware`, `deployedOn`, optional `note`. Only enabled devices appear.
+  `firmware`, `deployedOn`, optional `note`. Only enabled nodes appear.
 - `MeshLink`: `from`, `to`, `rssi` (dBm, **nullable**), `snr` (dB),
   `distanceKm`.
 

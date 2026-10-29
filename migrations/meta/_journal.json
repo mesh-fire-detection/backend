@@ -50,6 +50,13 @@
       "when": 1793204878928,
       "tag": "0006_enroll_members_by_default",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1793292171277,
+      "tag": "0007_rename_devices_to_nodes",
+      "breakpoints": true
     }
   ]
 }

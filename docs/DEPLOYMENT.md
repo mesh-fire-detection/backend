@@ -132,7 +132,7 @@ MESH_CHANNEL_KEY=<base64 private channel key>
   deploy before the key is set fails its health check.
 - Generate the channel key once with `openssl rand -base64 32`. The same key
   must be installed on every sensor node and gateway; how it reaches the
-  devices is still open (see "Open items").
+  nodes is still open (see "Open items").
 
 ## 3. Services
 
@@ -218,12 +218,12 @@ SSL/TLS settings:
 Transactional email goes through Resend (see `SPEC.md`), sending from the
 subdomain `send.meshfiredetection.org`. As built on October 24, 2026:
 
-| Name                     | Type  | Content                | Proxy status |
-| ------------------------ | ----- | ---------------------- | ------------ |
-| `send.send`              | CNAME | `send.forge.rmta.net`  | DNS only     |
-| `rsend.send`             | CNAME | `rsend.forge.rmta.net` | DNS only     |
-| `resend._domainkey.send` | TXT   | DKIM public key        | n/a          |
-| `_dmarc`                 | TXT   | `v=DMARC1; p=none; rua=...` | n/a     |
+| Name                     | Type  | Content                     | Proxy status |
+| ------------------------ | ----- | --------------------------- | ------------ |
+| `send.send`              | CNAME | `send.forge.rmta.net`       | DNS only     |
+| `rsend.send`             | CNAME | `rsend.forge.rmta.net`      | DNS only     |
+| `resend._domainkey.send` | TXT   | DKIM public key             | n/a          |
+| `_dmarc`                 | TXT   | `v=DMARC1; p=none; rua=...` | n/a          |
 
 The first three come from Resend; let its Cloudflare integration add them
 rather than typing them, which also keeps this table from going stale again.
@@ -311,10 +311,10 @@ Both must return `{"status":"ok","database":"ok","mqtt":"connected"}`.
 
 ## 8. Adding a gateway
 
-1. Register the device (`POST /v1/devices`) and the gateway
+1. Register the node (`POST /v1/nodes`) and the gateway
    (`POST /v1/gateways` with its `mqttUsername`).
 2. Create the broker user with `mosquitto_passwd`, add an ACL block allowing
-   it to publish only under its own node ID, and restart Mosquitto.
+   it to publish only under its own mesh ID, and restart Mosquitto.
 3. On the gateway node, in the Meshtastic MQTT module: broker
    `mqtt.meshfiredetection.org`, port `1884`, its username and password,
    **encryption enabled**, JSON off, and the root topic `msh/US`. Enable uplink
@@ -351,7 +351,7 @@ certificate for `mqtt.meshfiredetection.org`, open `8883/tcp`, move gateways to
   verified. Remaining: create a sending-only API key, put it in
   `/etc/mesh-backend/env` with `EMAIL_FROM` and `EMAIL_REPLY_TO`, and restart.
   `/health` reports `"email": "disabled"` until then. See #20.
-- **Channel key on devices:** the public firmware and the website's `/firmware`
+- **Channel key on nodes:** the public firmware and the website's `/firmware`
   build must not contain the key. Options under discussion: a private local
   firmware build with the key in an ignored file, or a provisioning step on the
   website for logged-in admins.

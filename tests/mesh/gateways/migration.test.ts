@@ -37,7 +37,7 @@ describe('gateway migration', () => {
             const upgraded = openDatabase(databasePath)
             try {
                 expect(upgraded.select().from(gateways).get()).toMatchObject({
-                    deviceId: 'cel-01',
+                    nodeId: 'cel-01',
                     mqttUsername: 'gw-cel-01',
                     enabled: true,
                     notecardUid: null,

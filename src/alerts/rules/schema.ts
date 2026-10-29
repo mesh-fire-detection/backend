@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-import { DeviceIdSchema, IsoTimestampSchema } from '#src/mesh/devices/schema'
 import { MetricNameSchema } from '#src/mesh/ingest/schema'
+import { NodeIdSchema, IsoTimestampSchema } from '#src/mesh/nodes/schema'
 
 const SECONDS_PER_DAY = 86_400
 
@@ -11,8 +11,8 @@ const ComparisonSchema = z.enum(['above', 'below'])
 export const DEFAULT_COOLDOWN_S = 900
 
 const RuleFieldsSchema = z.object({
-    /** Null targets every device. */
-    deviceId: DeviceIdSchema.nullable(),
+    /** Null targets every node. */
+    nodeId: NodeIdSchema.nullable(),
     metric: MetricNameSchema,
     comparison: ComparisonSchema,
     threshold: z.number(),

@@ -24,7 +24,7 @@ key can still permit sender impersonation, as described in SPEC.
    server environment. The key must be 16 or 32 bytes. `MQTT_URL` can remain
    empty for a Notehub-only deployment. Restart the backend after configuration.
 2. Register each sensor and the cellular gateway through the existing admin
-   `POST /v1/devices` API, using their actual Meshtastic node IDs.
+   `POST /v1/nodes` API, using their actual mesh IDs.
 3. Generate a different random credential for each gateway, for example 32
    random bytes encoded as base64url. The API accepts 43–128 letters, digits,
    underscores, or hyphens. Do not reuse the channel key or an account password.
@@ -32,7 +32,7 @@ key can still permit sender impersonation, as described in SPEC.
 
     ```json
     {
-        "deviceId": "cel-01",
+        "nodeId": "cel-01",
         "notecardUid": "dev:860322068012345",
         "notehubToken": "<gateway-specific-random-base64url-credential>"
     }
@@ -69,7 +69,7 @@ The token is write-only in the admin API and is never included in gateway
 responses. Rotate it by PATCHing a new `notehubToken`, then updating the Notehub
 Secret. The old token stops working immediately, so pause delivery during the
 change and reroute failures afterward. There is no overlapping-key grace period.
-Set `notehubToken: null` to revoke it. Disable the gateway or its device to stop
+Set `notehubToken: null` to revoke it. Disable the gateway or its node to stop
 accepting its events. Coordinate Notecard UID changes with route provisioning.
 
 Registration does not create a Notehub account, fleet, route, secret, or gateway
@@ -102,7 +102,7 @@ selects the secure outbound queue. Keep queued data until the Notecard accepts
 it durably; retries must preserve original sample identity and timestamps.
 Gateway power-loss buffering, full queues, recovery/backoff, batching latency,
 event cost, and power consumption still require firmware implementation and
-measurement. There is no backend-to-device configuration or command channel.
+measurement. There is no backend-to-node configuration or command channel.
 
 Notehub adds cloud metadata and sends this shape to the backend:
 
@@ -138,7 +138,7 @@ accepted last-heard time are history-only.
   `notehub_events` separately retains Notehub capture and backend receipt times.
 - If the sensor timestamp is zero/missing, use Notehub capture time for history
   and exclude the reading from all live behavior. Clock quality is not proven
-  by a nonzero timestamp; verify real device clocks during provisioning.
+  by a nonzero timestamp; verify real node clocks during provisioning.
 - Readings more than five minutes old on arrival, earlier than the sender's
   last-heard time, or slightly in the future are history-only. They are available
   through existing readings/metrics history APIs but do not change last-heard,
@@ -218,7 +218,7 @@ state merely by submitting bad payloads.
 
 `ok` does not prove new readings are arriving. Monitor `lastReceivedAt` against
 the measured reporting cadence; replaying existing event IDs does not refresh it. Existing
-device offline alerts remain responsible for node freshness. Logs include safe
+node offline alerts remain responsible for node freshness. Logs include safe
 gateway/rejection metadata and never the bearer token, channel key, signatures,
 or raw request body.
 

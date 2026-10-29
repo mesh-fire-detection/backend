@@ -24,7 +24,7 @@ const ALLOWED: Readonly<Record<AlertStatus, readonly AlertStatus[]>> = {
 export type OpenAlert = {
     readonly kind: AlertKind
     readonly ruleId: string | null
-    readonly deviceId: string
+    readonly nodeId: string
     readonly triggerValue: number | null
     readonly at: Date
 }
@@ -43,7 +43,7 @@ export function createAlertService(deps: {
             kind: row.kind,
             ruleId: row.ruleId,
             metric: row.metric,
-            deviceId: row.deviceId,
+            nodeId: row.nodeId,
             status: row.status,
             triggerValue: row.triggerValue,
             openedAt: row.openedAt.toISOString(),
@@ -103,7 +103,7 @@ export function createAlertService(deps: {
                     id,
                     kind: input.kind,
                     ruleId: input.ruleId,
-                    deviceId: input.deviceId,
+                    nodeId: input.nodeId,
                     status: 'open',
                     triggerValue: input.triggerValue,
                     openedAt: input.at,

@@ -10,7 +10,7 @@ describe('Notehub time and live alerts', () => {
         const viewer = { id: owner.id, role: 'user' as const }
         h.services.rules.create(
             {
-                deviceId: 'sen-01',
+                nodeId: 'sen-01',
                 enabled: true,
                 durationS: 0,
                 cooldownS: 0,
@@ -28,7 +28,7 @@ describe('Notehub time and live alerts', () => {
         expect(delayed.status).toBe(200)
         h.services.evaluation.sweepSystemAlerts(h.clock())
         expect(h.services.alerts.list({}, viewer)).toHaveLength(0)
-        expect(h.services.devices.get('sen-01').lastHeardAt).toBeNull()
+        expect(h.services.nodes.get('sen-01').lastHeardAt).toBeNull()
         expect(
             h.db
                 .select()
@@ -55,7 +55,7 @@ describe('Notehub time and live alerts', () => {
         const viewer = { id: owner.id, role: 'user' as const }
         h.services.rules.create(
             {
-                deviceId: 'sen-01',
+                nodeId: 'sen-01',
                 enabled: true,
                 cooldownS: 0,
                 metric: 'airQualityMetrics.pm25Standard',
@@ -79,7 +79,7 @@ describe('Notehub time and live alerts', () => {
         const viewer = { id: owner.id, role: 'user' as const }
         h.services.rules.create(
             {
-                deviceId: 'sen-01',
+                nodeId: 'sen-01',
                 enabled: true,
                 durationS: 0,
                 cooldownS: 0,
@@ -90,12 +90,12 @@ describe('Notehub time and live alerts', () => {
             viewer
         )
         await deliver(h, notehubEvent(h))
-        const heardAt = h.services.devices.get('sen-01').lastHeardAt
+        const heardAt = h.services.nodes.get('sen-01').lastHeardAt
         await deliver(
             h,
             notehubEvent(h, { id: 2, value: 0, at: Math.floor(h.clock().getTime() / 1000) - 30 })
         )
-        expect(h.services.devices.get('sen-01').lastHeardAt).toBe(heardAt)
+        expect(h.services.nodes.get('sen-01').lastHeardAt).toBe(heardAt)
         expect(h.services.alerts.list({}, viewer)[0]).toMatchObject({ status: 'open' })
         h.advance(1000)
         await deliver(h, notehubEvent(h, { id: 3, value: 0 }))
@@ -106,7 +106,7 @@ describe('Notehub time and live alerts', () => {
         const h = notehubHarness()
         const noClock = await deliver(h, notehubEvent(h, { sourceTime: 0 }))
         expect(noClock.status).toBe(200)
-        expect(h.services.devices.get('sen-01').lastHeardAt).toBeNull()
+        expect(h.services.nodes.get('sen-01').lastHeardAt).toBeNull()
         const at = Math.floor(h.clock().getTime() / 1000)
         const futureCapture = await deliver(h, notehubEvent(h, { id: 2, at: at + 301 }))
         const futureSensor = await deliver(h, notehubEvent(h, { id: 3, sourceTime: at + 301 }))

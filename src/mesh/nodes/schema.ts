@@ -1,24 +1,24 @@
 import { z } from 'zod'
 
-import { NodeIdSchema } from '#src/mesh/nodeId'
+import { MeshIdSchema } from '#src/mesh/meshId'
 
-export const DeviceIdSchema = z
+export const NodeIdSchema = z
     .string()
     .min(1)
     .max(32)
     .regex(/^[\da-z]+(?:-[\da-z]+)*$/, 'lowercase letters, digits and single hyphens, e.g. cel-01')
 
-export const DeviceTypeSchema = z.enum(['base', 'cellular', 'sensor', 'vision'])
+export const NodeTypeSchema = z.enum(['base', 'cellular', 'sensor', 'vision'])
 
 /** `[longitude, latitude]`, matching the website's MeshNode. */
 export const PositionSchema = z.tuple([z.number().min(-180).max(180), z.number().min(-90).max(90)])
 
 export const IsoTimestampSchema = z.iso.datetime()
 
-const DeviceFieldsSchema = z.object({
-    nodeId: NodeIdSchema,
+const NodeFieldsSchema = z.object({
+    meshId: MeshIdSchema,
     name: z.string().trim().min(1).max(80),
-    type: DeviceTypeSchema,
+    type: NodeTypeSchema,
     position: PositionSchema,
     elevationM: z.number().min(-500).max(9000),
     antennaHeightM: z.number().min(0).max(500),
@@ -28,22 +28,22 @@ const DeviceFieldsSchema = z.object({
     enabled: z.boolean().optional(),
 })
 
-export const RegisterDeviceSchema = DeviceFieldsSchema.extend({ id: DeviceIdSchema }).strict()
-export type RegisterDevice = z.infer<typeof RegisterDeviceSchema>
+export const RegisterNodeSchema = NodeFieldsSchema.extend({ id: NodeIdSchema }).strict()
+export type RegisterNode = z.infer<typeof RegisterNodeSchema>
 
-export const UpdateDeviceSchema = DeviceFieldsSchema.partial()
+export const UpdateNodeSchema = NodeFieldsSchema.partial()
     .strict()
     .refine((body) => Object.keys(body).length > 0, 'nothing to update')
-export type UpdateDevice = z.infer<typeof UpdateDeviceSchema>
+export type UpdateNode = z.infer<typeof UpdateNodeSchema>
 
-export const DeviceParamsSchema = z.object({ id: DeviceIdSchema })
+export const NodeParamsSchema = z.object({ id: NodeIdSchema })
 
-/** The admin view of a device, including what the node last reported about itself. */
-export const DeviceSchema = z.object({
-    id: DeviceIdSchema,
-    nodeId: z.string(),
+/** The admin view of a node, including what the node last reported about itself. */
+export const NodeSchema = z.object({
+    id: NodeIdSchema,
+    meshId: z.string(),
     name: z.string(),
-    type: DeviceTypeSchema,
+    type: NodeTypeSchema,
     position: PositionSchema,
     elevationM: z.number(),
     antennaHeightM: z.number(),
@@ -63,4 +63,4 @@ export const DeviceSchema = z.object({
     createdAt: IsoTimestampSchema,
     updatedAt: IsoTimestampSchema,
 })
-export type Device = z.infer<typeof DeviceSchema>
+export type Node = z.infer<typeof NodeSchema>

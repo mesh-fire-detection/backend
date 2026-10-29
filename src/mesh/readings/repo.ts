@@ -9,12 +9,12 @@ export type DeviceMetricsRow = typeof deviceMetrics.$inferSelect
 export function createReadingsRepo(db: Db) {
     return {
         readings(
-            deviceId: string,
+            nodeId: string,
             range: { from: Date; to: Date; metric?: string | undefined },
             limit: number
         ): ReadingRow[] {
             const conditions = [
-                eq(readings.deviceId, deviceId),
+                eq(readings.nodeId, nodeId),
                 gte(readings.recordedAt, range.from),
                 lte(readings.recordedAt, range.to),
                 range.metric === undefined ? undefined : eq(readings.metric, range.metric),
@@ -30,7 +30,7 @@ export function createReadingsRepo(db: Db) {
         },
 
         deviceMetrics(
-            deviceId: string,
+            nodeId: string,
             range: { from: Date; to: Date },
             limit: number
         ): DeviceMetricsRow[] {
@@ -39,7 +39,7 @@ export function createReadingsRepo(db: Db) {
                 .from(deviceMetrics)
                 .where(
                     and(
-                        eq(deviceMetrics.deviceId, deviceId),
+                        eq(deviceMetrics.nodeId, nodeId),
                         gte(deviceMetrics.recordedAt, range.from),
                         lte(deviceMetrics.recordedAt, range.to)
                     )

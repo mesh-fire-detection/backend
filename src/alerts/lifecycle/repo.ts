@@ -92,19 +92,19 @@ export function createAlertRepo(db: Db) {
                       .all()
         },
 
-        findUnresolvedForRule(ruleId: string, deviceId: string): AlertRow | undefined {
+        findUnresolvedForRule(ruleId: string, nodeId: string): AlertRow | undefined {
             return db
                 .select()
                 .from(alerts)
-                .where(and(eq(alerts.ruleId, ruleId), eq(alerts.deviceId, deviceId), unresolved))
+                .where(and(eq(alerts.ruleId, ruleId), eq(alerts.nodeId, nodeId), unresolved))
                 .get()
         },
 
-        latestForRule(ruleId: string, deviceId: string): AlertRow | undefined {
+        latestForRule(ruleId: string, nodeId: string): AlertRow | undefined {
             return db
                 .select()
                 .from(alerts)
-                .where(and(eq(alerts.ruleId, ruleId), eq(alerts.deviceId, deviceId)))
+                .where(and(eq(alerts.ruleId, ruleId), eq(alerts.nodeId, nodeId)))
                 .orderBy(desc(alerts.openedAt))
                 .limit(1)
                 .get()
