@@ -58,6 +58,7 @@ export function createRuntime(deps: {
             statusOfflineMin: env.STATUS_OFFLINE_MIN,
             lowBatteryPct: env.LOW_BATTERY_PCT,
             linkWindowMin: env.LINK_WINDOW_MIN,
+            siteUrl: env.CORS_ORIGIN,
         },
         mqttState: deps.mqttState,
         email: email.service,

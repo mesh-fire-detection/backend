@@ -198,20 +198,53 @@ anyone who is not a member counts as signed out.
 
 ### Joining
 
-Two ways in (backend#9): an address an admin has invited, or a node the person
-connected on the website (arrives with device registration, backend#12).
+Two ways in (backend#9): an address an admin has invited, or a person whose
+browser has connected a node on the website.
 
-An invitation puts an address on the allowlist and sends nothing. The person
-asks to join with their address and name and receives a six-digit code, the
-same kind as for signing in; entering it makes them a member with the role the
-invite named, marks the invite used, and signs them in. One transaction does
-both, and it runs on Better Auth's own verification step, so there is no route
-to a verified address that skips it.
+**With a node** is the way the website offers. Nodes connected on `/connect`
+stay in the browser, never sent anywhere, until the person joins: the request
+says only that the browser has connected one. The website cannot prove that,
+and the claim is accepted on purpose so a builder can join at their bench;
+the address is still proven with a code. Once a member, the website sends the
+nodes the browser connected, and they are recorded against the member
+(`member_nodes`). They are not registered devices: that needs a device ID and
+deployment details (backend#12), and these records are where registration will
+start. Two members can bring the same node.
 
-Asking to join answers every address the same way. An invited address gets a
+**An invitation** puts an address on the allowlist and sends nothing; the role
+it names is the role the person joins with.
+
+Either way the person gives their address and name and receives a six-digit
+code, the same kind as for signing in. Entering it makes them a member, marks
+any invite used, subscribes them to updates already confirmed (unless they had
+unsubscribed), and signs them in. One transaction does all of it, and it runs
+on Better Auth's own verification step, so there is no route to a verified
+address that skips it.
+
+Asking to join answers every address the same way. An eligible address gets a
 join code; a member gets a sign-in code instead, so they are not stuck; anyone
 else gets nothing, and nothing about them is stored. An invite withdrawn while
 its code is unused makes the code worthless.
+
+### Updates
+
+Occasional project news by email (backend#29). One row per person in
+`subscriptions`, recording when and where they agreed and the words they saw.
+
+- The website's footer asks for an address and sends a confirmation link, and
+  nothing else, until it is used. The link opens a page on the website whose
+  button confirms, so a mail scanner fetching it confirms nothing. Asking again
+  within a day sends nothing new; a link works once, for a week.
+- **Members get updates by default**, however the account was made: joining,
+  the bootstrap admin, or an account an admin created. The record says which
+  (`source: default` for anyone who never saw the join form).
+- Subscribing never makes anyone eligible to join.
+- A member turns updates on or off on their account page, without a
+  confirmation email, since joining proved the address.
+- Unsubscribed stands, including when someone joins later.
+- Writing and sending updates is not built. Before the first one, each will
+  need an unsubscribe link and the `List-Unsubscribe` headers bulk senders are
+  required to carry.
 
 Requests for a code are rate limited more tightly than the rest of the API,
 because each one spends from a daily email allowance shared by everybody.

@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 import { users } from '#src/shared/db/schema'
-import { UserSchema } from '#src/users/schema'
+import { MemberNodeSchema, UserSchema } from '#src/users/schema'
 import { createHarness, type Harness } from '#tests/support/harness'
 
 const NEWCOMER = 'newcomer@example.org'
@@ -92,14 +92,33 @@ describe('joining by invitation', () => {
         expect(rowFor(h, 'stranger@example.org')).toBeUndefined()
     })
 
-    it('sends a member who asks to join a sign-in code instead', async () => {
+    it('signs in a member who asks to join, through the same code step', async () => {
+        const h = createHarness()
+        const member = await h.createUser('admin')
+
+        const asked = await join(h, member.email)
+        // Worded as a sign-in code, since that is what it does for them.
+        expect(asked.status).toBe(200)
+        expect(h.email.sent.at(-1)).toMatchObject({ to: member.email, template: 'sign-in-code' })
+
+        const verified = await verify(h, member.email, lastCode(h))
+        expect(verified.status).toBe(200)
+
+        // Signed in as the account they already had, unchanged.
+        const adminOnly = await h.request('/v1/users', { cookie: cookieFrom(verified) })
+        expect(adminOnly.status).toBe(200)
+        expect(rowFor(h, member.email)).toMatchObject({ id: member.id, role: 'admin' })
+    })
+
+    it('answers a member exactly as anyone else asking to join', async () => {
         const h = createHarness()
         const member = await h.createUser('user')
 
-        const asked = await join(h, member.email)
+        const known = await join(h, member.email)
+        const unknown = await join(h, 'stranger@example.org')
 
-        expect(asked.status).toBe(200)
-        expect(h.email.sent.at(-1)).toMatchObject({ to: member.email, template: 'sign-in-code' })
+        expect(unknown.status).toBe(known.status)
+        expect(await unknown.text()).toBe(await known.text())
     })
 
     it('leaves an invited address unable to sign in until it has joined', async () => {
@@ -170,6 +189,100 @@ describe('joining by invitation', () => {
         }
 
         expect(statuses).toContain(429)
+    })
+})
+
+describe('joining with a node the browser connected', () => {
+    const joinWithNode = (h: Harness, email: string) =>
+        h.request('/v1/join', {
+            method: 'POST',
+            body: { email, name: 'Bench Builder', withNode: true },
+        })
+
+    it('needs no invitation, and the new member then adds their nodes', async () => {
+        const h = createHarness()
+
+        await joinWithNode(h, NEWCOMER)
+        expect(h.email.sent.at(-1)).toMatchObject({ to: NEWCOMER, template: 'join-code' })
+        const verified = await verify(h, NEWCOMER, lastCode(h))
+        expect(verified.status).toBe(200)
+        const cookie = cookieFrom(verified)
+
+        const added = await h.request('/v1/me/nodes', {
+            method: 'POST',
+            cookie,
+            body: {
+                nodes: [
+                    { nodeNum: 0x12_34_56_78, name: 'Bench node', hardware: 'RAK4631' },
+                    { nodeNum: 42, connectedAt: '2026-10-27T18:00:00.000Z' },
+                ],
+            },
+        })
+        const listed = await h.request('/v1/me/nodes', { cookie })
+
+        expect(added.status).toBe(200)
+        expect(rowFor(h, NEWCOMER)).toMatchObject({ status: 'member', role: 'user' })
+        const body = (await listed.json()) as { nodes: unknown }
+        const nodes = MemberNodeSchema.array().parse(body.nodes)
+        expect(nodes.map((node) => node.nodeNum)).toEqual([42, 0x12_34_56_78])
+    })
+
+    it('subscribes the new member, confirmed, since the code proved the address', async () => {
+        const h = createHarness()
+        await joinWithNode(h, NEWCOMER)
+        const verified = await verify(h, NEWCOMER, lastCode(h))
+
+        const updates = await h.request('/v1/me/subscription', { cookie: cookieFrom(verified) })
+
+        expect(await updates.json()).toEqual({ subscription: { status: 'confirmed' } })
+    })
+
+    it('keeps an earlier unsubscribe in force when someone joins', async () => {
+        const h = createHarness()
+        const member = await h.signInAs('user')
+        await h.request('/v1/me/subscription', {
+            method: 'PATCH',
+            cookie: member.cookie,
+            body: { subscribed: false },
+        })
+        // Demoted to stand in for a subscriber who unsubscribed, then joins.
+        h.db.update(users).set({ status: 'subscriber' }).where(eq(users.id, member.id)).run()
+        const email = h.db.select().from(users).where(eq(users.id, member.id)).get()?.email ?? ''
+
+        await joinWithNode(h, email)
+        const verified = await verify(h, email, lastCode(h))
+        const updates = await h.request('/v1/me/subscription', { cookie: cookieFrom(verified) })
+
+        expect(await updates.json()).toEqual({ subscription: { status: 'unsubscribed' } })
+    })
+
+    it('lets two members bring the same node', async () => {
+        const h = createHarness()
+        const first = await h.signInAs('user')
+        const second = await h.signInAs('user')
+        const body = { nodes: [{ nodeNum: 7 }] }
+
+        const one = await h.request('/v1/me/nodes', { method: 'POST', cookie: first.cookie, body })
+        const two = await h.request('/v1/me/nodes', { method: 'POST', cookie: second.cookie, body })
+        const again = await h.request('/v1/me/nodes', {
+            method: 'POST',
+            cookie: first.cookie,
+            body,
+        })
+
+        expect([one.status, two.status, again.status]).toEqual([200, 200, 200])
+        expect(((await again.json()) as { nodes: unknown[] }).nodes).toHaveLength(1)
+    })
+
+    it('keeps nodes to signed-in members', async () => {
+        const h = createHarness()
+
+        const adding = await h.request('/v1/me/nodes', {
+            method: 'POST',
+            body: { nodes: [{ nodeNum: 7 }] },
+        })
+
+        expect(adding.status).toBe(401)
     })
 })
 

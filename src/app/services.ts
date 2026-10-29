@@ -33,6 +33,8 @@ export type AppConfig = {
     readonly lowBatteryPct: number
     readonly notehubChannelKey?: Buffer | undefined
     readonly linkWindowMin: number
+    /** The website's origin, for links in emails such as a subscription confirmation. */
+    readonly siteUrl: string
 }
 
 export type ServiceDeps = {
@@ -101,6 +103,8 @@ export function createServices(deps: ServiceDeps) {
             repo: createUserRepo(db),
             auth,
             membership: createMembership({ db, clock }),
+            email: deps.email,
+            siteUrl: config.siteUrl,
             clock,
         }),
         devices: createDeviceService({ repo: deviceRepo, clock }),

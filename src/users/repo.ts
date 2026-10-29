@@ -1,11 +1,16 @@
 import { and, asc, eq, isNull } from 'drizzle-orm'
 
 import { type Db } from '#src/shared/db/connection'
-import { invites, sessions, users } from '#src/shared/db/schema'
+import { invites, memberNodes, sessions, subscriptions, users } from '#src/shared/db/schema'
 
 export type UserRow = typeof users.$inferSelect
 export type InviteRow = typeof invites.$inferSelect
 type NewInviteRow = typeof invites.$inferInsert
+export type SubscriptionRow = typeof subscriptions.$inferSelect
+type SubscriptionChange = Partial<Omit<SubscriptionRow, 'userId' | 'createdAt'>> &
+    Pick<SubscriptionRow, 'updatedAt'>
+export type MemberNodeRow = typeof memberNodes.$inferSelect
+type NewMemberNode = Omit<typeof memberNodes.$inferInsert, 'userId' | 'addedAt'>
 
 export function createUserRepo(db: Db) {
     return {
@@ -38,6 +43,60 @@ export function createUserRepo(db: Db) {
 
         rename(id: string, name: string, at: Date): void {
             db.update(users).set({ name, updatedAt: at }).where(eq(users.id, id)).run()
+        },
+
+        /** Marks the address as asking to join with nodes its browser connected. */
+        markNodeJoinRequested(id: string, at: Date): void {
+            db.update(users)
+                .set({ nodeJoinRequestedAt: at, updatedAt: at })
+                .where(eq(users.id, id))
+                .run()
+        },
+
+        findSubscription(userId: string): SubscriptionRow | undefined {
+            return db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).get()
+        },
+
+        findSubscriptionByTokenHash(tokenHash: string): SubscriptionRow | undefined {
+            return db
+                .select()
+                .from(subscriptions)
+                .where(eq(subscriptions.confirmTokenHash, tokenHash))
+                .get()
+        },
+
+        /** Inserts or changes one person's subscription. Consent is set on insert only. */
+        saveSubscription(
+            userId: string,
+            change: SubscriptionChange,
+            consent: Pick<SubscriptionRow, 'source' | 'consentText'>
+        ): void {
+            db.insert(subscriptions)
+                .values({ userId, status: 'unconfirmed', ...consent, ...change })
+                .onConflictDoUpdate({ target: subscriptions.userId, set: change })
+                .run()
+        },
+
+        listNodes(userId: string): MemberNodeRow[] {
+            return db
+                .select()
+                .from(memberNodes)
+                .where(eq(memberNodes.userId, userId))
+                .orderBy(asc(memberNodes.addedAt), asc(memberNodes.nodeNum))
+                .all()
+        },
+
+        /** Adds nodes to a member, refreshing what the browser now says about known ones. */
+        upsertNodes(userId: string, nodes: readonly NewMemberNode[]): void {
+            for (const node of nodes) {
+                db.insert(memberNodes)
+                    .values({ ...node, userId })
+                    .onConflictDoUpdate({
+                        target: [memberNodes.userId, memberNodes.nodeNum],
+                        set: { name: node.name, hardware: node.hardware, firmware: node.firmware },
+                    })
+                    .run()
+            }
         },
 
         update(

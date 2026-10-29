@@ -1,9 +1,20 @@
 # Membership and subscriptions
 
-Status: agreed October 27, 2026; not built. Covers backend #9 (who may join),
-#29 (subscriptions) and the website half of both (web#3, web#8). Joining with a
-node depends on the registration core of #12, so that core is in this release
-too. Ships together with the sign-in pages already built on the website.
+Status: agreed October 27, 2026. Built locally on October 27: membership
+status, joining by invitation (API only) and with a node, subscriptions, and
+the website pages. Nodes are recorded against members (`member_nodes`); turning
+them into registered devices is still #12.
+
+Covers backend #9 (who may join), #29 (subscriptions) and the website half of
+both (web#3, web#8). Ships together with the sign-in pages already built on the
+website.
+
+**Changed on October 27, after review:** the website offers only the node
+route (the invited route stays, through the API); nodes stay in the browser
+until the person is a member and are then recorded against them rather than
+registered as devices, so the #12 registration core and the device-ID question
+(#15 Q06) are no longer part of this release. Sections below that describe
+device registration on joining are superseded by that.
 
 The issues hold the reasoning; this is the build plan that reconciles them.
 Where an issue and this plan disagree, the issue is out of date: fix it.
@@ -145,17 +156,17 @@ one is sent.
 
 ## Website
 
-| Where                | What                                                                                         |
-| -------------------- | -------------------------------------------------------------------------------------------- |
-| Header               | **Sign in**, or your name (built)                                                            |
-| Footer, every page   | Email field and **Subscribe**, with one honest line on what is sent and how to stop          |
-| `/join`              | Two ways in: **I've built a node** → `/connect`; **I was invited** → email, name, code       |
-| `/connect`           | With a node connected: signed out, **Join with this node**; signed in, **Add to my devices** |
-| `/sign-in`           | Built. Adds **No account? Join**, a resend cooldown, and non-revealing copy (web#3)          |
-| `/account`           | Built (web#8 asked for `/profile`). Adds your devices and your updates setting               |
-| `/subscribe/confirm` | **Confirm subscription** button, from the email link                                         |
-| `/unsubscribe`       | **Unsubscribe** button, from the email link                                                  |
-| `/privacy`           | Rewritten for the session cookie, codes, subscriptions and device membership                 |
+| Where                | What                                                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Header               | **Sign in**, or your name (built)                                                                                              |
+| Footer, every page   | Signed out: **Get updates** (Subscribe), or **Become a member** once this browser has connected a node                         |
+| `/join`              | **Become a member**: with no node connected here, sends to `/connect`; with nodes, email, name, code, then the nodes are added |
+| `/connect`           | Once a node connects: signed out, **Become a member** → `/join`; signed in, **Add to my account**                              |
+| `/sign-in`           | Built. Adds **No account? Join**, a resend cooldown, and non-revealing copy (web#3)                                            |
+| `/account`           | Built (web#8 asked for `/profile`). Adds your nodes and your updates setting                                                   |
+| `/subscribe/confirm` | **Confirm subscription** button, from the email link                                                                           |
+| `/unsubscribe`       | **Unsubscribe** button, from the email link                                                                                    |
+| `/privacy`           | Rewritten for the session cookie, codes, subscriptions and device membership                                                   |
 
 Join says plainly that it also subscribes you (web#3). The invited route on
 `/join` answers the same way whether or not the address is on the list: **If

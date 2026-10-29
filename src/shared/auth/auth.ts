@@ -59,13 +59,31 @@ export function createAuth(db: Db, config: AuthConfig) {
                 status: { type: 'string', required: false, defaultValue: 'member', input: false },
             },
         },
+        databaseHooks: {
+            user: {
+                create: {
+                    // Members get updates by default, including those Better
+                    // Auth creates directly: the bootstrap admin, and accounts
+                    // an admin makes. Joining enrols through `promote` instead.
+                    after: (user) => {
+                        if (user['status'] === 'member') config.membership.enrollByDefault(user.id)
+                        return Promise.resolve()
+                    },
+                },
+            },
+        },
         emailVerification: {
             // The join code, once verified, signs the new member in.
             autoSignInAfterVerification: true,
             beforeEmailVerification: (user) => {
-                // A join code goes only to an invited address, but the invite
-                // can be removed while the code is in someone's inbox.
-                if (!config.membership.mayJoin(user.email)) {
+                // A join code goes only to an eligible address or an existing
+                // member, but an invite can be removed while the code is in
+                // someone's inbox. A member verifying is simply signed in;
+                // `promote` leaves them as they are.
+                const allowed =
+                    config.membership.mayJoin(user.email) ||
+                    config.membership.mayReceiveSignInCode(user.email)
+                if (!allowed) {
                     throw new APIError('FORBIDDEN', {
                         code: 'NOT_INVITED',
                         message: 'This address is not invited to join',

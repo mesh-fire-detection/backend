@@ -21,6 +21,7 @@ export const TEST_CONFIG: AppConfig = {
     statusOfflineMin: 120,
     lowBatteryPct: 20,
     linkWindowMin: 1440,
+    siteUrl: SITE_ORIGIN,
 }
 
 type RequestOptions = {

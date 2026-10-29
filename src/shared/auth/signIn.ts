@@ -26,9 +26,9 @@ export type CodeMailerDeps = {
  * who has an account or an invite here.
  *
  * A sign-in code goes only to a member. A join code — Better Auth's
- * email-verification type — goes only to an invited address that is not a
- * member yet. Every other type Better Auth knows, such as password reset, is
- * never sent.
+ * email-verification type — goes to an address eligible to join, or, worded as
+ * a sign-in code, to a member who asked to join, whom verifying it signs in.
+ * Every other type Better Auth knows, such as password reset, is never sent.
  */
 export function createCodeMailer({ membership, email, logger: parent }: CodeMailerDeps) {
     const logger = parent.child({ component: 'codes' })
@@ -53,6 +53,10 @@ export function createCodeMailer({ membership, email, logger: parent }: CodeMail
             if (type !== 'email-verification') return
             if (membership.mayJoin(address)) {
                 await email.send(joinCode(address, code, minutes))
+            } else if (membership.mayReceiveSignInCode(address)) {
+                // A member who asked to join: the code signs them in, so the
+                // email says so.
+                await email.send(signInCode(address, code, minutes))
             } else {
                 quietlyRefuse(type)
             }

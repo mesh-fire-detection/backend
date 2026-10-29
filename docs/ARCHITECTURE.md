@@ -207,6 +207,17 @@ or hold a usable session (`src/shared/auth/membership.ts`).
 **invites**: the allowlist. `id`, `email` (unique), `role`, `invitedById`,
 `acceptedAt`, `acceptedUserId`, `createdAt`. No token and no expiry: the emailed
 code proves the address, and an admin withdraws an invite by deleting it.
+`users.nodeJoinRequestedAt` marks the other way to be eligible: asking to join
+with a node the browser connected.
+
+**member_nodes**: nodes a member brought from their browser. `id`, `userId`,
+`nodeNum`, `name`, `hardware`, `firmware`, `connectedAt` (as the browser said),
+`addedAt`; unique on `(userId, nodeNum)`. Not registered devices.
+
+**subscriptions**: project updates, one per person. `userId`, `status`
+(`unconfirmed`, `confirmed`, `unsubscribed`), `source` (`footer`, `join`,
+`account`, `default`), `consentText`, `confirmTokenHash`, `confirmSentAt`, `confirmedAt`,
+`unsubscribedAt`.
 
 **devices**
 
@@ -283,7 +294,9 @@ single resources return `{ <item>: {...} }`.
 | --- | --- | --- |
 | GET | `/api/network.json` | `{ nodes: MeshNode[], links: MeshLink[] }`, cached 30 s |
 | GET | `/health` | App, database, and MQTT state; 503 when failing |
-| POST | `/v1/join` | `{ email, name }` → a join code if invited, a sign-in code if already a member, else nothing; always `{ success: true }` |
+| POST | `/v1/join` | `{ email, name, withNode? }` → a join code if invited or `withNode`, a sign-in code if already a member, else nothing; always `{ success: true }` |
+| POST | `/v1/subscribe` | `{ email }` → a confirmation link unless confirmed or sent in the last day; always `{ success: true }` |
+| POST | `/v1/subscribe/confirm` | `{ token }` from that link; 400 once used or after a week |
 | POST | `/v1/auth/email-otp/verify-email` | `{ email, otp }` → verifies a join code, makes the person a member, signs them in |
 | POST | `/v1/auth/email-otp/send-verification-otp` | Emails a sign-in code, to a member only |
 | POST | `/v1/auth/sign-in/email-otp` | Exchanges the code for a session |
@@ -299,6 +312,9 @@ single resources return `{ <item>: {...} }`.
 | PATCH, DELETE | `/v1/alert-rules/:id` | Edit or remove own rule |
 | GET | `/v1/alerts?status=` | System alerts plus own rule alerts (admins see all), newest 500 |
 | PATCH | `/v1/alerts/:id` | `{ status: acknowledged | resolved, note? }` |
+| PATCH | `/v1/me` | `{ name }` → renames yourself; the address and role cannot be changed here |
+| GET, PATCH | `/v1/me/subscription` | Own updates setting; `{ subscribed }` turns it on or off |
+| GET, POST | `/v1/me/nodes` | Own nodes; `{ nodes: [{ nodeNum, name?, hardware?, firmware?, connectedAt? }] }` adds or refreshes |
 
 **Admin**
 
@@ -314,8 +330,8 @@ single resources return `{ <item>: {...} }`.
 | PATCH | `/v1/users/:id` | Change role, disable |
 
 Rate limits: 600 requests per 15 minutes per client on `/v1/*`, 120 per minute
-on the map feed, 10 per 15 minutes on joining and on code requests and
-verification, plus Better Auth's
+on the map feed, 10 per 15 minutes on joining, subscribing, and on code
+requests and verification, plus Better Auth's
 sign-in limiter.
 
 ## Network feed assembly
