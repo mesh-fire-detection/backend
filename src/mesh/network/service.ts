@@ -1,11 +1,8 @@
 import { type LinkObservationRow, type NetworkRepo } from '#src/mesh/network/repo'
-import {
-    type MeshLink,
-    type MeshNode,
-    type Network,
-    type NodeStatus,
-} from '#src/mesh/network/schema'
+import { type MeshLink, type MeshNode, type Network } from '#src/mesh/network/schema'
+import { shownLocation } from '#src/mesh/nodes/position'
 import { type NodeRepo, type NodeRow } from '#src/mesh/nodes/repo'
+import { type NodeStatus } from '#src/mesh/nodes/schema'
 import { type Clock, MS_PER_MINUTE, MS_PER_SECOND } from '#src/shared/time'
 
 export type StatusThresholds = {
@@ -44,8 +41,40 @@ const round = (value: number, places: number): number => {
     return Math.round(value * factor) / factor
 }
 
+/** A node with everything the map needs; the rest are left off it until filled in. */
+type MappableNode = NodeRow & {
+    readonly type: NonNullable<NodeRow['type']>
+    readonly position: [number, number]
+    readonly elevationM: number
+    readonly antennaHeightM: number
+    readonly firmware: string
+    readonly deployedOn: string
+}
+
+/** Positions and elevations here are what the public may see (src/mesh/nodes/position.ts). */
+function mappable(node: NodeRow): MappableNode | undefined {
+    const shown = shownLocation(node)
+    const { type, antennaHeightM, firmware, deployedOn } = node
+    return type === null ||
+        antennaHeightM === null ||
+        firmware === null ||
+        deployedOn === null ||
+        shown.position === null ||
+        shown.elevationM === null
+        ? undefined
+        : {
+              ...node,
+              type,
+              position: shown.position,
+              elevationM: shown.elevationM,
+              antennaHeightM,
+              firmware,
+              deployedOn,
+          }
+}
+
 function toMeshNode(
-    node: NodeRow,
+    node: MappableNode,
     batteryPct: number | null,
     now: Date,
     thresholds: StatusThresholds
@@ -60,7 +89,7 @@ function toMeshNode(
         name: node.name,
         type: node.type,
         status: nodeStatus(minutesSinceHeard, batteryPct, thresholds),
-        position: [node.longitude, node.latitude],
+        position: node.position,
         elevationM: node.elevationM,
         antennaHeightM: node.antennaHeightM,
         batteryPct: batteryPct === null ? null : Math.round(batteryPct),
@@ -77,7 +106,7 @@ function toMeshNode(
  */
 function toMeshLinks(
     observations: readonly LinkObservationRow[],
-    nodesById: ReadonlyMap<string, NodeRow>
+    nodesById: ReadonlyMap<string, MappableNode>
 ): MeshLink[] {
     const latest = new Map<string, { row: LinkObservationRow; rssi: number | null }>()
     for (const row of observations) {
@@ -100,13 +129,7 @@ function toMeshLinks(
                           to: to.id,
                           rssi,
                           snr: row.snr,
-                          distanceKm: round(
-                              distanceKm(
-                                  [from.longitude, from.latitude],
-                                  [to.longitude, to.latitude]
-                              ),
-                              2
-                          ),
+                          distanceKm: round(distanceKm(from.position, to.position), 2),
                       },
                   ]
         })
@@ -124,7 +147,7 @@ export function createNetworkService(deps: {
     let cached: { readonly network: Network; readonly expiresAt: number } | undefined
 
     const build = (now: Date): Network => {
-        const nodes = nodeRepo.listEnabled()
+        const nodes = nodeRepo.listEnabled().flatMap((node) => mappable(node) ?? [])
         const batteries = repo.latestBatteryByNode()
         const nodesById = new Map(nodes.map((node) => [node.id, node]))
         const since = new Date(now.getTime() - linkWindowMin * MS_PER_MINUTE)

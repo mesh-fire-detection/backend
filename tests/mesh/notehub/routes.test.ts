@@ -8,7 +8,7 @@ import {
     NOTEHUB_TOKEN,
     NOTECARD_UID,
 } from '#tests/support/notehub'
-import { nodeInput } from '#tests/support/seed'
+import { nodeInput, ADMIN } from '#tests/support/seed'
 
 describe('Notehub route', () => {
     it('stores encrypted particle telemetry and exposes it through authenticated history', async () => {
@@ -33,7 +33,7 @@ describe('Notehub route', () => {
                 { metric: 'airQualityMetrics.particles100um', value: 0 },
             ],
         })
-        expect(h.services.nodes.get('sen-01').lastHeardAt).toBe(h.clock().toISOString())
+        expect(h.services.nodes.get('sen-01', ADMIN).lastHeardAt).toBe(h.clock().toISOString())
         const health = await h.request('/health')
         expect(await health.json()).toMatchObject({
             notehub: { status: 'ok', lastReceivedAt: h.clock().toISOString() },
@@ -69,14 +69,14 @@ describe('Notehub route', () => {
         const h = notehubHarness()
         const unknown = await deliver(h, notehubEvent(h, { from: 0x99 }))
         expect(unknown.status).toBe(403)
-        h.services.nodes.update('sen-01', { enabled: false })
+        h.services.nodes.update('sen-01', { enabled: false }, ADMIN)
         const disabledSender = await deliver(h, notehubEvent(h))
         expect(disabledSender.status).toBe(403)
         h.services.gateways.update('cel-01', { enabled: false })
         const disabledGateway = await deliver(h, notehubEvent(h))
         expect(disabledGateway.status).toBe(403)
         h.services.gateways.update('cel-01', { enabled: true })
-        h.services.nodes.update('cel-01', { enabled: false })
+        h.services.nodes.update('cel-01', { enabled: false }, ADMIN)
         const disabledNode = await deliver(h, notehubEvent(h))
         expect(disabledNode.status).toBe(403)
     })
@@ -107,7 +107,7 @@ describe('Notehub route', () => {
     it('requires explicit backend enablement', async () => {
         const h = createHarness()
         const enabled = notehubHarness()
-        h.services.nodes.register(nodeInput({ id: 'cel-01', type: 'cellular' }))
+        h.services.nodes.register(nodeInput({ id: 'cel-01', type: 'cellular' }), ADMIN)
         h.services.gateways.register({
             nodeId: 'cel-01',
             notecardUid: NOTECARD_UID,

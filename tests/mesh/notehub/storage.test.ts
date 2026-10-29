@@ -9,7 +9,7 @@ import { notehubEvents, notehubSamples, packetsSeen, readings } from '#src/share
 import { createHarness } from '#tests/support/harness'
 import { deliver, notehubEvent, notehubHarness } from '#tests/support/notehub'
 import { CHANNEL_KEY } from '#tests/support/packets'
-import { nodeInput } from '#tests/support/seed'
+import { nodeInput, ADMIN } from '#tests/support/seed'
 
 describe('Notehub persistence', () => {
     it('stores overlapping batches once and rejects changed content under an event ID', async () => {
@@ -50,7 +50,7 @@ describe('Notehub persistence', () => {
         expect(h.db.select().from(packetsSeen).all()).toHaveLength(0)
         expect(h.db.select().from(notehubEvents).all()).toHaveLength(0)
         expect(h.db.select().from(notehubSamples).all()).toHaveLength(0)
-        expect(h.services.nodes.get('sen-01').lastHeardAt).toBeNull()
+        expect(h.services.nodes.get('sen-01', ADMIN).lastHeardAt).toBeNull()
         expect(h.services.alerts.list({}, { id: owner.id, role: 'user' })).toHaveLength(0)
         const retry = await deliver(h, valid)
         expect(retry.status).toBe(200)
@@ -92,7 +92,10 @@ describe('Notehub persistence', () => {
             accepted: false,
             reason: 'duplicate',
         })
-        h.services.nodes.register(nodeInput({ id: 'cel-02', meshId: 0x99, type: 'cellular' }))
+        h.services.nodes.register(
+            nodeInput({ id: 'cel-02', meshId: 0x99, type: 'cellular' }),
+            ADMIN
+        )
         const token = 'another-gateway-credential-'.padEnd(64, 'c')
         h.services.gateways.register({
             nodeId: 'cel-02',

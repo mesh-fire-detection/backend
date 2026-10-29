@@ -7,14 +7,12 @@ import { type EmailService } from '#src/shared/email/service'
 import { confirmSubscription } from '#src/shared/email/templates'
 import { DomainError, notFound } from '#src/shared/errors'
 import { type Clock, MS_PER_MINUTE } from '#src/shared/time'
-import { type InviteRow, type MemberNodeRow, type UserRepo, type UserRow } from '#src/users/repo'
+import { type InviteRow, type UserRepo, type UserRow } from '#src/users/repo'
 import {
     type Invite,
     type InviteUser,
     type Join,
     type Me,
-    type MemberNode,
-    type NodeInput,
     type Subscription,
     type UpdateUser,
     type User,
@@ -44,17 +42,6 @@ function toUser(row: UserRow): User {
         status: row.status,
         disabled: row.banned === true,
         createdAt: row.createdAt.toISOString(),
-    }
-}
-
-function toMemberNode(row: MemberNodeRow): MemberNode {
-    return {
-        nodeNum: row.nodeNum,
-        name: row.name,
-        hardware: row.hardware,
-        firmware: row.firmware,
-        connectedAt: row.connectedAt?.toISOString() ?? null,
-        addedAt: row.addedAt.toISOString(),
     }
 }
 
@@ -97,9 +84,6 @@ export function createUserService(deps: {
     const mySubscription = (userId: string): Subscription => ({
         status: repo.findSubscription(userId)?.status ?? 'none',
     })
-
-    const myNodes = (userId: string): MemberNode[] =>
-        repo.listNodes(userId).map((row) => toMemberNode(row))
 
     return {
         list(): User[] {
@@ -253,24 +237,6 @@ export function createUserService(deps: {
                   }
             repo.saveSubscription(userId, change, consent)
             return mySubscription(userId)
-        },
-
-        myNodes,
-
-        /** Nodes the member's browser connected. Adding one already there refreshes it. */
-        addMyNodes(userId: string, nodes: readonly NodeInput[]): MemberNode[] {
-            repo.upsertNodes(
-                userId,
-                nodes.map((node) => ({
-                    id: randomUUID(),
-                    nodeNum: node.nodeNum,
-                    name: node.name,
-                    hardware: node.hardware,
-                    firmware: node.firmware,
-                    connectedAt: node.connectedAt === null ? null : new Date(node.connectedAt),
-                }))
-            )
-            return myNodes(userId)
         },
 
         async createAdmin(address: string, name: string, password: string): Promise<User> {

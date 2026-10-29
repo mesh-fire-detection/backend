@@ -153,9 +153,15 @@ them only by a decision here.
 
 Every node must be registered before its data is accepted.
 
-- A node has an ID (`cel-01`, matching the site) and a mesh ID (`!a1b2c3d4`,
-  the text form of its node number, which Meshtastic calls its node ID). Both
-  are unique.
+- A node has an ID and a mesh ID (`!a1b2c3d4`, the text form of its node
+  number, which Meshtastic calls its node ID). Both are unique. The server
+  assigns the ID (`n-0001` and up) when a member registers a node, and never
+  changes or reuses it; an admin may choose one instead (`cel-01`). The name
+  is separate and editable.
+- A node may also carry its hardware ID, Meshtastic's `MyNodeInfo.device_id`,
+  which survives a reflash. When a firmware upgrade changes the node number,
+  the hardware ID moves the node to its new number, keeping its ID and history.
+  Only someone already on the node can do that (docs/plans/nodes.md).
 - Packets from unregistered or disabled node numbers are dropped and logged.
 - Network security has three parts:
     1. A private channel key shared only by our nodes.
@@ -207,10 +213,25 @@ stay in the browser, never sent anywhere, until the person joins: the request
 says only that the browser has connected one. The website cannot prove that,
 and the claim is accepted on purpose so a builder can join at their bench;
 the address is still proven with a code. Once a member, the website sends the
-nodes the browser connected, and they are recorded against the member
-(`member_nodes`). They are not yet registered: that needs an ID and
-deployment details (backend#12), and these records are where registration will
-start. Two members can bring the same node.
+nodes the browser connected, and each is registered with the member on it, or,
+if already registered, the member is added to it. Two members can bring the
+same node, and are equals on it.
+
+### Nodes and the people on them
+
+- Every registered node is visible to every signed-in person, except disabled
+  ones, which only their people and admins see. Nobody is named or counted as
+  being on a node; a person sees only whether a node is theirs (#15 Q10).
+- Only identity is required to register. Type, position, elevation, antenna
+  height, firmware and deployment date are filled in later by the people on
+  the node, who may edit it; changing the mesh ID or enabling is for admins.
+- **Positions are approximate** to everyone but a node's people and admins:
+  the centre of a fixed grid cell about 1 km across, with elevation to the
+  nearest 50 m, on `/nodes` and on the public map alike. A node in someone's
+  home must not be findable, and one outdoors must not be easy to steal. Its
+  people may choose to show it exactly (`exactPosition`), for a node on public
+  land or where the owner agreed. What a node reports about its own position
+  is shown only with the exact one.
 
 **An invitation** puts an address on the allowlist and sends nothing; the role
 it names is the role the person joins with.
@@ -363,7 +384,9 @@ channel table so adding them later needs no restructuring.
 - `MeshNode`: `id`, `name`, `type`, `status`, `position` as
   `[longitude, latitude]`, `elevationM`, `antennaHeightM`, `batteryPct`
   (null if never reported), `lastHeartbeatMin` (null if never heard),
-  `firmware`, `deployedOn`, optional `note`. Only enabled nodes appear.
+  `firmware`, `deployedOn`, optional `note`. Only enabled nodes with all of
+  these filled in appear, at the positions anyone may see (see Nodes and the
+  people on them).
 - `MeshLink`: `from`, `to`, `rssi` (dBm, **nullable**), `snr` (dB),
   `distanceKm`.
 

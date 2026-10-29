@@ -14,7 +14,7 @@ import {
     PortNum,
     position,
 } from '#tests/support/packets'
-import { GATEWAY_NODE, OTHER_SENSOR_NODE, SENSOR_NODE, seedMesh } from '#tests/support/seed'
+import { GATEWAY_NODE, OTHER_SENSOR_NODE, SENSOR_NODE, seedMesh, ADMIN } from '#tests/support/seed'
 
 let nextId = 1
 
@@ -64,7 +64,7 @@ describe('ingest service', () => {
         const outcome = h.services.ingest.handle(temperature(31.5), h.clock())
 
         expect(outcome).toEqual({ accepted: true, nodeId: 'sen-01', readingCount: 1 })
-        expect(h.services.nodes.get('sen-01').lastHeardAt).toBe(h.clock().toISOString())
+        expect(h.services.nodes.get('sen-01', ADMIN).lastHeardAt).toBe(h.clock().toISOString())
         expect(
             h.services.readings.readings('sen-01', { metric: 'environmentMetrics.temperature' })
                 .readings
@@ -84,7 +84,7 @@ describe('ingest service', () => {
             packet({ portnum: PortNum.TEXT_MESSAGE_APP, payload: new Uint8Array([1]), from: 0x99 }),
             h.clock()
         )
-        h.services.nodes.update('sen-01', { enabled: false })
+        h.services.nodes.update('sen-01', { enabled: false }, ADMIN)
         const disabled = h.services.ingest.handle(temperature(20), h.clock())
 
         expect(unregistered).toEqual({ accepted: false, reason: 'unregistered_node' })
@@ -156,10 +156,10 @@ describe('ingest service', () => {
             h.clock()
         )
 
-        const node = h.services.nodes.get('sen-01')
+        const node = h.services.nodes.get('sen-01', ADMIN)
         expect(node.name).toBe('Rattlesnake Ridge 1')
-        expect(node.position).toEqual([-114.05, 46.9])
-        expect(node.reported).toEqual({
+        expect(node.details?.position).toEqual([-114.05, 46.9])
+        expect(node.details?.reported).toEqual({
             name: 'Renamed On Node',
             position: [expect.closeTo(-114, 6), expect.closeTo(47, 6)],
             altitudeM: 1600,

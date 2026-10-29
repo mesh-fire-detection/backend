@@ -82,7 +82,9 @@ From #11 and #12, unchanged:
   named as an owner** on any shared view (#15 Q10); a person sees only that a
   node is theirs. No visibility flag yet.
 
-The `/nodes` page itself (web#5) follows this release.
+The `/nodes` page itself (web#5) follows this release. Nodes, the people on
+them, approximate positions and the hardware ID are planned in
+`docs/plans/nodes.md`, which supersedes `member_nodes` here.
 
 ## Data
 

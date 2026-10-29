@@ -4,7 +4,6 @@ import { access, requireViewer, type AppEnv } from '#src/shared/auth/access'
 import { rateLimit } from '#src/shared/http/rateLimit'
 import { validate } from '#src/shared/http/validate'
 import {
-    AddNodesSchema,
     ConfirmSubscriptionSchema,
     InviteParamsSchema,
     InviteUserSchema,
@@ -101,14 +100,6 @@ export function userRoutes(service: UserService) {
                             c.req.valid('json').subscribed
                         ),
                     })
-            )
-            .get('/v1/me/nodes', access('user'), (c) =>
-                c.json({ nodes: service.myNodes(requireViewer(c).id) })
-            )
-            .post('/v1/me/nodes', access('user'), validate('json', AddNodesSchema), (c) =>
-                c.json({
-                    nodes: service.addMyNodes(requireViewer(c).id, c.req.valid('json').nodes),
-                })
             )
     )
 }

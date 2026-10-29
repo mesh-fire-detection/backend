@@ -1,8 +1,9 @@
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
+import { NodeSchema } from '#src/mesh/nodes/schema'
 import { users } from '#src/shared/db/schema'
-import { MemberNodeSchema, UserSchema } from '#src/users/schema'
+import { UserSchema } from '#src/users/schema'
 import { createHarness, type Harness } from '#tests/support/harness'
 
 const NEWCOMER = 'newcomer@example.org'
@@ -199,7 +200,7 @@ describe('joining with a node the browser connected', () => {
             body: { email, name: 'Bench Builder', withNode: true },
         })
 
-    it('needs no invitation, and the new member then adds their nodes', async () => {
+    it('needs no invitation, and the new member then registers their nodes', async () => {
         const h = createHarness()
 
         await joinWithNode(h, NEWCOMER)
@@ -214,7 +215,7 @@ describe('joining with a node the browser connected', () => {
             body: {
                 nodes: [
                     { nodeNum: 0x12_34_56_78, name: 'Bench node', hardware: 'RAK4631' },
-                    { nodeNum: 42, connectedAt: '2026-10-27T18:00:00.000Z' },
+                    { nodeNum: 42 },
                 ],
             },
         })
@@ -223,8 +224,11 @@ describe('joining with a node the browser connected', () => {
         expect(added.status).toBe(200)
         expect(rowFor(h, NEWCOMER)).toMatchObject({ status: 'member', role: 'user' })
         const body = (await listed.json()) as { nodes: unknown }
-        const nodes = MemberNodeSchema.array().parse(body.nodes)
-        expect(nodes.map((node) => node.nodeNum)).toEqual([42, 0x12_34_56_78])
+        const nodes = NodeSchema.array().parse(body.nodes)
+        expect(nodes).toMatchObject([
+            { id: 'n-0001', meshId: '!12345678', name: 'Bench node', mine: true },
+            { id: 'n-0002', meshId: '!0000002a', name: '!0000002a', mine: true },
+        ])
     })
 
     it('subscribes the new member, confirmed, since the code proved the address', async () => {

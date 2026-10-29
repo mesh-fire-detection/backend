@@ -94,7 +94,7 @@ src/
   health/             GET /health
   users/              users and invites
   mesh/
-    nodes/            node registration and admin
+    nodes/            registration, the people on a node, approximate positions
     gateways/         which nodes may forward packets
     ingest/           decode.ts, payloads.ts, subscriber.ts (MQTT), service, repo
     network/          builds /api/network.json
@@ -210,9 +210,8 @@ code proves the address, and an admin withdraws an invite by deleting it.
 `users.nodeJoinRequestedAt` marks the other way to be eligible: asking to join
 with a node the browser connected.
 
-**member_nodes**: nodes a member brought from their browser. `id`, `userId`,
-`nodeNum`, `name`, `hardware`, `firmware`, `connectedAt` (as the browser said),
-`addedAt`; unique on `(userId, nodeNum)`. Not yet registered.
+**node_members**: the people on a node, all equal. `nodeId`, `userId`,
+`addedAt`; primary key `(nodeId, userId)`.
 
 **subscriptions**: project updates, one per person. `userId`, `status`
 (`unconfirmed`, `confirmed`, `unsubscribed`), `source` (`footer`, `join`,
@@ -223,11 +222,13 @@ with a node the browser connected.
 
 | Column                                                                                     | Notes                                                                              |
 | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| `id`                                                                                       | Human ID, e.g. `cel-01`. Primary key.                                              |
+| `id`                                                                                       | Primary key: `n-0001` assigned by the server, or chosen by an admin (`cel-01`)     |
 | `nodeNum`                                                                                  | Meshtastic node number. Unique.                                                    |
-| `name`, `type`                                                                             | `type` is `base`, `cellular`, `sensor`, or `vision`                                |
-| `longitude`, `latitude`, `elevationM`, `antennaHeightM`                                    | Registered location                                                                |
-| `firmware`, `deployedOn`, `note`                                                           |                                                                                    |
+| `hardwareId`                                                                               | Meshtastic `MyNodeInfo.device_id`; survives a reflash. Unique, nullable            |
+| `name`, `type`                                                                             | `type` is `base`, `cellular`, `sensor`, `vision`, or null until set                |
+| `longitude`, `latitude`, `elevationM`, `antennaHeightM`                                    | Exact location, nullable until deployed                                            |
+| `exactPosition`                                                                            | Show the position exactly to everyone; off by default                              |
+| `hardware`, `firmware`, `deployedOn`, `note`                                               | Nullable                                                                           |
 | `enabled`                                                                                  | Disabled nodes are ignored at ingest and hidden from the map                       |
 | `lastHeardAt`                                                                              | Updated monotonically by accepted MQTT packets and eligible live Notehub telemetry |
 | `reportedName`, `reportedLongitude`, `reportedLatitude`, `reportedAltitudeM`, `reportedAt` | Last NodeInfo / Position from the node                                             |
@@ -304,30 +305,32 @@ single resources return `{ <item>: {...} }`.
 
 **User** (logged in)
 
-| Method        | Path                                       | Purpose                                                                                            |
-| ------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| GET           | `/v1/nodes/:id/readings?metric=&from=&to=` | Sensor history (default last 24 h, max 31 days, 10,000 rows)                                       |
-| GET           | `/v1/nodes/:id/metrics?from=&to=`          | Battery and uptime history                                                                         |
-| GET, POST     | `/v1/alert-rules`                          | List (own; admins see all) or create own rules                                                     |
-| PATCH, DELETE | `/v1/alert-rules/:id`                      | Edit or remove own rule                                                                            |
-| GET           | `/v1/alerts?status=`                       | System alerts plus own rule alerts (admins see all), newest 500                                    |
-| PATCH         | `/v1/alerts/:id`                           | `{ status: acknowledged                                                                            | resolved, note? }` |
-| PATCH         | `/v1/me`                                   | `{ name }` → renames yourself; the address and role cannot be changed here                         |
-| GET, PATCH    | `/v1/me/subscription`                      | Own updates setting; `{ subscribed }` turns it on or off                                           |
-| GET, POST     | `/v1/me/nodes`                             | Own nodes; `{ nodes: [{ nodeNum, name?, hardware?, firmware?, connectedAt? }] }` adds or refreshes |
+| Method        | Path                                       | Purpose                                                                                                               |
+| ------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| GET           | `/v1/nodes/:id/readings?metric=&from=&to=` | Sensor history (default last 24 h, max 31 days, 10,000 rows)                                                          |
+| GET           | `/v1/nodes/:id/metrics?from=&to=`          | Battery and uptime history                                                                                            |
+| GET, POST     | `/v1/alert-rules`                          | List (own; admins see all) or create own rules                                                                        |
+| PATCH, DELETE | `/v1/alert-rules/:id`                      | Edit or remove own rule                                                                                               |
+| GET           | `/v1/alerts?status=`                       | System alerts plus own rule alerts (admins see all), newest 500                                                       |
+| PATCH         | `/v1/alerts/:id`                           | `{ status: acknowledged                                                                                               | resolved, note? }` |
+| PATCH         | `/v1/me`                                   | `{ name }` → renames yourself; the address and role cannot be changed here                                            |
+| GET, PATCH    | `/v1/me/subscription`                      | Own updates setting; `{ subscribed }` turns it on or off                                                              |
+| GET           | `/v1/nodes`                                | Every visible node, each with `mine`; `details` only on your own                                                      |
+| GET, PATCH    | `/v1/nodes/:id`                            | View; edit if you are on it (mesh ID and enabling are admin-only)                                                     |
+| GET, POST     | `/v1/me/nodes`                             | Nodes you are on; `{ nodes: [{ nodeNum, name?, hardware?, firmware?, hardwareId?, type? }] }` registers or joins each |
 
 **Admin**
 
-| Method     | Path                   | Purpose                                                                              |
-| ---------- | ---------------------- | ------------------------------------------------------------------------------------ |
-| GET, POST  | `/v1/nodes`            | List or register nodes                                                               |
-| GET, PATCH | `/v1/nodes/:id`        | View, edit, enable or disable                                                        |
-| GET, POST  | `/v1/gateways`         | List or register gateways                                                            |
-| PATCH      | `/v1/gateways/:nodeId` | Change MQTT username/Notecard UID, rotate or revoke Notehub token, enable or disable |
-| GET, POST  | `/v1/users`            | List users; invite an address (`{ email, role }`, sends nothing)                     |
-| GET        | `/v1/invites`          | Invites not yet used                                                                 |
-| DELETE     | `/v1/invites/:id`      | Withdraw an unused invite                                                            |
-| PATCH      | `/v1/users/:id`        | Change role, disable                                                                 |
+| Method    | Path                   | Purpose                                                                              |
+| --------- | ---------------------- | ------------------------------------------------------------------------------------ |
+| POST      | `/v1/nodes`            | Register a node with a chosen ID                                                     |
+| PATCH     | `/v1/nodes/:id`        | Edit any node, including its mesh ID and enabling                                    |
+| GET, POST | `/v1/gateways`         | List or register gateways                                                            |
+| PATCH     | `/v1/gateways/:nodeId` | Change MQTT username/Notecard UID, rotate or revoke Notehub token, enable or disable |
+| GET, POST | `/v1/users`            | List users; invite an address (`{ email, role }`, sends nothing)                     |
+| GET       | `/v1/invites`          | Invites not yet used                                                                 |
+| DELETE    | `/v1/invites/:id`      | Withdraw an unused invite                                                            |
+| PATCH     | `/v1/users/:id`        | Change role, disable                                                                 |
 
 Rate limits: 600 requests per 15 minutes per client on `/v1/*`, 120 per minute
 on the map feed, 10 per 15 minutes on joining, subscribing, and on code
@@ -336,12 +339,14 @@ sign-in limiter.
 
 ## Network feed assembly
 
-- Nodes come from the enabled rows of `nodes`, with `status`, `batteryPct`, and
+- Nodes come from the enabled rows of `nodes` that have everything `MeshNode`
+  needs, at the positions anyone may see (`src/mesh/nodes/position.ts`), with
+  `status`, `batteryPct`, and
   `lastHeartbeatMin` computed from `lastHeardAt` and the latest non-null
   `device_metrics.batteryPct` at request time.
 - Links come from `link_observations` within `LINK_WINDOW_MIN`, between
   enabled nodes. `distanceKm` is the great-circle distance between
-  registered positions, rounded to 0.01 km.
+  the positions shown, rounded to 0.01 km.
 - The response is cached in memory for 30 seconds.
 
 ## Alert evaluation

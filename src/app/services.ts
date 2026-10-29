@@ -51,6 +51,11 @@ export type ServiceDeps = {
 export function createServices(deps: ServiceDeps) {
     const { db, auth, clock, logger, config } = deps
     const transact = <T>(fn: () => T): T => transaction(db, fn)
+    const statusThresholds = {
+        degradedMin: config.statusDegradedMin,
+        offlineMin: config.statusOfflineMin,
+        lowBatteryPct: config.lowBatteryPct,
+    }
 
     const nodeRepo = createNodeRepo(db)
     const gatewayRepo = createGatewayRepo(db)
@@ -107,7 +112,13 @@ export function createServices(deps: ServiceDeps) {
             siteUrl: config.siteUrl,
             clock,
         }),
-        nodes: createNodeService({ repo: nodeRepo, clock }),
+        nodes: createNodeService({
+            repo: nodeRepo,
+            clock,
+            transact,
+            batteries: () => networkRepo.latestBatteryByNode(),
+            thresholds: statusThresholds,
+        }),
         gateways: createGatewayService({ repo: gatewayRepo, nodeRepo, clock }),
         ingest,
         notehub,
@@ -115,11 +126,7 @@ export function createServices(deps: ServiceDeps) {
             repo: networkRepo,
             nodeRepo,
             clock,
-            thresholds: {
-                degradedMin: config.statusDegradedMin,
-                offlineMin: config.statusOfflineMin,
-                lowBatteryPct: config.lowBatteryPct,
-            },
+            thresholds: statusThresholds,
             linkWindowMin: config.linkWindowMin,
         }),
         readings: createReadingsService({ repo: createReadingsRepo(db), nodeRepo, clock }),

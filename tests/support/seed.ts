@@ -1,5 +1,9 @@
 import { type RegisterNode } from '#src/mesh/nodes/schema'
+import { type Viewer } from '#src/shared/auth/access'
 import { type Harness } from '#tests/support/harness'
+
+/** An admin, for tests that act on nodes without going through HTTP. */
+export const ADMIN: Viewer = { id: 'admin', role: 'admin' }
 
 export const GATEWAY_NODE = 0x0a_00_00_01
 export const SENSOR_NODE = 0x0a_00_00_02
@@ -32,16 +36,18 @@ export function seedMesh(h: Harness): void {
             name: 'Ridge gateway',
             type: 'cellular',
             position: [-114.03, 46.9],
-        })
+        }),
+        ADMIN
     )
     h.services.gateways.register({ nodeId: 'cel-01', mqttUsername: 'gw-cel-01' })
-    h.services.nodes.register(nodeInput())
+    h.services.nodes.register(nodeInput(), ADMIN)
     h.services.nodes.register(
         nodeInput({
             id: 'sen-02',
             meshId: OTHER_SENSOR_NODE,
             name: 'Rattlesnake Ridge 2',
             position: [-114.07, 46.9],
-        })
+        }),
+        ADMIN
     )
 }

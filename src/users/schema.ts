@@ -47,30 +47,6 @@ export const SubscriptionSchema = z.object({
 })
 export type Subscription = z.infer<typeof SubscriptionSchema>
 
-/** A node as the browser that connected it describes it. Only the number is certain. */
-const NodeSchema = z
-    .object({
-        nodeNum: z.number().int().min(1).max(0xff_ff_ff_ff),
-        name: z.string().trim().max(80).nullable().default(null),
-        hardware: z.string().trim().max(80).nullable().default(null),
-        firmware: z.string().trim().max(80).nullable().default(null),
-        connectedAt: z.iso.datetime().nullable().default(null),
-    })
-    .strict()
-export type NodeInput = z.infer<typeof NodeSchema>
-
-export const AddNodesSchema = z.object({ nodes: z.array(NodeSchema).min(1).max(50) }).strict()
-
-export const MemberNodeSchema = z.object({
-    nodeNum: z.number(),
-    name: z.string().nullable(),
-    hardware: z.string().nullable(),
-    firmware: z.string().nullable(),
-    connectedAt: z.iso.datetime().nullable(),
-    addedAt: z.iso.datetime(),
-})
-export type MemberNode = z.infer<typeof MemberNodeSchema>
-
 export const UpdateUserSchema = z
     .object({ role: RoleSchema.optional(), disabled: z.boolean().optional() })
     .strict()

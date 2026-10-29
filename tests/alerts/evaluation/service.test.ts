@@ -4,7 +4,7 @@ import { type Alert } from '#src/alerts/lifecycle/schema'
 import { type CreateRule } from '#src/alerts/rules/schema'
 import { type Viewer } from '#src/shared/auth/access'
 import { createHarness, type Harness } from '#tests/support/harness'
-import { seedMesh } from '#tests/support/seed'
+import { seedMesh, ADMIN } from '#tests/support/seed'
 
 const MINUTE = 60_000
 const METRIC = 'environmentMetrics.temperature'
@@ -254,7 +254,7 @@ describe('system alert sweep', () => {
         s.h.advance(3 * 60 * MINUTE)
         sweep(s)
 
-        s.h.services.nodes.update('sen-01', { enabled: false })
+        s.h.services.nodes.update('sen-01', { enabled: false }, ADMIN)
         sweep(s)
 
         expect(alertsOf(s)).toEqual([

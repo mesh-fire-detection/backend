@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest'
 
 import { GatewaySchema } from '#src/mesh/gateways/schema'
 import { createHarness } from '#tests/support/harness'
-import { nodeInput } from '#tests/support/seed'
+import { nodeInput, ADMIN } from '#tests/support/seed'
 
 async function setup() {
     const h = createHarness()
-    h.services.nodes.register(nodeInput({ id: 'cel-01', type: 'cellular' }))
+    h.services.nodes.register(nodeInput({ id: 'cel-01', type: 'cellular' }), ADMIN)
     const admin = await h.signInAs('admin')
     const user = await h.signInAs('user')
     return { h, admin, user }
@@ -42,7 +42,10 @@ describe('gateway routes', () => {
 
     it('rejects unknown nodes, duplicate gateways and reused usernames', async () => {
         const { h, admin } = await setup()
-        h.services.nodes.register(nodeInput({ id: 'cel-02', meshId: 0x0b, type: 'cellular' }))
+        h.services.nodes.register(
+            nodeInput({ id: 'cel-02', meshId: 0x0b, type: 'cellular' }),
+            ADMIN
+        )
         const post = (body: object) =>
             h.request('/v1/gateways', { method: 'POST', cookie: admin.cookie, body })
 
@@ -72,7 +75,7 @@ describe('gateway routes', () => {
 
     it('registers a Notecard without an MQTT username and enforces unique identities', async () => {
         const { h, admin } = await setup()
-        h.services.nodes.register(nodeInput({ id: 'cel-02', meshId: 0x0b }))
+        h.services.nodes.register(nodeInput({ id: 'cel-02', meshId: 0x0b }), ADMIN)
         const post = (body: object) =>
             h.request('/v1/gateways', { method: 'POST', cookie: admin.cookie, body })
         const created = await post({ nodeId: 'cel-01', notecardUid: 'dev:860322068012345' })

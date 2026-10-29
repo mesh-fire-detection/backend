@@ -1,5 +1,13 @@
 import { sql } from 'drizzle-orm'
-import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import {
+    index,
+    integer,
+    primaryKey,
+    real,
+    sqliteTable,
+    text,
+    uniqueIndex,
+} from 'drizzle-orm/sqlite-core'
 
 /**
  * Every table in one file so drizzle-kit sees the whole database. Timestamps
@@ -115,31 +123,6 @@ export const invites = sqliteTable('invites', {
 })
 
 /**
- * Nodes a member connected in their browser and brought with them. Not yet
- * registered: that needs an ID and deployment details (#12), and these rows
- * are what registration will start from. A node can be on several members,
- * as two people often build one together (#11).
- */
-export const memberNodes = sqliteTable(
-    'member_nodes',
-    {
-        id: text().primaryKey(),
-        userId: text()
-            .notNull()
-            .references(() => users.id),
-        nodeNum: integer().notNull(),
-        /** As the node reported itself; free text, shown back to its member only. */
-        name: text(),
-        hardware: text(),
-        firmware: text(),
-        /** When the browser first connected it, as the browser said. */
-        connectedAt: timestamp(),
-        addedAt: createdAt(),
-    },
-    (t) => [uniqueIndex('member_nodes_user_node_idx').on(t.userId, t.nodeNum)]
-)
-
-/**
  * Project updates, one row per person (#29). Nothing is sent to an address
  * until it is `confirmed`, and `unsubscribed` stands until the person opts back
  * in. Consent is recorded here: when, from where, and the words they saw.
@@ -162,17 +145,28 @@ export const subscriptions = sqliteTable('subscriptions', {
 
 // ── Mesh ────────────────────────────────────────────────────────────────────
 
+/**
+ * Registered nodes. Only identity is required: the rest is filled in later by
+ * the people on the node, and a node missing what the map needs stays off it.
+ * The position is exact here; everyone but the node's people and admins sees
+ * it approximately (src/mesh/nodes/position.ts) unless `exactPosition` is set.
+ */
 export const nodes = sqliteTable('nodes', {
     id: text().primaryKey(),
     nodeNum: integer().notNull().unique(),
+    /** Meshtastic's `MyNodeInfo.device_id`: survives a reflash, unlike the node number. */
+    hardwareId: text().unique(),
     name: text().notNull(),
-    type: text({ enum: ['base', 'cellular', 'sensor', 'vision'] }).notNull(),
-    longitude: real().notNull(),
-    latitude: real().notNull(),
-    elevationM: real().notNull(),
-    antennaHeightM: real().notNull(),
-    firmware: text().notNull(),
-    deployedOn: text().notNull(),
+    type: text({ enum: ['base', 'cellular', 'sensor', 'vision'] }),
+    longitude: real(),
+    latitude: real(),
+    exactPosition: integer({ mode: 'boolean' }).notNull().default(false),
+    elevationM: real(),
+    antennaHeightM: real(),
+    /** The board, as the node reported it. */
+    hardware: text(),
+    firmware: text(),
+    deployedOn: text(),
     note: text(),
     enabled: integer({ mode: 'boolean' }).notNull().default(true),
     lastHeardAt: timestamp(),
@@ -184,6 +178,24 @@ export const nodes = sqliteTable('nodes', {
     createdAt: createdAt(),
     updatedAt: updatedAt(),
 })
+
+/** The people on a node, all equal (#11). Nobody else is ever told who they are. */
+export const nodeMembers = sqliteTable(
+    'node_members',
+    {
+        nodeId: text()
+            .notNull()
+            .references(() => nodes.id),
+        userId: text()
+            .notNull()
+            .references(() => users.id),
+        addedAt: createdAt(),
+    },
+    (t) => [
+        primaryKey({ columns: [t.nodeId, t.userId] }),
+        index('node_members_user_idx').on(t.userId),
+    ]
+)
 
 export const gateways = sqliteTable('gateways', {
     nodeId: text()
