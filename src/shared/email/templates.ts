@@ -30,3 +30,45 @@ export function signInCode(to: string, code: string, validForMinutes: number): E
         ].join('\n'),
     }
 }
+
+/**
+ * The only message an unconfirmed address ever receives. Its link opens a page
+ * on the website whose button confirms, because mail scanners fetch links
+ * before people do and would otherwise confirm on someone's behalf.
+ */
+export function confirmSubscription(to: string, link: string): EmailMessage {
+    return {
+        template: 'confirm-subscription',
+        to,
+        subject: 'Confirm your Mesh Fire Detection updates',
+        text: [
+            'Someone asked for occasional Mesh Fire Detection project updates to be',
+            'sent to this address. To confirm it was you, open this link and press',
+            'the button:',
+            '',
+            link,
+            '',
+            'If it was not you, ignore this message. Nothing more will be sent.',
+        ].join('\n'),
+    }
+}
+
+/** Sent to an address that asked to join. Same shape as sign-in, on purpose. */
+export function joinCode(to: string, code: string, validForMinutes: number): EmailMessage {
+    return {
+        template: 'join-code',
+        to,
+        subject: `${code} is your code to join Mesh Fire Detection`,
+        text: [
+            `Your code to join is ${code}.`,
+            '',
+            `It works once, and expires in ${validForMinutes} minutes.`,
+            '',
+            'Joining also signs you up for occasional project updates; you can',
+            'stop them at any time.',
+            '',
+            'If you did not ask to join, you can ignore this message. Nothing',
+            'happens without the code.',
+        ].join('\n'),
+    }
+}

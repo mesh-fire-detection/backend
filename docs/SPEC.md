@@ -48,7 +48,7 @@ Node types, from the site: `base`, `cellular` (gateway with LTE backhaul),
 | Database | SQLite, continuously backed up off-server |
 | Ingest | Meshtastic MQTT uplink; opt-in authenticated Notehub HTTPS adapter for Blues gateways (see Ingest) |
 | Retention | Keep all data indefinitely. Nothing is deleted automatically. |
-| Accounts | Email and password, two roles: `admin` and `user`, created by invite link |
+| Accounts | A code emailed to a member; two roles, `admin` and `user`. Members join by invitation, or with a node they connected |
 | Map feed | `/api/network.json` is public and read-only |
 | Sensor metrics | Generic: stored under the name the sensor reports; no fixed list |
 | Link RSSI | Nullable; real values only, never estimated |
@@ -190,10 +190,61 @@ notification now, which was most of the argument for links in the first place.
 Adding one later is small, and the token design does not change: whatever
 carries the code, there is one code, one expiry and one attempt counter.
 
-Only an address with an existing, enabled account receives anything. An unknown
-address gets a byte-identical response and no email, so the endpoint cannot be
-used to discover who has an account. How a person *becomes* an account —
-invitation, or a node of theirs the network has heard — is separate.
+Only a member receives anything. Every person is one row with a status:
+a `subscriber` can never sign in, a `member` can unless disabled. An address
+that is not a member gets a byte-identical response and no email, so the
+endpoint cannot be used to discover who has an account. A session held by
+anyone who is not a member counts as signed out.
+
+### Joining
+
+Two ways in (backend#9): an address an admin has invited, or a person whose
+browser has connected a node on the website.
+
+**With a node** is the way the website offers. Nodes connected on `/connect`
+stay in the browser, never sent anywhere, until the person joins: the request
+says only that the browser has connected one. The website cannot prove that,
+and the claim is accepted on purpose so a builder can join at their bench;
+the address is still proven with a code. Once a member, the website sends the
+nodes the browser connected, and they are recorded against the member
+(`member_nodes`). They are not registered devices: that needs a device ID and
+deployment details (backend#12), and these records are where registration will
+start. Two members can bring the same node.
+
+**An invitation** puts an address on the allowlist and sends nothing; the role
+it names is the role the person joins with.
+
+Either way the person gives their address and name and receives a six-digit
+code, the same kind as for signing in. Entering it makes them a member, marks
+any invite used, subscribes them to updates already confirmed (unless they had
+unsubscribed), and signs them in. One transaction does all of it, and it runs
+on Better Auth's own verification step, so there is no route to a verified
+address that skips it.
+
+Asking to join answers every address the same way. An eligible address gets a
+join code; a member gets a sign-in code instead, so they are not stuck; anyone
+else gets nothing, and nothing about them is stored. An invite withdrawn while
+its code is unused makes the code worthless.
+
+### Updates
+
+Occasional project news by email (backend#29). One row per person in
+`subscriptions`, recording when and where they agreed and the words they saw.
+
+- The website's footer asks for an address and sends a confirmation link, and
+  nothing else, until it is used. The link opens a page on the website whose
+  button confirms, so a mail scanner fetching it confirms nothing. Asking again
+  within a day sends nothing new; a link works once, for a week.
+- **Members get updates by default**, however the account was made: joining,
+  the bootstrap admin, or an account an admin created. The record says which
+  (`source: default` for anyone who never saw the join form).
+- Subscribing never makes anyone eligible to join.
+- A member turns updates on or off on their account page, without a
+  confirmation email, since joining proved the address.
+- Unsubscribed stands, including when someone joins later.
+- Writing and sending updates is not built. Before the first one, each will
+  need an unsubscribe link and the `List-Unsubscribe` headers bulk senders are
+  required to carry.
 
 Requests for a code are rate limited more tightly than the rest of the API,
 because each one spends from a daily email allowance shared by everybody.
@@ -201,7 +252,8 @@ because each one spends from a daily email allowance shared by everybody.
 - Passwords remain enabled but unadvertised, for the bootstrap admin created
   with `npm run user:create-admin` on a fresh server. The website never offers
   them, and they are expected to go once that script no longer needs them.
-- There is no open sign-up.
+- There is no open sign-up: only an invitation or a connected node makes someone
+  a member.
 - Admins can change a user's role or disable them; disabling signs them out
   everywhere. Admins cannot change their own role or access.
 

@@ -3,12 +3,12 @@ import { describe, expect, it } from 'vitest'
 import { createHarness } from '#tests/support/harness'
 
 /**
- * `/v1/invites/accept` is limited to 10 requests per 15 minutes per client.
+ * `/v1/join` is limited to 10 requests per 15 minutes per client.
  * Behind Cloudflare the client must be read from the header Caddy controls, or
  * every visitor shares one bucket and ten attempts exhaust it for everyone.
  */
 const LIMIT = 10
-const PATH = '/v1/invites/accept'
+const PATH = '/v1/join'
 
 const attempt = (h: ReturnType<typeof createHarness>, headers: Record<string, string>) =>
     h.request(PATH, { method: 'POST', body: {}, headers })

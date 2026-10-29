@@ -31,6 +31,19 @@ export const users = sqliteTable('users', {
     banned: integer({ mode: 'boolean' }).default(false),
     banReason: text(),
     banExpires: timestamp(),
+    /**
+     * Ours, not Better Auth's. One row per person from their first contact: a
+     * `subscriber` can never sign in, a `member` can. See `auth/membership.ts`.
+     */
+    status: text({ enum: ['subscriber', 'member'] })
+        .notNull()
+        .default('member'),
+    /**
+     * When this person asked to join with nodes their browser had connected.
+     * Like an invite, it makes the address eligible for a join code; the nodes
+     * themselves stay in the browser until the code is verified (backend#9).
+     */
+    nodeJoinRequestedAt: timestamp(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
 })
@@ -84,19 +97,67 @@ export const verifications = sqliteTable('verifications', {
     updatedAt: updatedAt(),
 })
 
-/** Single-use invite links. Only a SHA-256 hash of the token is stored. */
+/**
+ * The allowlist: an address that may join, and the role it joins as. No token,
+ * because the emailed code proves the address; no expiry, because an admin who
+ * changes their mind deletes the invite.
+ */
 export const invites = sqliteTable('invites', {
     id: text().primaryKey(),
-    tokenHash: text().notNull().unique(),
-    email: text().notNull(),
+    email: text().notNull().unique(),
     role: text({ enum: ['admin', 'user'] }).notNull(),
     invitedById: text()
         .notNull()
         .references(() => users.id),
-    expiresAt: timestamp().notNull(),
     acceptedAt: timestamp(),
     acceptedUserId: text().references(() => users.id),
     createdAt: createdAt(),
+})
+
+/**
+ * Nodes a member connected in their browser and brought with them. Not
+ * registered devices: that needs a device ID and deployment details (#12), and
+ * these rows are what registration will start from. A node can be on several
+ * members, as two people often build one together (#11).
+ */
+export const memberNodes = sqliteTable(
+    'member_nodes',
+    {
+        id: text().primaryKey(),
+        userId: text()
+            .notNull()
+            .references(() => users.id),
+        nodeNum: integer().notNull(),
+        /** As the node reported itself; free text, shown back to its member only. */
+        name: text(),
+        hardware: text(),
+        firmware: text(),
+        /** When the browser first connected it, as the browser said. */
+        connectedAt: timestamp(),
+        addedAt: createdAt(),
+    },
+    (t) => [uniqueIndex('member_nodes_user_node_idx').on(t.userId, t.nodeNum)]
+)
+
+/**
+ * Project updates, one row per person (#29). Nothing is sent to an address
+ * until it is `confirmed`, and `unsubscribed` stands until the person opts back
+ * in. Consent is recorded here: when, from where, and the words they saw.
+ */
+export const subscriptions = sqliteTable('subscriptions', {
+    userId: text()
+        .primaryKey()
+        .references(() => users.id),
+    status: text({ enum: ['unconfirmed', 'confirmed', 'unsubscribed'] }).notNull(),
+    source: text({ enum: ['footer', 'join', 'account', 'default'] }).notNull(),
+    consentText: text().notNull(),
+    /** SHA-256 of the confirmation link's token; cleared once used. */
+    confirmTokenHash: text().unique(),
+    confirmSentAt: timestamp(),
+    confirmedAt: timestamp(),
+    unsubscribedAt: timestamp(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
 })
 
 // ── Mesh ────────────────────────────────────────────────────────────────────

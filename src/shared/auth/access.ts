@@ -4,6 +4,7 @@ import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 
 import { type Auth } from '#src/shared/auth/auth'
+import { isMember } from '#src/shared/auth/membership'
 
 export const RoleSchema = z.enum(['admin', 'user'])
 export type Role = z.infer<typeof RoleSchema>
@@ -21,12 +22,16 @@ export type AppEnv = {
     }
 }
 
-/** Resolves the session once per request. Banned (disabled) users count as anonymous. */
+/**
+ * Resolves the session once per request. Anyone who is not a member — banned
+ * (disabled), or a subscriber who somehow holds a session — counts as anonymous.
+ */
 export function sessionMiddleware(auth: Auth): MiddlewareHandler<AppEnv> {
     return createMiddleware<AppEnv>(async (c, next) => {
         const session = await auth.api.getSession({ headers: c.req.raw.headers })
         const role = RoleSchema.safeParse(session?.user.role)
-        const usable = session !== null && role.success && session.user.banned !== true
+        const usable =
+            session !== null && role.success && isMember(session.user.status, session.user.banned)
         c.set('viewer', usable ? { id: session.user.id, role: role.data } : null)
         await next()
     })

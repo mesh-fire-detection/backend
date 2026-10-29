@@ -19,6 +19,7 @@ import { createNotehubService } from '#src/mesh/notehub/service'
 import { createReadingsRepo } from '#src/mesh/readings/repo'
 import { createReadingsService } from '#src/mesh/readings/service'
 import { type Auth } from '#src/shared/auth/auth'
+import { createMembership } from '#src/shared/auth/membership'
 import { type Db, pingDatabase, transaction } from '#src/shared/db/connection'
 import { type EmailService } from '#src/shared/email/service'
 import { type Logger } from '#src/shared/logger'
@@ -32,6 +33,8 @@ export type AppConfig = {
     readonly lowBatteryPct: number
     readonly notehubChannelKey?: Buffer | undefined
     readonly linkWindowMin: number
+    /** The website's origin, for links in emails such as a subscription confirmation. */
+    readonly siteUrl: string
 }
 
 export type ServiceDeps = {
@@ -96,7 +99,14 @@ export function createServices(deps: ServiceDeps) {
             mqttState: deps.mqttState,
             emailState: () => deps.email.state(),
         }),
-        users: createUserService({ repo: createUserRepo(db), auth, clock }),
+        users: createUserService({
+            repo: createUserRepo(db),
+            auth,
+            membership: createMembership({ db, clock }),
+            email: deps.email,
+            siteUrl: config.siteUrl,
+            clock,
+        }),
         devices: createDeviceService({ repo: deviceRepo, clock }),
         gateways: createGatewayService({ repo: gatewayRepo, deviceRepo, clock }),
         ingest,
