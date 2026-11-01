@@ -5,9 +5,20 @@ set -euo pipefail
 
 release_dir="$1"
 app_root=/opt/mesh-backend
+database=/var/lib/mesh-backend/mesh.db
+backups=/var/lib/mesh-backend/pre-release
 
 cd "$release_dir"
 NODE_ENV=production npm ci --omit=dev --no-audit --no-fund
+
+# Migrations run when the new release starts, and pointing `current` back does
+# not undo them. Copy the database first, and stop here if that fails. Root only:
+# it holds accounts.
+if [[ -f "$database" ]]; then
+    install -m 700 -d "$backups"
+    (umask 077 && sqlite3 "$database" ".backup '$backups/$(basename "$release_dir").db'")
+    ls -1t "$backups"/*.db | tail -n +4 | xargs -r rm -f
+fi
 
 # Keep the previous release for a quick manual rollback: point `current` back.
 ln -sfn "$release_dir" "$app_root/current.new"

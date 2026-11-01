@@ -1,14 +1,18 @@
-import { type RegisterDevice } from '#src/mesh/devices/schema'
+import { type RegisterNode } from '#src/mesh/nodes/schema'
+import { type Viewer } from '#src/shared/auth/access'
 import { type Harness } from '#tests/support/harness'
+
+/** An admin, for tests that act on nodes without going through HTTP. */
+export const ADMIN: Viewer = { id: 'admin', role: 'admin' }
 
 export const GATEWAY_NODE = 0x0a_00_00_01
 export const SENSOR_NODE = 0x0a_00_00_02
 export const OTHER_SENSOR_NODE = 0x0a_00_00_03
 
-export function deviceInput(overrides: Partial<RegisterDevice> = {}): RegisterDevice {
+export function nodeInput(overrides: Partial<RegisterNode> = {}): RegisterNode {
     return {
         id: 'sen-01',
-        nodeId: SENSOR_NODE,
+        meshId: SENSOR_NODE,
         name: 'Rattlesnake Ridge 1',
         type: 'sensor',
         position: [-114.05, 46.9],
@@ -25,23 +29,25 @@ export function deviceInput(overrides: Partial<RegisterDevice> = {}): RegisterDe
  * along the ridge.
  */
 export function seedMesh(h: Harness): void {
-    h.services.devices.register(
-        deviceInput({
+    h.services.nodes.register(
+        nodeInput({
             id: 'cel-01',
-            nodeId: GATEWAY_NODE,
+            meshId: GATEWAY_NODE,
             name: 'Ridge gateway',
             type: 'cellular',
             position: [-114.03, 46.9],
-        })
+        }),
+        ADMIN
     )
-    h.services.gateways.register({ deviceId: 'cel-01', mqttUsername: 'gw-cel-01' })
-    h.services.devices.register(deviceInput())
-    h.services.devices.register(
-        deviceInput({
+    h.services.gateways.register({ nodeId: 'cel-01', mqttUsername: 'gw-cel-01' })
+    h.services.nodes.register(nodeInput(), ADMIN)
+    h.services.nodes.register(
+        nodeInput({
             id: 'sen-02',
-            nodeId: OTHER_SENSOR_NODE,
+            meshId: OTHER_SENSOR_NODE,
             name: 'Rattlesnake Ridge 2',
             position: [-114.07, 46.9],
-        })
+        }),
+        ADMIN
     )
 }

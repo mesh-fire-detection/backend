@@ -12,27 +12,27 @@ describe('request validation', () => {
     it('names every bad field without echoing its value', async () => {
         const h = createHarness()
 
-        const response = await h.request('/v1/invites/accept', {
+        const response = await h.request('/v1/join', {
             method: 'POST',
-            body: { token: '', name: '', password: 'short' },
+            body: { email: 'secret-not-an-address', name: '' },
         })
 
         expect(response.status).toBe(400)
         const body = (await response.json()) as ErrorBody
         expect(body.error.code).toBe('bad_request')
         expect(body.error.message).toMatch(/^Invalid json\./)
-        for (const field of ['token', 'name', 'password']) {
+        for (const field of ['email', 'name']) {
             expect(body.error.message).toContain(`${field}: `)
         }
         // Standard Schema path segments are `{ key }` objects, not strings.
         expect(body.error.message).not.toContain('[object Object]')
-        expect(body.error.message).not.toContain('short')
+        expect(body.error.message).not.toContain('secret-not-an-address')
     })
 
     it('reports a root-level problem without a field prefix', async () => {
         const h = createHarness()
 
-        const response = await h.request('/v1/invites/accept', {
+        const response = await h.request('/v1/join', {
             method: 'POST',
             body: 'not-an-object',
         })

@@ -2,7 +2,8 @@ import { type Env } from '#src/app/env'
 import { createServices, type Services } from '#src/app/services'
 import { type MqttState } from '#src/health/schema'
 import { createAuth, type Auth } from '#src/shared/auth/auth'
-import { createSignInMailer } from '#src/shared/auth/signIn'
+import { createMembership } from '#src/shared/auth/membership'
+import { createCodeMailer } from '#src/shared/auth/signIn'
 import { type Db, openDatabase } from '#src/shared/db/connection'
 import { createEmail, type Email } from '#src/shared/email/configure'
 import { type Logger } from '#src/shared/logger'
@@ -34,13 +35,15 @@ export function createRuntime(deps: {
         logger,
         clock,
     })
-    // Email is built first: auth sends sign-in codes through it.
+    // Email is built first: auth sends sign-in and join codes through it.
+    const membership = createMembership({ db, clock })
     const auth = createAuth(db, {
         secret: env.AUTH_SECRET,
         baseUrl: env.AUTH_URL,
         trustedOrigin: env.CORS_ORIGIN,
         rateLimit: true,
-        mailer: createSignInMailer({ db, email: email.service, logger }),
+        mailer: createCodeMailer({ membership, email: email.service, logger }),
+        membership,
     })
     const services = createServices({
         db,
@@ -55,6 +58,7 @@ export function createRuntime(deps: {
             statusOfflineMin: env.STATUS_OFFLINE_MIN,
             lowBatteryPct: env.LOW_BATTERY_PCT,
             linkWindowMin: env.LINK_WINDOW_MIN,
+            siteUrl: env.CORS_ORIGIN,
         },
         mqttState: deps.mqttState,
         email: email.service,

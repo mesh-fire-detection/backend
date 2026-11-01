@@ -10,7 +10,7 @@ async function withOpenRuleAlert() {
     const owner = await h.signInAs('user')
     const rule = h.services.rules.create(
         {
-            deviceId: 'sen-01',
+            nodeId: 'sen-01',
             metric: 'environmentMetrics.temperature',
             comparison: 'above',
             threshold: 60,
@@ -22,7 +22,7 @@ async function withOpenRuleAlert() {
     )
     h.services.evaluation.onReadings([
         {
-            deviceId: 'sen-01',
+            nodeId: 'sen-01',
             metric: 'environmentMetrics.temperature',
             value: 75,
             recordedAt: h.clock(),

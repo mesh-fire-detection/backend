@@ -2,7 +2,7 @@ import { create, toBinary } from '@bufbuild/protobuf'
 import { Mesh, Mqtt, Portnums, Telemetry } from '@meshtastic/protobufs'
 
 import { meshCrypt } from '#src/mesh/ingest/decode'
-import { formatNodeId } from '#src/mesh/nodeId'
+import { formatMeshId } from '#src/mesh/meshId'
 
 /** A private 128-bit channel key used only by tests. */
 export const CHANNEL_KEY = Buffer.from('000102030405060708090a0b0c0d0e0f', 'hex')
@@ -54,7 +54,7 @@ export function envelopeBytes(options: EnvelopeOptions): Uint8Array {
         create(Mqtt.ServiceEnvelopeSchema, {
             packet,
             channelId: 'FireNet',
-            gatewayId: formatNodeId(options.gateway),
+            gatewayId: formatMeshId(options.gateway),
         })
     )
 }

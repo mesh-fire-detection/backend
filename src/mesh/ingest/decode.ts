@@ -5,7 +5,7 @@ import { Mesh, Mqtt, Portnums, Telemetry } from '@meshtastic/protobufs'
 
 import { decodePayload } from '#src/mesh/ingest/payloads'
 import { type MeshPacket, MeshPacketSchema } from '#src/mesh/ingest/schema'
-import { parseNodeId } from '#src/mesh/nodeId'
+import { parseMeshId } from '#src/mesh/meshId'
 
 type DropReason =
     | 'malformed_envelope'
@@ -57,7 +57,7 @@ function tryParse<T>(parse: () => T): T | undefined {
 export function decodeEnvelope(bytes: Uint8Array, channelKey: Buffer): DecodeResult {
     const envelope = tryParse(() => fromBinary(Mqtt.ServiceEnvelopeSchema, bytes))
     const packet = envelope?.packet
-    const gatewayNodeNum = parseNodeId(envelope?.gatewayId ?? '')
+    const gatewayNodeNum = parseMeshId(envelope?.gatewayId ?? '')
     if (envelope === undefined || packet === undefined || gatewayNodeNum === undefined) {
         return drop('malformed_envelope')
     }

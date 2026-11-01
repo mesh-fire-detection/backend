@@ -36,6 +36,7 @@ describe('decodeEnvelope', () => {
                 direct: null,
                 payload: {
                     kind: 'telemetry',
+                    sensorTime: 1_780_000_000,
                     deviceMetrics: null,
                     readings: [
                         // 61.7 is not exact in float32; the stored value must not show the noise.
@@ -59,6 +60,7 @@ describe('decodeEnvelope', () => {
 
         expect(result.ok && result.packet.payload).toEqual({
             kind: 'telemetry',
+            sensorTime: 1_780_000_000,
             deviceMetrics: null,
             readings: [{ metric: 'environmentMetrics.temperature', value: 0 }],
         })

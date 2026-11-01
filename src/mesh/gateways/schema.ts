@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { DeviceIdSchema, IsoTimestampSchema } from '#src/mesh/devices/schema'
+import { NodeIdSchema, IsoTimestampSchema } from '#src/mesh/nodes/schema'
 
 /** Must match the gateway's username in Mosquitto's password file. */
 const MqttUsernameSchema = z
@@ -18,7 +18,7 @@ const NotehubTokenSchema = z
 
 export const RegisterGatewaySchema = z
     .object({
-        deviceId: DeviceIdSchema,
+        nodeId: NodeIdSchema,
         mqttUsername: MqttUsernameSchema.optional(),
         notecardUid: NotecardUidSchema.optional(),
         notehubToken: NotehubTokenSchema.optional(),
@@ -41,10 +41,10 @@ export const UpdateGatewaySchema = z
     .refine((body) => Object.keys(body).length > 0, 'nothing to update')
 export type UpdateGateway = z.infer<typeof UpdateGatewaySchema>
 
-export const GatewayParamsSchema = z.object({ deviceId: DeviceIdSchema })
+export const GatewayParamsSchema = z.object({ nodeId: NodeIdSchema })
 
 export const GatewaySchema = z.object({
-    deviceId: DeviceIdSchema,
+    nodeId: NodeIdSchema,
     mqttUsername: z.string().nullable(),
     notecardUid: z.string().nullable(),
     enabled: z.boolean(),

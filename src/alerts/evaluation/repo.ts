@@ -16,7 +16,7 @@ export function createEvaluationRepo(db: Db) {
          * matching reading after the latest non-matching one, up to `at`.
          */
         matchingStreakStart(
-            deviceId: string,
+            nodeId: string,
             metric: string,
             comparison: Comparison,
             threshold: number,
@@ -25,14 +25,14 @@ export function createEvaluationRepo(db: Db) {
             const row = db.get<{ startedAt: number | null } | undefined>(sql`
                 SELECT MIN(r.recorded_at) AS startedAt
                 FROM readings r
-                WHERE r.device_id = ${deviceId}
+                WHERE r.node_id = ${nodeId}
                   AND r.live_eligible = 1
                   AND r.metric = ${metric}
                   AND r.recorded_at <= ${at.getTime()}
                   AND ${matches('r', comparison, threshold)}
                   AND r.recorded_at > COALESCE((
                       SELECT MAX(b.recorded_at) FROM readings b
-                      WHERE b.device_id = ${deviceId}
+                      WHERE b.node_id = ${nodeId}
                         AND b.live_eligible = 1
                         AND b.metric = ${metric}
                         AND b.recorded_at <= ${at.getTime()}

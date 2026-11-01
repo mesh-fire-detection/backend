@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto'
 
-import { type DeviceRepo } from '#src/mesh/devices/repo'
 import { type GatewayRepo } from '#src/mesh/gateways/repo'
 import { decodeEnvelope } from '#src/mesh/ingest/decode'
 import {
@@ -8,6 +7,7 @@ import {
     DEDUPE_WINDOW_MS,
     type IngestService,
 } from '#src/mesh/ingest/service'
+import { type NodeRepo } from '#src/mesh/nodes/repo'
 import { type NotehubRepo } from '#src/mesh/notehub/repo'
 import { type NotehubEvents, type NotehubHealth } from '#src/mesh/notehub/schema'
 import { DomainError } from '#src/shared/errors'
@@ -19,28 +19,28 @@ const LIVE_WINDOW_MS = 5 * 60_000
 export function createNotehubService(deps: {
     readonly repo: NotehubRepo
     readonly gatewayRepo: GatewayRepo
-    readonly deviceRepo: DeviceRepo
+    readonly nodeRepo: NodeRepo
     readonly ingest: IngestService
     readonly transact: <T>(fn: () => T) => T
     readonly clock: Clock
     readonly logger: Logger
     readonly channelKey: Buffer | undefined
 }) {
-    const { repo, gatewayRepo, deviceRepo, ingest, transact, clock, logger, channelKey } = deps
+    const { repo, gatewayRepo, nodeRepo, ingest, transact, clock, logger, channelKey } = deps
     let storageFailed = false
 
-    const gatewayFor = (deviceId: string) => {
-        const gateway = gatewayRepo.findByDeviceId(deviceId)
-        const device = deviceRepo.findById(deviceId)
+    const gatewayFor = (nodeId: string) => {
+        const gateway = gatewayRepo.findByNodeId(nodeId)
+        const node = nodeRepo.findById(nodeId)
         if (
             gateway?.enabled !== true ||
-            device?.enabled !== true ||
+            node?.enabled !== true ||
             gateway.notecardUid === null ||
             gateway.notehubTokenHash === null
         ) {
             throw new DomainError('forbidden', 'Gateway is not enabled for Notehub')
         }
-        return { gateway, device }
+        return { gateway, node }
     }
 
     return {
@@ -53,10 +53,10 @@ export function createNotehubService(deps: {
             if (token === undefined || gateway === undefined) {
                 throw new DomainError('unauthorized', 'Valid Notehub credential required')
             }
-            gatewayFor(gateway.deviceId)
+            gatewayFor(gateway.nodeId)
             if (channelKey === undefined)
                 throw new DomainError('unavailable', 'Notehub ingest is disabled')
-            return gateway.deviceId
+            return gateway.nodeId
         },
 
         accept(gatewayId: string, events: NotehubEvents) {
@@ -68,7 +68,7 @@ export function createNotehubService(deps: {
             let duplicates = 0
             try {
                 transact(() => {
-                    const { gateway, device: gatewayDevice } = gatewayFor(gatewayId)
+                    const { gateway, node: gatewayNode } = gatewayFor(gatewayId)
                     for (const event of events) {
                         if (event.device !== gateway.notecardUid) {
                             throw new DomainError('forbidden', 'Notecard does not match credential')
@@ -98,13 +98,13 @@ export function createNotehubService(deps: {
                             )
                         }
                         const { packet } = decoded
-                        if (packet.gatewayNodeNum !== gatewayDevice.nodeNum) {
+                        if (packet.gatewayNodeNum !== gatewayNode.nodeNum) {
                             throw new DomainError(
                                 'forbidden',
                                 'Envelope gateway does not match Notecard'
                             )
                         }
-                        const sender = deviceRepo.findByNodeNum(packet.fromNodeNum)
+                        const sender = nodeRepo.findByNodeNum(packet.fromNodeNum)
                         if (sender?.enabled !== true) {
                             throw new DomainError(
                                 'forbidden',

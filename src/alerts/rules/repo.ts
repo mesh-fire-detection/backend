@@ -35,9 +35,9 @@ export function createRuleRepo(db: Db) {
                 .get()
         },
 
-        /** Enabled rules watching this metric on this device or on all devices. */
-        activeFor(deviceId: string, metric: string): RuleRow[] {
-            const targetsDevice = or(eq(alertRules.deviceId, deviceId), isNull(alertRules.deviceId))
+        /** Enabled rules watching this metric on this node or on all nodes. */
+        activeFor(nodeId: string, metric: string): RuleRow[] {
+            const targetsNode = or(eq(alertRules.nodeId, nodeId), isNull(alertRules.nodeId))
             return db
                 .select()
                 .from(alertRules)
@@ -46,7 +46,7 @@ export function createRuleRepo(db: Db) {
                         notDeleted,
                         eq(alertRules.enabled, true),
                         eq(alertRules.metric, metric),
-                        targetsDevice
+                        targetsNode
                     )
                 )
                 .all()

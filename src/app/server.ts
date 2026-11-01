@@ -6,9 +6,9 @@ import { alertRoutes } from '#src/alerts/lifecycle/routes'
 import { ruleRoutes } from '#src/alerts/rules/routes'
 import { type Services } from '#src/app/services'
 import { healthRoutes } from '#src/health/routes'
-import { deviceRoutes } from '#src/mesh/devices/routes'
 import { gatewayRoutes } from '#src/mesh/gateways/routes'
 import { networkRoutes } from '#src/mesh/network/routes'
+import { nodeRoutes } from '#src/mesh/nodes/routes'
 import { notehubRoutes } from '#src/mesh/notehub/routes'
 import { readingsRoutes } from '#src/mesh/readings/routes'
 import { access, sessionMiddleware, type AppEnv } from '#src/shared/auth/access'
@@ -72,7 +72,7 @@ export function createApp({
     app.route('/', healthRoutes(services.health))
     app.route('/', networkRoutes(services.network))
     app.route('/', userRoutes(services.users))
-    app.route('/', deviceRoutes(services.devices))
+    app.route('/', nodeRoutes(services.nodes))
     app.route('/', readingsRoutes(services.readings))
     app.route('/', gatewayRoutes(services.gateways))
     app.route('/', notehubRoutes(services.notehub))

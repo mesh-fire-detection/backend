@@ -4,7 +4,7 @@ import { type Alert } from '#src/alerts/lifecycle/schema'
 import { type CreateRule } from '#src/alerts/rules/schema'
 import { type Viewer } from '#src/shared/auth/access'
 import { createHarness, type Harness } from '#tests/support/harness'
-import { seedMesh } from '#tests/support/seed'
+import { seedMesh, ADMIN } from '#tests/support/seed'
 
 const MINUTE = 60_000
 const METRIC = 'environmentMetrics.temperature'
@@ -20,7 +20,7 @@ async function setup(): Promise<Setup> {
 
 function rule(overrides: Partial<CreateRule> = {}): CreateRule {
     return {
-        deviceId: 'sen-01',
+        nodeId: 'sen-01',
         metric: METRIC,
         comparison: 'above',
         threshold: 60,
@@ -32,11 +32,11 @@ function rule(overrides: Partial<CreateRule> = {}): CreateRule {
 }
 
 /** Feeds one reading through evaluation the way ingest does. */
-function read({ h }: Setup, value: number, deviceId = 'sen-01', metric = METRIC): void {
+function read({ h }: Setup, value: number, nodeId = 'sen-01', metric = METRIC): void {
     h.db.$client
-        .prepare('INSERT INTO readings (device_id, recorded_at, metric, value) VALUES (?, ?, ?, ?)')
-        .run(deviceId, h.clock().getTime(), metric, value)
-    h.services.evaluation.onReadings([{ deviceId, metric, value, recordedAt: h.clock() }])
+        .prepare('INSERT INTO readings (node_id, recorded_at, metric, value) VALUES (?, ?, ?, ?)')
+        .run(nodeId, h.clock().getTime(), metric, value)
+    h.services.evaluation.onReadings([{ nodeId, metric, value, recordedAt: h.clock() }])
 }
 
 const alertsOf = ({ h, owner }: Setup): Alert[] => h.services.alerts.list({}, owner)
@@ -56,18 +56,18 @@ describe('rule evaluation', () => {
                 kind: 'rule',
                 ruleId: created.id,
                 metric: METRIC,
-                deviceId: 'sen-01',
+                nodeId: 'sen-01',
                 status: 'open',
                 triggerValue: 61.2,
             }),
         ])
     })
 
-    it('supports `below` rules and rules on every device', async () => {
+    it('supports `below` rules and rules on every node', async () => {
         const s = await setup()
         s.h.services.rules.create(
             rule({
-                deviceId: null,
+                nodeId: null,
                 metric: 'environmentMetrics.relativeHumidity',
                 comparison: 'below',
                 threshold: 15,
@@ -78,7 +78,7 @@ describe('rule evaluation', () => {
         read(s, 14, 'sen-02', 'environmentMetrics.relativeHumidity')
 
         expect(alertsOf(s)).toEqual([
-            expect.objectContaining({ deviceId: 'sen-02', triggerValue: 14 }),
+            expect.objectContaining({ nodeId: 'sen-02', triggerValue: 14 }),
         ])
     })
 
@@ -138,7 +138,7 @@ describe('rule evaluation', () => {
         ])
     })
 
-    it('respects the cooldown before firing again for the same device', async () => {
+    it('respects the cooldown before firing again for the same node', async () => {
         const s = await setup()
         s.h.services.rules.create(rule({ cooldownS: 900 }), s.owner)
 
@@ -178,17 +178,17 @@ describe('rule evaluation', () => {
 })
 
 describe('system alert sweep', () => {
-    const heard = ({ h }: Setup, deviceId: string) => {
+    const heard = ({ h }: Setup, nodeId: string) => {
         h.db.$client
-            .prepare('UPDATE devices SET last_heard_at = ? WHERE id = ?')
-            .run(h.clock().getTime(), deviceId)
+            .prepare('UPDATE nodes SET last_heard_at = ? WHERE id = ?')
+            .run(h.clock().getTime(), nodeId)
     }
-    const battery = ({ h }: Setup, deviceId: string, pct: number) => {
+    const battery = ({ h }: Setup, nodeId: string, pct: number) => {
         h.db.$client
             .prepare(
-                'INSERT INTO device_metrics (device_id, recorded_at, battery_pct) VALUES (?, ?, ?)'
+                'INSERT INTO device_metrics (node_id, recorded_at, battery_pct) VALUES (?, ?, ?)'
             )
-            .run(deviceId, h.clock().getTime(), pct)
+            .run(nodeId, h.clock().getTime(), pct)
     }
     const sweep = ({ h }: Setup) => {
         h.services.evaluation.sweepSystemAlerts(h.clock())
@@ -208,7 +208,7 @@ describe('system alert sweep', () => {
         expect(alertsOf(s)).toEqual([
             expect.objectContaining({
                 kind: 'offline',
-                deviceId: 'sen-01',
+                nodeId: 'sen-01',
                 status: 'open',
                 triggerValue: 120,
             }),
@@ -221,7 +221,7 @@ describe('system alert sweep', () => {
         ])
     })
 
-    it('does not alert for devices that were never heard', async () => {
+    it('does not alert for nodes that were never heard', async () => {
         const s = await setup()
 
         s.h.advance(24 * 60 * MINUTE)
@@ -237,7 +237,7 @@ describe('system alert sweep', () => {
         battery(s, 'sen-02', 19)
         sweep(s)
         expect(alertsOf(s)).toEqual([
-            expect.objectContaining({ kind: 'low_battery', deviceId: 'sen-02', triggerValue: 19 }),
+            expect.objectContaining({ kind: 'low_battery', nodeId: 'sen-02', triggerValue: 19 }),
         ])
 
         s.h.advance(MINUTE)
@@ -248,20 +248,20 @@ describe('system alert sweep', () => {
         ])
     })
 
-    it('resolves system alerts for devices that get disabled', async () => {
+    it('resolves system alerts for nodes that get disabled', async () => {
         const s = await setup()
         heard(s, 'sen-01')
         s.h.advance(3 * 60 * MINUTE)
         sweep(s)
 
-        s.h.services.devices.update('sen-01', { enabled: false })
+        s.h.services.nodes.update('sen-01', { enabled: false }, ADMIN)
         sweep(s)
 
         expect(alertsOf(s)).toEqual([
             expect.objectContaining({
                 status: 'resolved',
                 events: expect.arrayContaining([
-                    expect.objectContaining({ note: 'device disabled' }),
+                    expect.objectContaining({ note: 'node disabled' }),
                 ]),
             }),
         ])

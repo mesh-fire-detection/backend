@@ -1,11 +1,8 @@
-import { type DeviceRepo, type DeviceRow } from '#src/mesh/devices/repo'
 import { type LinkObservationRow, type NetworkRepo } from '#src/mesh/network/repo'
-import {
-    type MeshLink,
-    type MeshNode,
-    type Network,
-    type NodeStatus,
-} from '#src/mesh/network/schema'
+import { type MeshLink, type MeshNode, type Network } from '#src/mesh/network/schema'
+import { shownLocation } from '#src/mesh/nodes/position'
+import { type NodeRepo, type NodeRow } from '#src/mesh/nodes/repo'
+import { type NodeStatus } from '#src/mesh/nodes/schema'
 import { type Clock, MS_PER_MINUTE, MS_PER_SECOND } from '#src/shared/time'
 
 export type StatusThresholds = {
@@ -44,33 +41,62 @@ const round = (value: number, places: number): number => {
     return Math.round(value * factor) / factor
 }
 
+/** A node with everything the map needs; the rest are left off it until filled in. */
+type MappableNode = NodeRow & {
+    readonly type: NonNullable<NodeRow['type']>
+    readonly position: [number, number]
+    readonly elevationM: number
+    readonly antennaHeightM: number
+    readonly firmware: string
+    readonly deployedOn: string
+}
+
+/** Positions and elevations here are what the public may see (src/mesh/nodes/position.ts). */
+function mappable(node: NodeRow): MappableNode | undefined {
+    const shown = shownLocation(node)
+    const { type, antennaHeightM, firmware, deployedOn } = node
+    return type === null ||
+        antennaHeightM === null ||
+        firmware === null ||
+        deployedOn === null ||
+        shown.position === null ||
+        shown.elevationM === null
+        ? undefined
+        : {
+              ...node,
+              type,
+              position: shown.position,
+              elevationM: shown.elevationM,
+              antennaHeightM,
+              firmware,
+              deployedOn,
+          }
+}
+
 function toMeshNode(
-    device: DeviceRow,
+    node: MappableNode,
     batteryPct: number | null,
     now: Date,
     thresholds: StatusThresholds
 ): MeshNode {
     const minutesSinceHeard =
-        device.lastHeardAt === null
+        node.lastHeardAt === null
             ? null
-            : Math.max(
-                  0,
-                  Math.floor((now.getTime() - device.lastHeardAt.getTime()) / MS_PER_MINUTE)
-              )
+            : Math.max(0, Math.floor((now.getTime() - node.lastHeardAt.getTime()) / MS_PER_MINUTE))
 
     return {
-        id: device.id,
-        name: device.name,
-        type: device.type,
+        id: node.id,
+        name: node.name,
+        type: node.type,
         status: nodeStatus(minutesSinceHeard, batteryPct, thresholds),
-        position: [device.longitude, device.latitude],
-        elevationM: device.elevationM,
-        antennaHeightM: device.antennaHeightM,
+        position: node.position,
+        elevationM: node.elevationM,
+        antennaHeightM: node.antennaHeightM,
         batteryPct: batteryPct === null ? null : Math.round(batteryPct),
         lastHeartbeatMin: minutesSinceHeard,
-        firmware: device.firmware,
-        deployedOn: device.deployedOn,
-        ...(device.note !== null && { note: device.note }),
+        firmware: node.firmware,
+        deployedOn: node.deployedOn,
+        ...(node.note !== null && { note: node.note }),
     }
 }
 
@@ -80,14 +106,12 @@ function toMeshNode(
  */
 function toMeshLinks(
     observations: readonly LinkObservationRow[],
-    devicesById: ReadonlyMap<string, DeviceRow>
+    nodesById: ReadonlyMap<string, MappableNode>
 ): MeshLink[] {
     const latest = new Map<string, { row: LinkObservationRow; rssi: number | null }>()
     for (const row of observations) {
-        if (!devicesById.has(row.fromDeviceId) || !devicesById.has(row.toDeviceId)) continue
-        const key = [row.fromDeviceId, row.toDeviceId]
-            .toSorted((a, b) => a.localeCompare(b))
-            .join('|')
+        if (!nodesById.has(row.fromNodeId) || !nodesById.has(row.toNodeId)) continue
+        const key = [row.fromNodeId, row.toNodeId].toSorted((a, b) => a.localeCompare(b)).join('|')
         const rssi = row.rssi ?? latest.get(key)?.rssi ?? null
         latest.set(key, { row, rssi })
     }
@@ -95,8 +119,8 @@ function toMeshLinks(
     return latest
         .values()
         .flatMap(({ row, rssi }) => {
-            const from = devicesById.get(row.fromDeviceId)
-            const to = devicesById.get(row.toDeviceId)
+            const from = nodesById.get(row.fromNodeId)
+            const to = nodesById.get(row.toNodeId)
             return from === undefined || to === undefined
                 ? []
                 : [
@@ -105,13 +129,7 @@ function toMeshLinks(
                           to: to.id,
                           rssi,
                           snr: row.snr,
-                          distanceKm: round(
-                              distanceKm(
-                                  [from.longitude, from.latitude],
-                                  [to.longitude, to.latitude]
-                              ),
-                              2
-                          ),
+                          distanceKm: round(distanceKm(from.position, to.position), 2),
                       },
                   ]
         })
@@ -120,25 +138,25 @@ function toMeshLinks(
 
 export function createNetworkService(deps: {
     readonly repo: NetworkRepo
-    readonly deviceRepo: DeviceRepo
+    readonly nodeRepo: NodeRepo
     readonly clock: Clock
     readonly thresholds: StatusThresholds
     readonly linkWindowMin: number
 }) {
-    const { repo, deviceRepo, clock, thresholds, linkWindowMin } = deps
+    const { repo, nodeRepo, clock, thresholds, linkWindowMin } = deps
     let cached: { readonly network: Network; readonly expiresAt: number } | undefined
 
     const build = (now: Date): Network => {
-        const devices = deviceRepo.listEnabled()
-        const batteries = repo.latestBatteryByDevice()
-        const devicesById = new Map(devices.map((device) => [device.id, device]))
+        const nodes = nodeRepo.listEnabled().flatMap((node) => mappable(node) ?? [])
+        const batteries = repo.latestBatteryByNode()
+        const nodesById = new Map(nodes.map((node) => [node.id, node]))
         const since = new Date(now.getTime() - linkWindowMin * MS_PER_MINUTE)
 
         return {
-            nodes: devices.map((device) =>
-                toMeshNode(device, batteries.get(device.id) ?? null, now, thresholds)
+            nodes: nodes.map((node) =>
+                toMeshNode(node, batteries.get(node.id) ?? null, now, thresholds)
             ),
-            links: toMeshLinks(repo.linkObservationsSince(since), devicesById),
+            links: toMeshLinks(repo.linkObservationsSince(since), nodesById),
         }
     }
 

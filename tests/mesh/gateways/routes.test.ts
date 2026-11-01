@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest'
 
 import { GatewaySchema } from '#src/mesh/gateways/schema'
 import { createHarness } from '#tests/support/harness'
-import { deviceInput } from '#tests/support/seed'
+import { nodeInput, ADMIN } from '#tests/support/seed'
 
 async function setup() {
     const h = createHarness()
-    h.services.devices.register(deviceInput({ id: 'cel-01', type: 'cellular' }))
+    h.services.nodes.register(nodeInput({ id: 'cel-01', type: 'cellular' }), ADMIN)
     const admin = await h.signInAs('admin')
     const user = await h.signInAs('user')
     return { h, admin, user }
@@ -19,7 +19,7 @@ describe('gateway routes', () => {
         const created = await h.request('/v1/gateways', {
             method: 'POST',
             cookie: admin.cookie,
-            body: { deviceId: 'cel-01', mqttUsername: 'gw-cel-01' },
+            body: { nodeId: 'cel-01', mqttUsername: 'gw-cel-01' },
         })
         const disabled = await h.request('/v1/gateways/cel-01', {
             method: 'PATCH',
@@ -33,26 +33,29 @@ describe('gateway routes', () => {
         const { gateways } = (await listed.json()) as { gateways: unknown[] }
         expect(gateways.map((gateway) => GatewaySchema.parse(gateway))).toEqual([
             expect.objectContaining({
-                deviceId: 'cel-01',
+                nodeId: 'cel-01',
                 mqttUsername: 'gw-cel-01',
                 enabled: false,
             }),
         ])
     })
 
-    it('rejects unknown devices, duplicate gateways and reused usernames', async () => {
+    it('rejects unknown nodes, duplicate gateways and reused usernames', async () => {
         const { h, admin } = await setup()
-        h.services.devices.register(deviceInput({ id: 'cel-02', nodeId: 0x0b, type: 'cellular' }))
+        h.services.nodes.register(
+            nodeInput({ id: 'cel-02', meshId: 0x0b, type: 'cellular' }),
+            ADMIN
+        )
         const post = (body: object) =>
             h.request('/v1/gateways', { method: 'POST', cookie: admin.cookie, body })
 
-        await post({ deviceId: 'cel-01', mqttUsername: 'gw-1' })
+        await post({ nodeId: 'cel-01', mqttUsername: 'gw-1' })
 
-        const unknownDevice = await post({ deviceId: 'cel-99', mqttUsername: 'gw-9' })
-        const alreadyGateway = await post({ deviceId: 'cel-01', mqttUsername: 'gw-2' })
-        const usernameTaken = await post({ deviceId: 'cel-02', mqttUsername: 'gw-1' })
+        const unknownNode = await post({ nodeId: 'cel-99', mqttUsername: 'gw-9' })
+        const alreadyGateway = await post({ nodeId: 'cel-01', mqttUsername: 'gw-2' })
+        const usernameTaken = await post({ nodeId: 'cel-02', mqttUsername: 'gw-1' })
 
-        expect(unknownDevice.status).toBe(404)
+        expect(unknownNode.status).toBe(404)
         expect(alreadyGateway.status).toBe(409)
         expect(usernameTaken.status).toBe(409)
     })
@@ -72,17 +75,17 @@ describe('gateway routes', () => {
 
     it('registers a Notecard without an MQTT username and enforces unique identities', async () => {
         const { h, admin } = await setup()
-        h.services.devices.register(deviceInput({ id: 'cel-02', nodeId: 0x0b }))
+        h.services.nodes.register(nodeInput({ id: 'cel-02', meshId: 0x0b }), ADMIN)
         const post = (body: object) =>
             h.request('/v1/gateways', { method: 'POST', cookie: admin.cookie, body })
-        const created = await post({ deviceId: 'cel-01', notecardUid: 'dev:860322068012345' })
+        const created = await post({ nodeId: 'cel-01', notecardUid: 'dev:860322068012345' })
         expect(created.status).toBe(201)
         expect(await created.json()).toMatchObject({
             gateway: { mqttUsername: null, notecardUid: 'dev:860322068012345' },
         })
-        const duplicate = await post({ deviceId: 'cel-02', notecardUid: 'dev:860322068012345' })
-        const missing = await post({ deviceId: 'cel-02' })
-        const invalid = await post({ deviceId: 'cel-02', notecardUid: 'not-a-uid' })
+        const duplicate = await post({ nodeId: 'cel-02', notecardUid: 'dev:860322068012345' })
+        const missing = await post({ nodeId: 'cel-02' })
+        const invalid = await post({ nodeId: 'cel-02', notecardUid: 'not-a-uid' })
         expect(duplicate.status).toBe(409)
         expect(missing.status).toBe(400)
         expect(invalid.status).toBe(400)
@@ -90,7 +93,7 @@ describe('gateway routes', () => {
 
     it('requires a transport identity after updates and supports adding a Notecard to MQTT', async () => {
         const { h, admin } = await setup()
-        h.services.gateways.register({ deviceId: 'cel-01', mqttUsername: 'gw-cel-01' })
+        h.services.gateways.register({ nodeId: 'cel-01', mqttUsername: 'gw-cel-01' })
         const patch = (body: object) =>
             h.request('/v1/gateways/cel-01', { method: 'PATCH', cookie: admin.cookie, body })
         const onlyRemoval = await patch({ mqttUsername: null })

@@ -14,7 +14,7 @@ import {
     PortNum,
     position,
 } from '#tests/support/packets'
-import { GATEWAY_NODE, OTHER_SENSOR_NODE, SENSOR_NODE, seedMesh } from '#tests/support/seed'
+import { GATEWAY_NODE, OTHER_SENSOR_NODE, SENSOR_NODE, seedMesh, ADMIN } from '#tests/support/seed'
 
 let nextId = 1
 
@@ -58,16 +58,33 @@ function seeded(): Harness {
 }
 
 describe('ingest service', () => {
+    it('records the sensor’s own time and where the reading came from', () => {
+        const h = seeded()
+
+        h.services.ingest.handle(temperature(20), new Date(1_780_000_500_000))
+
+        expect(
+            h.db.$client.prepare('SELECT recorded_at, measured_at, source FROM readings').get()
+        ).toEqual({
+            recorded_at: 1_780_000_500_000,
+            measured_at: 1_780_000_000_000,
+            source: 'mqtt',
+        })
+    })
+
     it('stores readings from a registered node and marks it heard', () => {
         const h = seeded()
 
         const outcome = h.services.ingest.handle(temperature(31.5), h.clock())
 
-        expect(outcome).toEqual({ accepted: true, deviceId: 'sen-01', readingCount: 1 })
-        expect(h.services.devices.get('sen-01').lastHeardAt).toBe(h.clock().toISOString())
+        expect(outcome).toEqual({ accepted: true, nodeId: 'sen-01', readingCount: 1 })
+        expect(h.services.nodes.get('sen-01', ADMIN).lastHeardAt).toBe(h.clock().toISOString())
         expect(
-            h.services.readings.readings('sen-01', { metric: 'environmentMetrics.temperature' })
-                .readings
+            h.services.readings.readings(
+                'sen-01',
+                { metric: 'environmentMetrics.temperature' },
+                ADMIN
+            ).readings
         ).toEqual([
             {
                 metric: 'environmentMetrics.temperature',
@@ -84,7 +101,7 @@ describe('ingest service', () => {
             packet({ portnum: PortNum.TEXT_MESSAGE_APP, payload: new Uint8Array([1]), from: 0x99 }),
             h.clock()
         )
-        h.services.devices.update('sen-01', { enabled: false })
+        h.services.nodes.update('sen-01', { enabled: false }, ADMIN)
         const disabled = h.services.ingest.handle(temperature(20), h.clock())
 
         expect(unregistered).toEqual({ accepted: false, reason: 'unregistered_node' })
@@ -134,7 +151,7 @@ describe('ingest service', () => {
             h.clock()
         )
 
-        expect(h.services.readings.metrics('sen-01', {}).metrics).toEqual([
+        expect(h.services.readings.metrics('sen-01', {}, ADMIN).metrics).toEqual([
             {
                 batteryPct: 64,
                 voltage: 3.9,
@@ -152,15 +169,15 @@ describe('ingest service', () => {
             h.clock()
         )
         h.services.ingest.handle(
-            packet({ portnum: PortNum.NODEINFO_APP, payload: nodeInfo('Renamed On Device') }),
+            packet({ portnum: PortNum.NODEINFO_APP, payload: nodeInfo('Renamed On Node') }),
             h.clock()
         )
 
-        const device = h.services.devices.get('sen-01')
-        expect(device.name).toBe('Rattlesnake Ridge 1')
-        expect(device.position).toEqual([-114.05, 46.9])
-        expect(device.reported).toEqual({
-            name: 'Renamed On Device',
+        const node = h.services.nodes.get('sen-01', ADMIN)
+        expect(node.name).toBe('Rattlesnake Ridge 1')
+        expect(node.details?.position).toEqual([-114.05, 46.9])
+        expect(node.details?.reported).toEqual({
+            name: 'Renamed On Node',
             position: [expect.closeTo(-114, 6), expect.closeTo(47, 6)],
             altitudeM: 1600,
             at: h.clock().toISOString(),
@@ -204,7 +221,7 @@ describe('ingest service', () => {
         const owner = await h.signInAs('user')
         h.services.rules.create(
             {
-                deviceId: 'sen-01',
+                nodeId: 'sen-01',
                 metric: 'environmentMetrics.temperature',
                 comparison: 'above',
                 threshold: 50,
@@ -219,6 +236,6 @@ describe('ingest service', () => {
         const outcome = h.services.ingest.handle(temperature(80), h.clock())
 
         expect(outcome.accepted).toBe(true)
-        expect(h.services.readings.readings('sen-01', {}).readings).toHaveLength(1)
+        expect(h.services.readings.readings('sen-01', {}, ADMIN).readings).toHaveLength(1)
     })
 })

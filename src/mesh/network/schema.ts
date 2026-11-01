@@ -1,15 +1,12 @@
 import { z } from 'zod'
 
-import { DeviceTypeSchema, PositionSchema } from '#src/mesh/devices/schema'
-
-const NodeStatusSchema = z.enum(['online', 'degraded', 'offline'])
-export type NodeStatus = z.infer<typeof NodeStatusSchema>
+import { NodeStatusSchema, NodeTypeSchema, PositionSchema } from '#src/mesh/nodes/schema'
 
 /** Must match `MeshNode` in the web repo (src/core/content/network/network.ts). */
 const MeshNodeSchema = z.object({
     id: z.string(),
     name: z.string(),
-    type: DeviceTypeSchema,
+    type: NodeTypeSchema,
     status: NodeStatusSchema,
     position: PositionSchema,
     elevationM: z.number(),

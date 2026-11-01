@@ -1,9 +1,9 @@
-# MQTT Device Connection API
+# MQTT Node Connection API
 
 This document describes how a Meshtastic gateway connects to the Mesh Fire
 Detection MQTT broker and forwards packets from the private mesh. It is an
 uplink-only interface: the backend does not publish commands or configuration
-to devices.
+to nodes.
 
 Regular mesh nodes do **not** connect to the broker. They communicate over
 LoRa with a registered gateway. A gateway with LTE or another Internet
@@ -13,33 +13,33 @@ connection forwards mesh traffic to the broker using Meshtastic's MQTT module.
 
 An administrator must complete these steps before configuring the gateway:
 
-1. Register the gateway as a device with `POST /v1/devices`. Its Meshtastic
-   node ID and its device ID must be unique.
-2. Register that device as a gateway with `POST /v1/gateways`, including a
+1. Register the gateway as a node with `POST /v1/nodes`. Its mesh ID
+   (`!a1b2c3d4`) and its node ID (`cel-01`) must be unique.
+2. Register that node as a gateway with `POST /v1/gateways`, including a
    unique `mqttUsername`.
 3. Create the matching Mosquitto password-file user and give it a topic ACL.
    The username in Mosquitto must exactly match `mqttUsername`.
-4. Add every sender node that should be accepted with `POST /v1/devices` and
+4. Add every sender node that should be accepted with `POST /v1/nodes` and
    keep it enabled.
 
-The broker credentials authenticate the gateway. The device allowlist is a
+The broker credentials authenticate the gateway. The node allowlist is a
 separate check: a packet is accepted only when both its forwarding gateway and
 its sender are registered and enabled.
 
 ## Connection settings
 
-| Setting | Value |
-| --- | --- |
-| Broker host | `mqtt.meshfiredetection.org` |
-| Field port | `1884` while TLS is being validated on gateway hardware |
-| Transport | MQTT over TCP with username and password authentication; no transport TLS on port `1884` |
-| TLS port | `8883`, once enabled by the deployment; do not assume it is available yet |
-| Root topic | `msh/US` |
-| Publish topic | `msh/US/2/e/+/&lt;gateway-node-id&gt;` |
-| Payload format | Binary Meshtastic protobuf `ServiceEnvelope` |
-| QoS | `1` |
-| JSON publishing | Disabled |
-| MQTT encryption | Enabled on the private channel |
+| Setting         | Value                                                                                    |
+| --------------- | ---------------------------------------------------------------------------------------- |
+| Broker host     | `mqtt.meshfiredetection.org`                                                             |
+| Field port      | `1884` while TLS is being validated on gateway hardware                                  |
+| Transport       | MQTT over TCP with username and password authentication; no transport TLS on port `1884` |
+| TLS port        | `8883`, once enabled by the deployment; do not assume it is available yet                |
+| Root topic      | `msh/US`                                                                                 |
+| Publish topic   | `msh/US/2/e/+/&lt;gateway-node-id&gt;`                                                   |
+| Payload format  | Binary Meshtastic protobuf `ServiceEnvelope`                                             |
+| QoS             | `1`                                                                                      |
+| JSON publishing | Disabled                                                                                 |
+| MQTT encryption | Enabled on the private channel                                                           |
 
 ## Cloudflare DNS and network path
 
@@ -80,8 +80,8 @@ encryption on this port. When the deployment enables TLS, gateways will use
 `mqtts://mqtt.meshfiredetection.org:8883`; the `1884` listener and firewall
 rule should then be removed.
 
-`<gateway-node-id>` is the gateway's Meshtastic node ID in its MQTT topic
-form, for example `!0a000001`. The broker ACL must grant a gateway permission
+`<gateway-node-id>` is the gateway's mesh ID (Meshtastic calls it the node ID) in
+its MQTT topic form, for example `!0a000001`. The broker ACL must grant a gateway permission
 to publish only to its own final topic segment:
 
 ```text
@@ -115,14 +115,14 @@ wrong-key messages are dropped.
 
 The following payloads are processed:
 
-- Telemetry: each present numeric field becomes a reading, including device
+- Telemetry: each present numeric field becomes a reading, including node
   metrics such as battery, voltage, and uptime.
 - NeighborInfo: records observed mesh links and SNR.
 - Position and NodeInfo: records values reported by the node; the
   administrator-registered map values remain authoritative.
 - Other valid payloads: update the sender's last-heard time only.
 
-The backend uses its receipt time, not the device clock. Meshtastic may deliver
+The backend uses its receipt time, not the node clock. Meshtastic may deliver
 the same packet through several paths or gateways; a packet with the same
 sender node number and packet ID is accepted only once within 24 hours.
 
@@ -132,7 +132,7 @@ A message is stored only when all of the following are true:
 
 1. It is no more than 4096 bytes and decodes as an encrypted, valid packet.
 2. The gateway named by the envelope is a registered, enabled gateway.
-3. The packet sender is a registered, enabled device.
+3. The packet sender is a registered, enabled node.
 4. The sender and packet ID have not already been accepted in the previous
    24 hours.
 
@@ -151,5 +151,5 @@ with mesh routing, so gateways should allow MQTT client reconnects and retries.
   enabled, use only the supplied field port and secure the gateway's network
   access appropriately.
 - Standard Meshtastic channel packets are not individually signed. Anyone who
-  possesses the channel key could impersonate a node ID, so access to that key
+  possesses the channel key could impersonate a mesh ID, so access to that key
   must be tightly controlled.

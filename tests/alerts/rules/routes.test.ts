@@ -5,7 +5,7 @@ import { createHarness } from '#tests/support/harness'
 import { seedMesh } from '#tests/support/seed'
 
 const body = {
-    deviceId: 'sen-01',
+    nodeId: 'sen-01',
     metric: 'environmentMetrics.temperature',
     comparison: 'above',
     threshold: 60,
@@ -39,7 +39,7 @@ describe('alert rule routes', () => {
         })
     })
 
-    it('accepts any sensor metric name but rejects malformed ones and unknown devices', async () => {
+    it('accepts any sensor metric name but rejects malformed ones and unknown nodes', async () => {
         const { h, owner } = await setup()
         const post = (overrides: object) =>
             h.request('/v1/alert-rules', {
@@ -50,11 +50,11 @@ describe('alert rule routes', () => {
 
         const anyMetric = await post({ metric: 'airQualityMetrics.pm25Standard' })
         const malformed = await post({ metric: 'drop table;' })
-        const unknownDevice = await post({ deviceId: 'sen-99' })
+        const unknownNode = await post({ nodeId: 'sen-99' })
 
         expect(anyMetric.status).toBe(201)
         expect(malformed.status).toBe(400)
-        expect(unknownDevice.status).toBe(400)
+        expect(unknownNode.status).toBe(400)
     })
 
     it('lists, edits and deletes only the owner’s rules', async () => {
@@ -76,7 +76,7 @@ describe('alert rule routes', () => {
         const ownerEdit = await h.request(`/v1/alert-rules/${rule.id}`, {
             method: 'PATCH',
             cookie: owner.cookie,
-            body: { threshold: 65, deviceId: null },
+            body: { threshold: 65, nodeId: null },
         })
         const ownerDelete = await h.request(`/v1/alert-rules/${rule.id}`, {
             method: 'DELETE',
@@ -86,7 +86,7 @@ describe('alert rule routes', () => {
 
         expect(await strangerList.json()).toEqual({ rules: [] })
         expect(strangerEdit.status).toBe(404)
-        expect(await ownerEdit.json()).toMatchObject({ rule: { threshold: 65, deviceId: null } })
+        expect(await ownerEdit.json()).toMatchObject({ rule: { threshold: 65, nodeId: null } })
         expect(ownerDelete.status).toBe(204)
         expect(await afterDelete.json()).toEqual({ rules: [] })
     })

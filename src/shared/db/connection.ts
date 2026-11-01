@@ -25,10 +25,18 @@ export function openDatabase(filePath: string): Db {
     // WAL lets the HTTP server read while ingest writes; Litestream requires it.
     sqlite.pragma('journal_mode = WAL')
     sqlite.pragma('busy_timeout = 5000')
-    sqlite.pragma('foreign_keys = ON')
 
     const db = drizzle({ client: sqlite, schema, casing: 'snake_case' })
+    // Off while migrating: rebuilding a table others point at drops it first,
+    // and the pragma cannot change inside the migrator's transaction.
+    sqlite.pragma('foreign_keys = OFF')
     migrate(db, { migrationsFolder: MIGRATIONS_DIR })
+    const broken = sqlite.pragma('foreign_key_check') as unknown[]
+    if (broken.length > 0) {
+        sqlite.close()
+        throw new Error(`migrations left ${String(broken.length)} broken foreign keys`)
+    }
+    sqlite.pragma('foreign_keys = ON')
     return db
 }
 

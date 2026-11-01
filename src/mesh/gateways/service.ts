@@ -1,14 +1,14 @@
 import { createHash } from 'node:crypto'
 
-import { type DeviceRepo } from '#src/mesh/devices/repo'
 import { type GatewayRepo, type GatewayRow } from '#src/mesh/gateways/repo'
 import { type Gateway, type RegisterGateway, type UpdateGateway } from '#src/mesh/gateways/schema'
+import { type NodeRepo } from '#src/mesh/nodes/repo'
 import { DomainError, notFound } from '#src/shared/errors'
 import { type Clock } from '#src/shared/time'
 
 function toGateway(row: GatewayRow): Gateway {
     return {
-        deviceId: row.deviceId,
+        nodeId: row.nodeId,
         mqttUsername: row.mqttUsername,
         notecardUid: row.notecardUid,
         enabled: row.enabled,
@@ -17,33 +17,33 @@ function toGateway(row: GatewayRow): Gateway {
     }
 }
 
-/** A gateway is a registered device allowed to forward mesh packets. */
+/** A gateway is a registered node allowed to forward mesh packets. */
 export function createGatewayService(deps: {
     readonly repo: GatewayRepo
-    readonly deviceRepo: DeviceRepo
+    readonly nodeRepo: NodeRepo
     readonly clock: Clock
 }) {
-    const { repo, deviceRepo, clock } = deps
+    const { repo, nodeRepo, clock } = deps
 
-    const assertUsernameFree = (mqttUsername: string, exceptDeviceId?: string): void => {
+    const assertUsernameFree = (mqttUsername: string, exceptNodeId?: string): void => {
         const holder = repo.findByMqttUsername(mqttUsername)
-        if (holder !== undefined && holder.deviceId !== exceptDeviceId) {
-            throw new DomainError('conflict', `MQTT username is already used by ${holder.deviceId}`)
+        if (holder !== undefined && holder.nodeId !== exceptNodeId) {
+            throw new DomainError('conflict', `MQTT username is already used by ${holder.nodeId}`)
         }
     }
 
-    const assertNotecardFree = (notecardUid: string, exceptDeviceId?: string): void => {
+    const assertNotecardFree = (notecardUid: string, exceptNodeId?: string): void => {
         const holder = repo.findByNotecardUid(notecardUid)
-        if (holder !== undefined && holder.deviceId !== exceptDeviceId) {
-            throw new DomainError('conflict', `Notecard UID is already used by ${holder.deviceId}`)
+        if (holder !== undefined && holder.nodeId !== exceptNodeId) {
+            throw new DomainError('conflict', `Notecard UID is already used by ${holder.nodeId}`)
         }
     }
 
-    const tokenHashFor = (token: string | null | undefined, deviceId?: string): string | null => {
+    const tokenHashFor = (token: string | null | undefined, nodeId?: string): string | null => {
         if (token === null || token === undefined) return null
         const hash = createHash('sha256').update(token).digest('hex')
         const holder = repo.findByNotehubTokenHash(hash)
-        if (holder !== undefined && holder.deviceId !== deviceId) {
+        if (holder !== undefined && holder.nodeId !== nodeId) {
             throw new DomainError('conflict', 'Notehub credential is already assigned')
         }
         return hash
@@ -55,9 +55,9 @@ export function createGatewayService(deps: {
         },
 
         register(input: RegisterGateway): Gateway {
-            if (deviceRepo.findById(input.deviceId) === undefined) throw notFound('Device')
-            if (repo.findByDeviceId(input.deviceId) !== undefined) {
-                throw new DomainError('conflict', `Device ${input.deviceId} is already a gateway`)
+            if (nodeRepo.findById(input.nodeId) === undefined) throw notFound('Node')
+            if (repo.findByNodeId(input.nodeId) !== undefined) {
+                throw new DomainError('conflict', `Node ${input.nodeId} is already a gateway`)
             }
             if (input.mqttUsername !== undefined) assertUsernameFree(input.mqttUsername)
             if (input.notecardUid !== undefined) assertNotecardFree(input.notecardUid)
@@ -68,7 +68,7 @@ export function createGatewayService(deps: {
             const now = clock()
             return toGateway(
                 repo.insert({
-                    deviceId: input.deviceId,
+                    nodeId: input.nodeId,
                     mqttUsername: input.mqttUsername ?? null,
                     notecardUid: input.notecardUid ?? null,
                     notehubTokenHash: tokenHashFor(input.notehubToken),
@@ -79,8 +79,8 @@ export function createGatewayService(deps: {
             )
         },
 
-        update(deviceId: string, input: UpdateGateway): Gateway {
-            const existing = repo.findByDeviceId(deviceId)
+        update(nodeId: string, input: UpdateGateway): Gateway {
+            const existing = repo.findByNodeId(nodeId)
             if (existing === undefined) throw notFound('Gateway')
             const mqttUsername =
                 input.mqttUsername === undefined ? existing.mqttUsername : input.mqttUsername
@@ -89,13 +89,13 @@ export function createGatewayService(deps: {
             if (mqttUsername === null && notecardUid === null) {
                 throw new DomainError('bad_request', 'an MQTT username or Notecard UID is required')
             }
-            if (mqttUsername !== null) assertUsernameFree(mqttUsername, deviceId)
-            if (notecardUid !== null) assertNotecardFree(notecardUid, deviceId)
+            if (mqttUsername !== null) assertUsernameFree(mqttUsername, nodeId)
+            if (notecardUid !== null) assertNotecardFree(notecardUid, nodeId)
             const { notehubToken, ...fields } = input
             const tokenHash =
                 notehubToken === undefined
                     ? existing.notehubTokenHash
-                    : tokenHashFor(notehubToken, deviceId)
+                    : tokenHashFor(notehubToken, nodeId)
             if (tokenHash !== null && notecardUid === null) {
                 throw new DomainError(
                     'bad_request',
@@ -103,7 +103,7 @@ export function createGatewayService(deps: {
                 )
             }
 
-            const row = repo.update(deviceId, {
+            const row = repo.update(nodeId, {
                 ...fields,
                 notehubTokenHash: tokenHash,
                 updatedAt: clock(),

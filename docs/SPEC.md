@@ -17,8 +17,8 @@ Node types, from the site: `base`, `cellular` (gateway with LTE backhaul),
 ## Goals
 
 1. Receive data from the mesh and store it.
-2. Accept data only from registered devices.
-3. Let admins register and manage devices.
+2. Accept data only from registered nodes.
+3. Let admins register and manage nodes.
 4. Serve the network map and sensor data to the website.
 5. Let users define their own alert rules and see the alerts they trigger.
 6. Run as cheaply as possible.
@@ -40,23 +40,23 @@ Node types, from the site: `base`, `cellular` (gateway with LTE backhaul),
 
 ## Decisions
 
-| Topic | Decision |
-| --- | --- |
-| Runtime | Node 24, TypeScript, ESM |
-| Repo | New repo, same conventions as the web repo |
-| Hosting | One Hetzner VPS (~$5/month). GitHub is not the live backend. |
-| Database | SQLite, continuously backed up off-server |
-| Ingest | Meshtastic MQTT uplink; opt-in authenticated Notehub HTTPS adapter for Blues gateways (see Ingest) |
-| Retention | Keep all data indefinitely. Nothing is deleted automatically. |
-| Accounts | Email and password, two roles: `admin` and `user`, created by invite link |
-| Map feed | `/api/network.json` is public and read-only |
-| Sensor metrics | Generic: stored under the name the sensor reports; no fixed list |
-| Link RSSI | Nullable; real values only, never estimated |
-| Firmware version | Entered by admins at registration |
-| Alerts | User-defined rules plus system alerts; stored with a status; no notifications yet |
-| Website origin | `https://meshfiredetection.org`; API at `api.meshfiredetection.org` |
-| Transactional email | Resend, behind a provider interface. See Email. |
-| API docs | OpenAPI generation deferred; routes validate with Zod so it can be added later |
+| Topic               | Decision                                                                                                             |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Runtime             | Node 24, TypeScript, ESM                                                                                             |
+| Repo                | New repo, same conventions as the web repo                                                                           |
+| Hosting             | One Hetzner VPS (~$5/month). GitHub is not the live backend.                                                         |
+| Database            | SQLite, continuously backed up off-server                                                                            |
+| Ingest              | Meshtastic MQTT uplink; opt-in authenticated Notehub HTTPS adapter for Blues gateways (see Ingest)                   |
+| Retention           | Keep all data indefinitely. Nothing is deleted automatically.                                                        |
+| Accounts            | A code emailed to a member; two roles, `admin` and `user`. Members join by invitation, or with a node they connected |
+| Map feed            | `/api/network.json` is public and read-only                                                                          |
+| Sensor metrics      | Generic: stored under the name the sensor reports; no fixed list                                                     |
+| Link RSSI           | Nullable; real values only, never estimated                                                                          |
+| Firmware version    | Entered by admins at registration                                                                                    |
+| Alerts              | User-defined rules plus system alerts; stored with a status; no notifications yet                                    |
+| Website origin      | `https://meshfiredetection.org`; API at `api.meshfiredetection.org`                                                  |
+| Transactional email | Resend, behind a provider interface. See Email.                                                                      |
+| API docs            | OpenAPI generation deferred; routes validate with Zod so it can be added later                                       |
 
 ## Ingest
 
@@ -98,7 +98,7 @@ The following decisions were approved on October 23, 2026:
 - Authenticate Notehub delivery over HTTPS with a separate high-entropy bearer
   credential per gateway. Store only its SHA-256 hash. Trust Notehub to supply
   the Notecard UID; require that UID and the envelope gateway node number to
-  match the registered, enabled gateway. Sender devices must also be registered
+  match the registered, enabled gateway. Sender nodes must also be registered
   and enabled. Browser sessions cannot authorize this endpoint.
 - Keep the original channel encryption and existing telemetry metric names.
   Accept telemetry only in this first adapter. MQTT behavior for other packet
@@ -108,6 +108,12 @@ The following decisions were approved on October 23, 2026:
   falls back to Notehub capture time and is always history-only. Reject capture
   or sensor times more than five minutes into the future, or sensor time more
   than five minutes after Notehub capture.
+- A browser's copy of what it saw on `/connect` (`POST /v1/nodes/:id/upload`, for
+  a node's people and admins) is stored with `source = browser`, never live: no
+  alerts, and the node is not marked as heard. A reading the server already holds
+  is skipped: the same sensor time, or the same value within two minutes, which is
+  how one packet heard by a gateway too looks when the node's clock is unset. Times
+  in the future or over a year old are skipped too. Each row records who sent it.
 - Readings older than five minutes at receipt, future readings, and readings
   older than the sender's last-heard time are history-only. They cannot change
   last-heard, the live battery value, or live alerts, including later rule
@@ -149,31 +155,38 @@ sensor does not set are not stored. Float sensor values are rounded to
 float32 precision. No derived values (such as US EPA AQI) are computed; add
 them only by a decision here.
 
-## Device identity
+## Node identity
 
-Every device must be registered before its data is accepted.
+Every node must be registered before its data is accepted.
 
-- A device has a human ID (`cel-01`, matching the site) and a Meshtastic node
-  number (`!a1b2c3d4`). Both are unique.
+- A node has an ID and a mesh ID (`!a1b2c3d4`, the text form of its node
+  number, which Meshtastic calls its node ID). Both are unique. The server
+  assigns the ID (`n-0001` and up) when a member registers a node, and never
+  changes or reuses it; an admin may choose one instead (`cel-01`). The name
+  is separate and editable.
+- A node may also carry its hardware ID, Meshtastic's `MyNodeInfo.device_id`,
+  which survives a reflash. When a firmware upgrade changes the node number,
+  the hardware ID moves the node to its new number, keeping its ID and history.
+  Only someone already on the node can do that (docs/plans/nodes.md).
 - Packets from unregistered or disabled node numbers are dropped and logged.
 - Network security has three parts:
     1. A private channel key shared only by our nodes.
     2. Separate broker credentials per gateway, with topic ACLs.
-    3. The registered-device allowlist above (for senders and gateways).
+    3. The registered-node allowlist above (for senders and gateways).
 - Known limitation: standard Meshtastic channel packets are not signed per
-  node, so someone holding the channel key could impersonate a node ID.
-  Per-device message signing is deferred. Direct device HTTP ingest, if added,
+  node, so someone holding the channel key could impersonate a mesh ID.
+  Per-node message signing is deferred. Direct node HTTP ingest, if added,
   requires timestamped HMAC-SHA256 signatures. Notehub delivery is the approved
   exception: its per-gateway HTTPS credential authenticates the cloud service,
   with identity binding and durable deduplication as described above.
 
 ## Users and roles
 
-| Role | Can |
-| --- | --- |
-| public (no login) | View the network map and `/health` |
-| `user` | Everything public, plus sensor history, own alert rules, alerts |
-| `admin` | Everything, plus device registration, gateways, users, all rules and alerts |
+| Role              | Can                                                                       |
+| ----------------- | ------------------------------------------------------------------------- |
+| public (no login) | View the network map and `/health`                                        |
+| `user`            | Everything public, plus sensor history, own alert rules, alerts           |
+| `admin`           | Everything, plus node registration, gateways, users, all rules and alerts |
 
 ### Signing in
 
@@ -190,10 +203,79 @@ notification now, which was most of the argument for links in the first place.
 Adding one later is small, and the token design does not change: whatever
 carries the code, there is one code, one expiry and one attempt counter.
 
-Only an address with an existing, enabled account receives anything. An unknown
-address gets a byte-identical response and no email, so the endpoint cannot be
-used to discover who has an account. How a person *becomes* an account —
-invitation, or a node of theirs the network has heard — is separate.
+Only a member receives anything. Every person is one row with a status:
+a `subscriber` can never sign in, a `member` can unless disabled. An address
+that is not a member gets a byte-identical response and no email, so the
+endpoint cannot be used to discover who has an account. A session held by
+anyone who is not a member counts as signed out.
+
+### Joining
+
+Two ways in (backend#9): an address an admin has invited, or a person whose
+browser has connected a node on the website.
+
+**With a node** is the way the website offers. Nodes connected on `/connect`
+stay in the browser, never sent anywhere, until the person joins: the request
+says only that the browser has connected one. The website cannot prove that,
+and the claim is accepted on purpose so a builder can join at their bench;
+the address is still proven with a code. Once a member, the website sends the
+nodes the browser connected, and each is registered with the member on it, or,
+if already registered, the member is added to it. Two members can bring the
+same node, and are equals on it.
+
+### Nodes and the people on them
+
+- Every registered node is visible to every signed-in person, except disabled
+  ones, which only their people and admins see. Only a node's people and admins
+  see who is on it, by display name, never by email or account ID. Everyone else
+  sees only whether a node is theirs (#15 Q10).
+- Only identity is required to register. Type, position, elevation, antenna
+  height and deployment date are a deployment record, filled in later by the
+  people on the node, who may edit it; none of it is read from the node.
+  Firmware is not editable: it is recorded when a browser that connected the
+  node reports it. Changing the mesh ID or enabling is for admins.
+- **Positions are approximate** to everyone but a node's people and admins:
+  the centre of a fixed grid cell about 1 km across, with elevation to the
+  nearest 50 m, on `/nodes` and on the public map alike. A node in someone's
+  home must not be findable, and one outdoors must not be easy to steal. Its
+  people may choose to show it exactly (`exactPosition`), for a node on public
+  land or where the owner agreed. What a node reports about its own position
+  is shown only with the exact one.
+
+**An invitation** puts an address on the allowlist and sends nothing; the role
+it names is the role the person joins with.
+
+Either way the person gives their address and name and receives a six-digit
+code, the same kind as for signing in. Entering it makes them a member, marks
+any invite used, subscribes them to updates already confirmed (unless they had
+unsubscribed), and signs them in. One transaction does all of it, and it runs
+on Better Auth's own verification step, so there is no route to a verified
+address that skips it.
+
+Asking to join answers every address the same way. An eligible address gets a
+join code; a member gets a sign-in code instead, so they are not stuck; anyone
+else gets nothing, and nothing about them is stored. An invite withdrawn while
+its code is unused makes the code worthless.
+
+### Updates
+
+Occasional project news by email (backend#29). One row per person in
+`subscriptions`, recording when and where they agreed and the words they saw.
+
+- The website's footer asks for an address and sends a confirmation link, and
+  nothing else, until it is used. The link opens a page on the website whose
+  button confirms, so a mail scanner fetching it confirms nothing. Asking again
+  within a day sends nothing new; a link works once, for a week.
+- **Members get updates by default**, however the account was made: joining,
+  the bootstrap admin, or an account an admin created. The record says which
+  (`source: default` for anyone who never saw the join form).
+- Subscribing never makes anyone eligible to join.
+- A member turns updates on or off on their account page, without a
+  confirmation email, since joining proved the address.
+- Unsubscribed stands, including when someone joins later.
+- Writing and sending updates is not built. Before the first one, each will
+  need an unsubscribe link and the `List-Unsubscribe` headers bulk senders are
+  required to carry.
 
 Requests for a code are rate limited more tightly than the rest of the API,
 because each one spends from a daily email allowance shared by everybody.
@@ -201,7 +283,8 @@ because each one spends from a daily email allowance shared by everybody.
 - Passwords remain enabled but unadvertised, for the bootstrap admin created
   with `npm run user:create-admin` on a fresh server. The website never offers
   them, and they are expected to go once that script no longer needs them.
-- There is no open sign-up.
+- There is no open sign-up: only an invitation or a connected node makes someone
+  a member.
 - Admins can change a user's role or disable them; disabling signs them out
   everywhere. Admins cannot change their own role or access.
 
@@ -294,7 +377,7 @@ history and owner.
 
 Alert lifecycle: `open` → `acknowledged` → `resolved`, or `open` → `resolved`.
 An alert resolves automatically when the condition clears (the node comes
-back, the reading no longer matches, the device is disabled), and can also be
+back, the reading no longer matches, the node is disabled), and can also be
 resolved by hand. Every change is recorded with who made it (or the system),
 when, and an optional note.
 
@@ -310,7 +393,9 @@ channel table so adding them later needs no restructuring.
 - `MeshNode`: `id`, `name`, `type`, `status`, `position` as
   `[longitude, latitude]`, `elevationM`, `antennaHeightM`, `batteryPct`
   (null if never reported), `lastHeartbeatMin` (null if never heard),
-  `firmware`, `deployedOn`, optional `note`. Only enabled devices appear.
+  `firmware`, `deployedOn`, optional `note`. Only enabled nodes with all of
+  these filled in appear, at the positions anyone may see (see Nodes and the
+  people on them).
 - `MeshLink`: `from`, `to`, `rssi` (dBm, **nullable**), `snr` (dB),
   `distanceKm`.
 

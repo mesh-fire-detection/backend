@@ -27,6 +27,8 @@ const NeighborSchema = z.object({ nodeNum: NodeNumSchema, snr: z.number() })
 const PayloadSchema = z.discriminatedUnion('kind', [
     z.object({
         kind: z.literal('telemetry'),
+        /** The sensor's own clock, in epoch seconds, when it has one. */
+        sensorTime: z.number().int().min(1).optional(),
         deviceMetrics: DeviceMetricsSchema.nullable(),
         readings: z.array(ReadingSchema).max(64),
     }),

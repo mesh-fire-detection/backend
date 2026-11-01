@@ -141,7 +141,7 @@ MESH_CHANNEL_KEY=<base64 private channel key>
   deploy before the key is set fails its health check.
 - Generate the channel key once with `openssl rand -base64 32`. The same key
   must be installed on every sensor node and gateway; how it reaches the
-  devices is still open (see "Open items").
+  nodes is still open (see "Open items").
 
 ## 3. Services
 
@@ -320,10 +320,10 @@ Both must return `{"status":"ok","database":"ok","mqtt":"connected"}`.
 
 ## 8. Adding a gateway
 
-1. Register the device (`POST /v1/devices`) and the gateway
+1. Register the node (`POST /v1/nodes`) and the gateway
    (`POST /v1/gateways` with its `mqttUsername`).
 2. Create the broker user with `mosquitto_passwd`, add an ACL block allowing
-   it to publish only under its own node ID, and restart Mosquitto.
+   it to publish only under its own mesh ID, and restart Mosquitto.
 3. On the gateway node, in the Meshtastic MQTT module: broker
    `mqtt.meshfiredetection.org`, port `1884`, its username and password,
    **encryption enabled**, JSON off, and the root topic `msh/US`. Enable uplink
@@ -356,13 +356,15 @@ certificate for `mqtt.meshfiredetection.org`, open `8883/tcp`, move gateways to
 ## Open items
 
 - **Backups:** create an R2 or B2 bucket and enable Litestream.
-- **Email:** a sending-only Resend key and `EMAIL_FROM` are in
-  `/etc/mesh-backend/env` (October 27, 2026) and `/health` reports
-  `"email": "ok"`, which means only that a key is configured. Remaining: create
-  the first admin (section 6), request a sign-in code for it, and confirm the
-  mail lands in a Gmail and an Outlook inbox. `EMAIL_REPLY_TO` is empty; point
-  it at a Cloudflare Email Routing address once one exists. See #20.
-- **Channel key on devices:** the public firmware and the website's `/firmware`
+- **Email:** a sending-only Resend key and `EMAIL_FROM` were put in
+  `/etc/mesh-backend/env` on October 27, 2026, but `/health` reported
+  `"email": "disabled"` on October 31 after a fresh deploy, so the running server
+  does not have them. Check the file, then restart. `"ok"` means only that a key
+  is configured. After that: create the first admin (section 6), request a
+  sign-in code for it, and confirm the mail lands in a Gmail and an Outlook inbox.
+  `EMAIL_REPLY_TO` is empty; point it at a Cloudflare Email Routing address once
+  one exists. See #20.
+- **Channel key on nodes:** the public firmware and the website's `/firmware`
   build must not contain the key. Options under discussion: a private local
   firmware build with the key in an ignored file, or a provisioning step on the
   website for logged-in admins.

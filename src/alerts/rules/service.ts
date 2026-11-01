@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { type RuleRepo, type RuleRow } from '#src/alerts/rules/repo'
 import { type CreateRule, type Rule, type UpdateRule } from '#src/alerts/rules/schema'
-import { type DeviceRepo } from '#src/mesh/devices/repo'
+import { type NodeRepo } from '#src/mesh/nodes/repo'
 import { type Viewer } from '#src/shared/auth/access'
 import { DomainError, notFound } from '#src/shared/errors'
 import { type Clock } from '#src/shared/time'
@@ -11,7 +11,7 @@ function toRule(row: RuleRow): Rule {
     return {
         id: row.id,
         ownerId: row.ownerId,
-        deviceId: row.deviceId,
+        nodeId: row.nodeId,
         metric: row.metric,
         comparison: row.comparison,
         threshold: row.threshold,
@@ -26,18 +26,14 @@ function toRule(row: RuleRow): Rule {
 /** Users manage their own rules. Admins can see and manage everyone's. */
 export function createRuleService(deps: {
     readonly repo: RuleRepo
-    readonly deviceRepo: DeviceRepo
+    readonly nodeRepo: NodeRepo
     readonly clock: Clock
 }) {
-    const { repo, deviceRepo, clock } = deps
+    const { repo, nodeRepo, clock } = deps
 
-    const assertDeviceExists = (deviceId: string | null | undefined): void => {
-        if (
-            deviceId !== null &&
-            deviceId !== undefined &&
-            deviceRepo.findById(deviceId) === undefined
-        ) {
-            throw new DomainError('bad_request', `Unknown device ${deviceId}`)
+    const assertNodeExists = (nodeId: string | null | undefined): void => {
+        if (nodeId !== null && nodeId !== undefined && nodeRepo.findById(nodeId) === undefined) {
+            throw new DomainError('bad_request', `Unknown node ${nodeId}`)
         }
     }
 
@@ -57,7 +53,7 @@ export function createRuleService(deps: {
         },
 
         create(input: CreateRule, viewer: Viewer): Rule {
-            assertDeviceExists(input.deviceId)
+            assertNodeExists(input.nodeId)
             const now = clock()
             return toRule(
                 repo.insert({
@@ -72,7 +68,7 @@ export function createRuleService(deps: {
 
         update(id: string, input: UpdateRule, viewer: Viewer): Rule {
             findVisible(id, viewer)
-            assertDeviceExists(input.deviceId)
+            assertNodeExists(input.nodeId)
             const row = repo.update(id, { ...input, updatedAt: clock() })
             if (row === undefined) throw notFound('Alert rule')
             return toRule(row)

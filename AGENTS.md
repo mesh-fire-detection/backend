@@ -49,8 +49,8 @@ src/
   health/       GET /health
   users/        accounts and invites
   mesh/
-    devices/    registration and device admin
-    gateways/   devices allowed to forward packets
+    nodes/      registration and node admin
+    gateways/   nodes allowed to forward packets
     ingest/     MQTT subscriber, packet decoding, dedupe
     network/    builds /api/network.json
     readings/   sensor history queries

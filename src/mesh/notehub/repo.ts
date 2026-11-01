@@ -1,13 +1,7 @@
 import { and, desc, eq, gt, isNotNull } from 'drizzle-orm'
 
 import { type Db } from '#src/shared/db/connection'
-import {
-    devices,
-    gateways,
-    notehubEvents,
-    notehubSamples,
-    packetsSeen,
-} from '#src/shared/db/schema'
+import { nodes, gateways, notehubEvents, notehubSamples, packetsSeen } from '#src/shared/db/schema'
 
 export function createNotehubRepo(db: Db) {
     return {
@@ -48,13 +42,13 @@ export function createNotehubRepo(db: Db) {
         hasCredentials(): boolean {
             return (
                 db
-                    .select({ id: gateways.deviceId })
+                    .select({ id: gateways.nodeId })
                     .from(gateways)
-                    .innerJoin(devices, eq(devices.id, gateways.deviceId))
+                    .innerJoin(nodes, eq(nodes.id, gateways.nodeId))
                     .where(
                         and(
                             eq(gateways.enabled, true),
-                            eq(devices.enabled, true),
+                            eq(nodes.enabled, true),
                             isNotNull(gateways.notecardUid),
                             isNotNull(gateways.notehubTokenHash)
                         )

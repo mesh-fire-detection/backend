@@ -6,19 +6,20 @@ import { createRuleRepo } from '#src/alerts/rules/repo'
 import { createRuleService } from '#src/alerts/rules/service'
 import { type MqttState } from '#src/health/schema'
 import { createHealthService } from '#src/health/service'
-import { createDeviceRepo } from '#src/mesh/devices/repo'
-import { createDeviceService } from '#src/mesh/devices/service'
 import { createGatewayRepo } from '#src/mesh/gateways/repo'
 import { createGatewayService } from '#src/mesh/gateways/service'
 import { createIngestRepo } from '#src/mesh/ingest/repo'
 import { createIngestService } from '#src/mesh/ingest/service'
 import { createNetworkRepo } from '#src/mesh/network/repo'
 import { createNetworkService } from '#src/mesh/network/service'
+import { createNodeRepo } from '#src/mesh/nodes/repo'
+import { createNodeService } from '#src/mesh/nodes/service'
 import { createNotehubRepo } from '#src/mesh/notehub/repo'
 import { createNotehubService } from '#src/mesh/notehub/service'
 import { createReadingsRepo } from '#src/mesh/readings/repo'
 import { createReadingsService } from '#src/mesh/readings/service'
 import { type Auth } from '#src/shared/auth/auth'
+import { createMembership } from '#src/shared/auth/membership'
 import { type Db, pingDatabase, transaction } from '#src/shared/db/connection'
 import { type EmailService } from '#src/shared/email/service'
 import { type Logger } from '#src/shared/logger'
@@ -32,6 +33,8 @@ export type AppConfig = {
     readonly lowBatteryPct: number
     readonly notehubChannelKey?: Buffer | undefined
     readonly linkWindowMin: number
+    /** The website's origin, for links in emails such as a subscription confirmation. */
+    readonly siteUrl: string
 }
 
 export type ServiceDeps = {
@@ -48,27 +51,39 @@ export type ServiceDeps = {
 export function createServices(deps: ServiceDeps) {
     const { db, auth, clock, logger, config } = deps
     const transact = <T>(fn: () => T): T => transaction(db, fn)
+    const statusThresholds = {
+        degradedMin: config.statusDegradedMin,
+        offlineMin: config.statusOfflineMin,
+        lowBatteryPct: config.lowBatteryPct,
+    }
 
-    const deviceRepo = createDeviceRepo(db)
+    const nodeRepo = createNodeRepo(db)
     const gatewayRepo = createGatewayRepo(db)
     const networkRepo = createNetworkRepo(db)
     const ruleRepo = createRuleRepo(db)
     const alertRepo = createAlertRepo(db)
 
+    const nodes = createNodeService({
+        repo: nodeRepo,
+        clock,
+        transact,
+        batteries: () => networkRepo.latestBatteryByNode(),
+        thresholds: statusThresholds,
+    })
     const alerts = createAlertService({ repo: alertRepo, clock, transact })
     const evaluation = createEvaluationService({
         repo: createEvaluationRepo(db),
         ruleRepo,
         alertRepo,
         alerts,
-        deviceRepo,
+        nodeRepo,
         networkRepo,
         transact,
         thresholds: { offlineMin: config.statusOfflineMin, lowBatteryPct: config.lowBatteryPct },
     })
 
     const ingest = createIngestService({
-        deviceRepo,
+        nodeRepo,
         gatewayRepo,
         repo: createIngestRepo(db),
         transact,
@@ -80,7 +95,7 @@ export function createServices(deps: ServiceDeps) {
     const notehub = createNotehubService({
         repo: createNotehubRepo(db),
         gatewayRepo,
-        deviceRepo,
+        nodeRepo,
         ingest,
         transact,
         clock,
@@ -96,24 +111,27 @@ export function createServices(deps: ServiceDeps) {
             mqttState: deps.mqttState,
             emailState: () => deps.email.state(),
         }),
-        users: createUserService({ repo: createUserRepo(db), auth, clock }),
-        devices: createDeviceService({ repo: deviceRepo, clock }),
-        gateways: createGatewayService({ repo: gatewayRepo, deviceRepo, clock }),
+        users: createUserService({
+            repo: createUserRepo(db),
+            auth,
+            membership: createMembership({ db, clock }),
+            email: deps.email,
+            siteUrl: config.siteUrl,
+            clock,
+        }),
+        nodes,
+        gateways: createGatewayService({ repo: gatewayRepo, nodeRepo, clock }),
         ingest,
         notehub,
         network: createNetworkService({
             repo: networkRepo,
-            deviceRepo,
+            nodeRepo,
             clock,
-            thresholds: {
-                degradedMin: config.statusDegradedMin,
-                offlineMin: config.statusOfflineMin,
-                lowBatteryPct: config.lowBatteryPct,
-            },
+            thresholds: statusThresholds,
             linkWindowMin: config.linkWindowMin,
         }),
-        readings: createReadingsService({ repo: createReadingsRepo(db), deviceRepo, clock }),
-        rules: createRuleService({ repo: ruleRepo, deviceRepo, clock }),
+        readings: createReadingsService({ repo: createReadingsRepo(db), nodes, clock, transact }),
+        rules: createRuleService({ repo: ruleRepo, nodeRepo, clock }),
         alerts,
         evaluation,
     }

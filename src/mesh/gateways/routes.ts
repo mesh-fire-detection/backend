@@ -16,13 +16,13 @@ export function gatewayRoutes(service: GatewayService) {
             c.json({ gateway: service.register(c.req.valid('json')) }, 201)
         )
         .patch(
-            '/v1/gateways/:deviceId',
+            '/v1/gateways/:nodeId',
             access('admin'),
             validate('param', GatewayParamsSchema),
             validate('json', UpdateGatewaySchema),
             (c) =>
                 c.json({
-                    gateway: service.update(c.req.valid('param').deviceId, c.req.valid('json')),
+                    gateway: service.update(c.req.valid('param').nodeId, c.req.valid('json')),
                 })
         )
 }

@@ -5,7 +5,7 @@
  */
 
 /** Named so a log line can say which message was sent without quoting any of it. */
-type EmailTemplate = 'sign-in-code'
+type EmailTemplate = 'sign-in-code' | 'join-code' | 'confirm-subscription'
 
 export type EmailMessage = {
     readonly template: EmailTemplate

@@ -2,17 +2,18 @@ import { describe, expect, it } from 'vitest'
 
 import { NetworkSchema } from '#src/mesh/network/schema'
 import { distanceKm, nodeStatus } from '#src/mesh/network/service'
+import { approximatePosition } from '#src/mesh/nodes/position'
 import { createHarness, TEST_CONFIG } from '#tests/support/harness'
-import { seedMesh } from '#tests/support/seed'
+import { seedMesh, ADMIN } from '#tests/support/seed'
 
 const MINUTE = 60_000
 
 describe('GET /api/network.json', () => {
-    it('serves every enabled device in the website’s MeshNode shape without a session', async () => {
+    it('serves every enabled node in the website’s MeshNode shape without a session', async () => {
         const h = createHarness()
         seedMesh(h)
-        h.services.devices.update('sen-02', { enabled: false, note: 'retired' })
-        h.services.devices.update('sen-01', { note: 'South slope' })
+        h.services.nodes.update('sen-02', { enabled: false, note: 'retired' }, ADMIN)
+        h.services.nodes.update('sen-01', { note: 'South slope' }, ADMIN)
 
         const response = await h.request('/api/network.json')
 
@@ -25,8 +26,8 @@ describe('GET /api/network.json', () => {
             name: 'Rattlesnake Ridge 1',
             type: 'sensor',
             status: 'offline',
-            position: [-114.05, 46.9],
-            elevationM: 1520,
+            position: approximatePosition([-114.05, 46.9]),
+            elevationM: 1500,
             antennaHeightM: 3,
             batteryPct: null,
             lastHeartbeatMin: null,
@@ -37,15 +38,30 @@ describe('GET /api/network.json', () => {
         expect(network.nodes[0]).not.toHaveProperty('note')
     })
 
+    it('shows nodes approximately unless their people chose otherwise, and skips unfinished ones', async () => {
+        const h = createHarness()
+        seedMesh(h)
+        h.services.nodes.update('cel-01', { exactPosition: true }, ADMIN)
+        h.services.nodes.update('sen-02', { position: null }, ADMIN)
+
+        const response = await h.request('/api/network.json')
+        const network = NetworkSchema.parse(await response.json())
+
+        expect(network.nodes.map((node) => [node.id, node.position, node.elevationM])).toEqual([
+            ['cel-01', [-114.03, 46.9], 1520],
+            ['sen-01', approximatePosition([-114.05, 46.9]), 1500],
+        ])
+    })
+
     it('derives status, battery and heartbeat from the latest data', () => {
         const h = createHarness()
         seedMesh(h)
         h.db.$client
-            .prepare('UPDATE devices SET last_heard_at = ? WHERE id = ?')
+            .prepare('UPDATE nodes SET last_heard_at = ? WHERE id = ?')
             .run(h.clock().getTime() - 45 * MINUTE, 'sen-01')
         h.db.$client
             .prepare(
-                'INSERT INTO device_metrics (device_id, recorded_at, battery_pct) VALUES (?, ?, ?)'
+                'INSERT INTO device_metrics (node_id, recorded_at, battery_pct) VALUES (?, ?, ?)'
             )
             .run('sen-01', h.clock().getTime() - 50 * MINUTE, 72.4)
 
@@ -59,7 +75,7 @@ describe('GET /api/network.json', () => {
         seedMesh(h)
         const first = h.services.network.get()
 
-        h.services.devices.update('sen-01', { name: 'Renamed' })
+        h.services.nodes.update('sen-01', { name: 'Renamed' }, ADMIN)
         const cached = h.services.network.get()
         h.advance(30_000)
         const fresh = h.services.network.get()
@@ -73,7 +89,7 @@ describe('GET /api/network.json', () => {
         seedMesh(h)
         h.db.$client
             .prepare(
-                'INSERT INTO link_observations (from_device_id, to_device_id, observed_at, snr) VALUES (?, ?, ?, ?)'
+                'INSERT INTO link_observations (from_node_id, to_node_id, observed_at, snr) VALUES (?, ?, ?, ?)'
             )
             .run(
                 'sen-01',
