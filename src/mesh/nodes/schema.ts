@@ -30,7 +30,6 @@ const EditableFieldsSchema = z.object({
     exactPosition: z.boolean(),
     elevationM: z.number().min(-500).max(9000).nullable(),
     antennaHeightM: z.number().min(0).max(500).nullable(),
-    firmware: z.string().trim().min(1).max(40).nullable(),
     deployedOn: z.iso.date().nullable(),
     note: z.string().trim().max(500).nullable(),
 })
@@ -44,6 +43,7 @@ export const RegisterNodeSchema = EditableFieldsSchema.partial()
         id: NodeIdSchema,
         meshId: MeshIdSchema,
         name: EditableFieldsSchema.shape.name,
+        firmware: z.string().trim().min(1).max(40).nullable().optional(),
         hardwareId: HardwareIdSchema.optional(),
         enabled: z.boolean().optional(),
     })
@@ -81,6 +81,13 @@ export const AddNodesSchema = z
 export const NodeStatusSchema = z.enum(['online', 'degraded', 'offline'])
 export type NodeStatus = z.infer<typeof NodeStatusSchema>
 
+/** Display names only: never an email address or account ID (#15 Q10). */
+const NodeOwnerSchema = z.object({
+    name: z.string(),
+    addedAt: IsoTimestampSchema,
+    you: z.boolean(),
+})
+
 /** Only for the people on a node and admins: where it really is, and what it said. */
 const NodeDetailsSchema = z.object({
     position: PositionSchema.nullable(),
@@ -89,6 +96,7 @@ const NodeDetailsSchema = z.object({
     hardware: z.string().nullable(),
     hardwareId: z.string().nullable(),
     note: z.string().nullable(),
+    owners: z.array(NodeOwnerSchema),
     reported: z
         .object({
             name: z.string().nullable(),
@@ -103,8 +111,8 @@ const NodeDetailsSchema = z.object({
 
 /**
  * A node as any signed-in person sees it. `position` is approximate unless its
- * people chose otherwise, and `details` is null for everyone else. Nothing here
- * names or counts the people on a node (#15 Q10).
+ * people chose otherwise, and `details` is null for everyone else. Only `details`
+ * names the people on a node (#15 Q10).
  */
 export const NodeSchema = z.object({
     id: NodeIdSchema,

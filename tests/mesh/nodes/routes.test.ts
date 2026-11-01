@@ -221,6 +221,57 @@ describe('node routes', () => {
         expect(node).toMatchObject({ position: [-114.1, 46.95], approximate: false })
     })
 
+    it("names a node's owners to them and admins, by display name only", async () => {
+        const { h, admin, owner, stranger } = await setup()
+        await addMine(h, owner.cookie, [{ nodeNum: BENCH }])
+        const read = (cookie: string) => h.request('/v1/nodes/n-0001', { cookie })
+
+        const byOwner = await read(owner.cookie)
+        const raw = await byOwner.clone().text()
+        const asOwner = await nodeOf(byOwner)
+        const asAdmin = await nodeOf(await read(admin.cookie))
+        const asStranger = await nodeOf(await read(stranger.cookie))
+
+        expect(asOwner.details?.owners).toMatchObject([{ you: true }])
+        expect(asAdmin.details?.owners).toMatchObject([{ you: false }])
+        expect(asStranger.details).toBeNull()
+        expect(raw).not.toContain('@')
+    })
+
+    it('records firmware from what the node reports, and refuses to have it typed in', async () => {
+        const { h, owner } = await setup()
+        await addMine(h, owner.cookie, [{ nodeNum: BENCH, firmware: '2.7.15' }])
+
+        const typed = await h.request('/v1/nodes/n-0001', {
+            method: 'PATCH',
+            cookie: owner.cookie,
+            body: { firmware: '9.9.9' },
+        })
+        await addMine(h, owner.cookie, [{ nodeNum: BENCH, firmware: '2.7.16' }])
+        await addMine(h, owner.cookie, [{ nodeNum: BENCH }])
+        const node = await nodeOf(await h.request('/v1/nodes/n-0001', { cookie: owner.cookie }))
+
+        expect(typed.status).toBe(400)
+        expect(node.firmware).toBe('2.7.16')
+    })
+
+    it('keeps counting past n-9999', async () => {
+        const { h, admin, owner } = await setup()
+        await h.request('/v1/nodes', {
+            method: 'POST',
+            cookie: admin.cookie,
+            body: { id: 'n-9999', meshId: '!00000001', name: 'Last four digits' },
+        })
+
+        await addMine(h, owner.cookie, [{ nodeNum: BENCH }])
+        await addMine(h, owner.cookie, [{ nodeNum: BENCH + 1 }])
+        const first = await nodeOf(await h.request('/v1/nodes/n-10000', { cookie: owner.cookie }))
+        const second = await nodeOf(await h.request('/v1/nodes/n-10001', { cookie: owner.cookie }))
+
+        expect(first.mine).toBe(true)
+        expect(second.mine).toBe(true)
+    })
+
     it('lets the people on a node edit it, and to anyone else it does not exist', async () => {
         const { h, owner, stranger } = await setup()
         await addMine(h, owner.cookie, [{ nodeNum: BENCH }])

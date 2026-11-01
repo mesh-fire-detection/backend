@@ -45,7 +45,7 @@ describe('Notehub time and live alerts', () => {
             batteryPct: null,
             status: 'offline',
         })
-        expect(h.services.readings.readings('sen-01', {}).readings[0]?.recordedAt).toBe(
+        expect(h.services.readings.readings('sen-01', {}, ADMIN).readings[0]?.recordedAt).toBe(
             new Date(captured * 1000).toISOString()
         )
     })

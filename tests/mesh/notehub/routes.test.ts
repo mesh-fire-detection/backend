@@ -53,7 +53,7 @@ describe('Notehub route', () => {
         }
         const invalid = await deliver(h, {}, 'b'.repeat(64))
         expect(invalid.status).toBe(401)
-        expect(h.services.readings.readings('sen-01', {}).readings).toHaveLength(0)
+        expect(h.services.readings.readings('sen-01', {}, ADMIN).readings).toHaveLength(0)
     })
 
     it('binds both cloud and encrypted envelope gateway identities to the credential', async () => {
@@ -62,7 +62,7 @@ describe('Notehub route', () => {
         const wrongGateway = await deliver(h, notehubEvent(h, { gateway: 0x99 }))
         expect(wrongUid.status).toBe(403)
         expect(wrongGateway.status).toBe(403)
-        expect(h.services.readings.readings('sen-01', {}).readings).toHaveLength(0)
+        expect(h.services.readings.readings('sen-01', {}, ADMIN).readings).toHaveLength(0)
     })
 
     it('rejects unknown or disabled senders and gateways', async () => {
@@ -136,6 +136,6 @@ describe('Notehub route', () => {
         const oversized = await deliver(h, { ...event, padding: 'a'.repeat(65_536) })
         expect(oversized.status).toBe(413)
         expect(await oversized.json()).toMatchObject({ error: { code: 'payload_too_large' } })
-        expect(h.services.readings.readings('sen-01', {}).readings).toHaveLength(0)
+        expect(h.services.readings.readings('sen-01', {}, ADMIN).readings).toHaveLength(0)
     })
 })

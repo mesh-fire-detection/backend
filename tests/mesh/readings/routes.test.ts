@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { MetricsResponseSchema, ReadingsResponseSchema } from '#src/mesh/readings/schema'
 import { MAX_ROWS } from '#src/mesh/readings/service'
 import { createHarness, START } from '#tests/support/harness'
-import { seedMesh } from '#tests/support/seed'
+import { ADMIN, seedMesh } from '#tests/support/seed'
 
 const HOUR = 3_600_000
 
@@ -102,6 +102,21 @@ describe('readings routes', () => {
                 recordedAt: new Date(START.getTime() - HOUR).toISOString(),
             },
         ])
+    })
+
+    it('hides a disabled node’s history from anyone who cannot see the node', async () => {
+        const { h, user } = await setup()
+        const admin = await h.signInAs('admin')
+        h.services.nodes.update('sen-01', { enabled: false }, ADMIN)
+
+        const asUser = await Promise.all([
+            h.request('/v1/nodes/sen-01/readings', { cookie: user.cookie }),
+            h.request('/v1/nodes/sen-01/metrics', { cookie: user.cookie }),
+        ])
+        const asAdmin = await h.request('/v1/nodes/sen-01/readings', { cookie: admin.cookie })
+
+        expect(asUser.map((response) => response.status)).toEqual([404, 404])
+        expect(asAdmin.status).toBe(200)
     })
 
     it('requires a signed-in user', async () => {

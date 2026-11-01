@@ -63,6 +63,13 @@ export function createServices(deps: ServiceDeps) {
     const ruleRepo = createRuleRepo(db)
     const alertRepo = createAlertRepo(db)
 
+    const nodes = createNodeService({
+        repo: nodeRepo,
+        clock,
+        transact,
+        batteries: () => networkRepo.latestBatteryByNode(),
+        thresholds: statusThresholds,
+    })
     const alerts = createAlertService({ repo: alertRepo, clock, transact })
     const evaluation = createEvaluationService({
         repo: createEvaluationRepo(db),
@@ -112,13 +119,7 @@ export function createServices(deps: ServiceDeps) {
             siteUrl: config.siteUrl,
             clock,
         }),
-        nodes: createNodeService({
-            repo: nodeRepo,
-            clock,
-            transact,
-            batteries: () => networkRepo.latestBatteryByNode(),
-            thresholds: statusThresholds,
-        }),
+        nodes,
         gateways: createGatewayService({ repo: gatewayRepo, nodeRepo, clock }),
         ingest,
         notehub,
@@ -129,7 +130,7 @@ export function createServices(deps: ServiceDeps) {
             thresholds: statusThresholds,
             linkWindowMin: config.linkWindowMin,
         }),
-        readings: createReadingsService({ repo: createReadingsRepo(db), nodeRepo, clock }),
+        readings: createReadingsService({ repo: createReadingsRepo(db), nodes, clock }),
         rules: createRuleService({ repo: ruleRepo, nodeRepo, clock }),
         alerts,
         evaluation,

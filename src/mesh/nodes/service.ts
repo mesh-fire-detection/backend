@@ -15,6 +15,7 @@ import { type Clock, MS_PER_MINUTE } from '#src/shared/time'
 
 /** How a caller stands towards one node. */
 type Standing = { readonly mine: boolean; readonly canEdit: boolean }
+type Owner = NonNullable<Node['details']>['owners'][number]
 
 /**
  * The one place a node row becomes what a caller sees. Shared fields for any
@@ -24,6 +25,7 @@ type Standing = { readonly mine: boolean; readonly canEdit: boolean }
 function toNode(
     row: NodeRow,
     standing: Standing,
+    owners: readonly Owner[],
     batteryPct: number | null,
     now: Date,
     thresholds: StatusThresholds
@@ -62,6 +64,7 @@ function toNode(
                   hardware: row.hardware,
                   hardwareId: row.hardwareId,
                   note: row.note,
+                  owners: [...owners],
                   reported:
                       row.reportedAt === null
                           ? null
@@ -116,10 +119,23 @@ export function createNodeService(deps: {
         const mine = repo.memberNodeIds(viewer.id)
         const levels = batteries()
         const now = clock()
+        const canEdit = (row: NodeRow) => viewer.role === 'admin' || mine.has(row.id)
+        const owners = new Map<string, Owner[]>()
+        const editable = rows.filter((row) => canEdit(row)).map((row) => row.id)
+        const members = repo.ownersOf(editable)
+        for (const owner of members) {
+            const entry = {
+                name: owner.name,
+                addedAt: owner.addedAt.toISOString(),
+                you: owner.userId === viewer.id,
+            }
+            owners.set(owner.nodeId, [...(owners.get(owner.nodeId) ?? []), entry])
+        }
         return rows.map((row) =>
             toNode(
                 row,
-                { mine: mine.has(row.id), canEdit: viewer.role === 'admin' || mine.has(row.id) },
+                { mine: mine.has(row.id), canEdit: canEdit(row) },
+                owners.get(row.id) ?? [],
                 levels.get(row.id) ?? null,
                 now,
                 thresholds
@@ -130,6 +146,13 @@ export function createNodeService(deps: {
     /** Disabled nodes are hidden from everyone but their people and admins (#15 Q11). */
     const visibleTo = (row: NodeRow, viewer: Viewer): boolean =>
         row.enabled || viewer.role === 'admin' || repo.isMember(row.id, viewer.id)
+
+    /** The row, or 404 when the caller may not see it, as if it did not exist. */
+    const visibleRow = (id: string, viewer: Viewer): NodeRow => {
+        const row = repo.findById(id)
+        if (row === undefined || !visibleTo(row, viewer)) throw notFound('Node')
+        return row
+    }
 
     const viewOf = (row: NodeRow, viewer: Viewer): Node => {
         const [view] = viewsFor([row], viewer)
@@ -142,8 +165,14 @@ export function createNodeService(deps: {
         const byHardware =
             report.hardwareId === null ? undefined : repo.findByHardwareId(report.hardwareId)
         const byNumber = repo.findByNodeNum(report.nodeNum)
+        /** Firmware is what the node last said it runs, never typed in. */
+        const recordFirmware = (row: NodeRow): void => {
+            if (report.firmware === null || report.firmware === row.firmware) return
+            repo.update(row.id, { firmware: report.firmware, updatedAt: now })
+        }
 
         if (byHardware?.nodeNum === report.nodeNum) {
+            recordFirmware(byHardware)
             repo.addMember(byHardware.id, viewer.id, now)
             return
         }
@@ -155,12 +184,14 @@ export function createNodeService(deps: {
             byNumber === undefined &&
             repo.isMember(byHardware.id, viewer.id)
         ) {
+            recordFirmware(byHardware)
             repo.update(byHardware.id, { nodeNum: report.nodeNum, updatedAt: now })
             return
         }
         const hardwareId = byHardware === undefined ? report.hardwareId : null
 
         if (byNumber !== undefined) {
+            recordFirmware(byNumber)
             if (hardwareId !== null && byNumber.hardwareId === null) {
                 repo.update(byNumber.id, { hardwareId, updatedAt: now })
             }
@@ -191,9 +222,12 @@ export function createNodeService(deps: {
         },
 
         get(id: string, viewer: Viewer): Node {
-            const row = repo.findById(id)
-            if (row === undefined || !visibleTo(row, viewer)) throw notFound('Node')
-            return viewOf(row, viewer)
+            return viewOf(visibleRow(id, viewer), viewer)
+        },
+
+        /** For a node's history: whoever cannot see the node cannot see what it sent. */
+        assertVisible(id: string, viewer: Viewer): void {
+            visibleRow(id, viewer)
         },
 
         listMine(viewer: Viewer): Node[] {

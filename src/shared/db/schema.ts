@@ -179,7 +179,7 @@ export const nodes = sqliteTable('nodes', {
     updatedAt: updatedAt(),
 })
 
-/** The people on a node, all equal (#11). Nobody else is ever told who they are. */
+/** The people on a node, all equal (#11). Only they and admins are told who they are. */
 export const nodeMembers = sqliteTable(
     'node_members',
     {

@@ -307,7 +307,7 @@ single resources return `{ <item>: {...} }`.
 
 | Method        | Path                                       | Purpose                                                                                                               |
 | ------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| GET           | `/v1/nodes/:id/readings?metric=&from=&to=` | Sensor history (default last 24 h, max 31 days, 10,000 rows)                                                          |
+| GET           | `/v1/nodes/:id/readings?metric=&from=&to=` | Sensor history (default last 24 h, max 31 days, 10,000 rows); 404 if you cannot see the node                          |
 | GET           | `/v1/nodes/:id/metrics?from=&to=`          | Battery and uptime history                                                                                            |
 | GET, POST     | `/v1/alert-rules`                          | List (own; admins see all) or create own rules                                                                        |
 | PATCH, DELETE | `/v1/alert-rules/:id`                      | Edit or remove own rule                                                                                               |
@@ -316,7 +316,7 @@ single resources return `{ <item>: {...} }`.
 | PATCH         | `/v1/me`                                   | `{ name }` → renames yourself; the address and role cannot be changed here                                            |
 | GET, PATCH    | `/v1/me/subscription`                      | Own updates setting; `{ subscribed }` turns it on or off                                                              |
 | GET           | `/v1/nodes`                                | Every visible node, each with `mine`; `details` only on your own                                                      |
-| GET, PATCH    | `/v1/nodes/:id`                            | View; edit if you are on it (mesh ID and enabling are admin-only)                                                     |
+| GET, PATCH    | `/v1/nodes/:id`                            | View; edit if you are on it (mesh ID and enabling are admin-only; firmware is not editable)                            |
 | GET, POST     | `/v1/me/nodes`                             | Nodes you are on; `{ nodes: [{ nodeNum, name?, hardware?, firmware?, hardwareId?, type? }] }` registers or joins each |
 
 **Admin**

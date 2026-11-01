@@ -19,8 +19,9 @@ it. It does not encode the type, which can change. The registered name is
 separate and editable. Existing IDs such as `sen-01` stay as they are, and
 admins can still choose an ID when they register a node themselves.
 
-**Only identity is required.** Type, position, elevation, antenna height,
-firmware and deployment date are filled in later by the people on the node.
+**Only identity is required.** Type, position, elevation, antenna height and
+deployment date are filled in later by the people on the node. Firmware is
+recorded from what the node reports, and cannot be edited.
 A node missing any of what the map needs is left off the map.
 
 **The hardware ID is stored.** Meshtastic's `MyNodeInfo.device_id`, which
@@ -85,6 +86,6 @@ them (#15 Q11).
 
 Every node response has one shape, built in one place: shared fields for any
 signed-in person, and `details` (exact position, notes, hardware ID, what the
-node reported) that is null unless the caller is on the node or an admin. No
-response names the people on a node, or counts them (#15 Q10). Editing
+node reported, and the owners' display names) that is null unless the caller is
+on the node or an admin. No other response names or counts them (#15 Q10). Editing
 someone else's node answers as if it did not exist, like alert rules.

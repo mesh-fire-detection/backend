@@ -220,11 +220,14 @@ same node, and are equals on it.
 ### Nodes and the people on them
 
 - Every registered node is visible to every signed-in person, except disabled
-  ones, which only their people and admins see. Nobody is named or counted as
-  being on a node; a person sees only whether a node is theirs (#15 Q10).
+  ones, which only their people and admins see. Only a node's people and admins
+  see who is on it, by display name, never by email or account ID. Everyone else
+  sees only whether a node is theirs (#15 Q10).
 - Only identity is required to register. Type, position, elevation, antenna
-  height, firmware and deployment date are filled in later by the people on
-  the node, who may edit it; changing the mesh ID or enabling is for admins.
+  height and deployment date are a deployment record, filled in later by the
+  people on the node, who may edit it; none of it is read from the node.
+  Firmware is not editable: it is recorded when a browser that connected the
+  node reports it. Changing the mesh ID or enabling is for admins.
 - **Positions are approximate** to everyone but a node's people and admins:
   the centre of a fixed grid cell about 1 km across, with elevation to the
   nearest 50 m, on `/nodes` and on the public map alike. A node in someone's

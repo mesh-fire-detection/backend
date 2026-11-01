@@ -6,7 +6,7 @@ import {
     ReadingsQuerySchema,
 } from '#src/mesh/readings/schema'
 import { type ReadingsService } from '#src/mesh/readings/service'
-import { access, type AppEnv } from '#src/shared/auth/access'
+import { access, type AppEnv, requireViewer } from '#src/shared/auth/access'
 import { validate } from '#src/shared/http/validate'
 
 export function readingsRoutes(service: ReadingsService) {
@@ -16,13 +16,23 @@ export function readingsRoutes(service: ReadingsService) {
             access('user'),
             validate('param', HistoryParamsSchema),
             validate('query', ReadingsQuerySchema),
-            (c) => c.json(service.readings(c.req.valid('param').id, c.req.valid('query')))
+            (c) =>
+                c.json(
+                    service.readings(
+                        c.req.valid('param').id,
+                        c.req.valid('query'),
+                        requireViewer(c)
+                    )
+                )
         )
         .get(
             '/v1/nodes/:id/metrics',
             access('user'),
             validate('param', HistoryParamsSchema),
             validate('query', MetricsQuerySchema),
-            (c) => c.json(service.metrics(c.req.valid('param').id, c.req.valid('query')))
+            (c) =>
+                c.json(
+                    service.metrics(c.req.valid('param').id, c.req.valid('query'), requireViewer(c))
+                )
         )
 }

@@ -66,8 +66,11 @@ describe('ingest service', () => {
         expect(outcome).toEqual({ accepted: true, nodeId: 'sen-01', readingCount: 1 })
         expect(h.services.nodes.get('sen-01', ADMIN).lastHeardAt).toBe(h.clock().toISOString())
         expect(
-            h.services.readings.readings('sen-01', { metric: 'environmentMetrics.temperature' })
-                .readings
+            h.services.readings.readings(
+                'sen-01',
+                { metric: 'environmentMetrics.temperature' },
+                ADMIN
+            ).readings
         ).toEqual([
             {
                 metric: 'environmentMetrics.temperature',
@@ -134,7 +137,7 @@ describe('ingest service', () => {
             h.clock()
         )
 
-        expect(h.services.readings.metrics('sen-01', {}).metrics).toEqual([
+        expect(h.services.readings.metrics('sen-01', {}, ADMIN).metrics).toEqual([
             {
                 batteryPct: 64,
                 voltage: 3.9,
@@ -219,6 +222,6 @@ describe('ingest service', () => {
         const outcome = h.services.ingest.handle(temperature(80), h.clock())
 
         expect(outcome.accepted).toBe(true)
-        expect(h.services.readings.readings('sen-01', {}).readings).toHaveLength(1)
+        expect(h.services.readings.readings('sen-01', {}, ADMIN).readings).toHaveLength(1)
     })
 })

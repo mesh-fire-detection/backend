@@ -1,4 +1,4 @@
-import { type NodeRepo } from '#src/mesh/nodes/repo'
+import { type NodeService } from '#src/mesh/nodes/service'
 import { type ReadingsRepo } from '#src/mesh/readings/repo'
 import {
     MAX_RANGE_DAYS,
@@ -7,7 +7,8 @@ import {
     type ReadingsQuery,
     type ReadingsResponse,
 } from '#src/mesh/readings/schema'
-import { DomainError, notFound } from '#src/shared/errors'
+import { type Viewer } from '#src/shared/auth/access'
+import { DomainError } from '#src/shared/errors'
 import { type Clock, MS_PER_MINUTE } from '#src/shared/time'
 
 const MS_PER_DAY = 24 * 60 * MS_PER_MINUTE
@@ -16,14 +17,18 @@ export const MAX_ROWS = 10_000
 
 export function createReadingsService(deps: {
     readonly repo: ReadingsRepo
-    readonly nodeRepo: NodeRepo
+    readonly nodes: Pick<NodeService, 'assertVisible'>
     readonly clock: Clock
 }) {
-    const { repo, nodeRepo, clock } = deps
+    const { repo, nodes, clock } = deps
 
     /** Defaults to the last 24 hours ending now. */
-    const resolveRange = (nodeId: string, query: MetricsQuery): { from: Date; to: Date } => {
-        if (nodeRepo.findById(nodeId) === undefined) throw notFound('Node')
+    const resolveRange = (
+        nodeId: string,
+        query: MetricsQuery,
+        viewer: Viewer
+    ): { from: Date; to: Date } => {
+        nodes.assertVisible(nodeId, viewer)
 
         const to = query.to === undefined ? clock() : new Date(query.to)
         const from = new Date(query.from ?? to.getTime() - DEFAULT_RANGE_MS)
@@ -35,8 +40,8 @@ export function createReadingsService(deps: {
     }
 
     return {
-        readings(nodeId: string, query: ReadingsQuery): ReadingsResponse {
-            const range = resolveRange(nodeId, query)
+        readings(nodeId: string, query: ReadingsQuery, viewer: Viewer): ReadingsResponse {
+            const range = resolveRange(nodeId, query, viewer)
             const rows = repo.readings(nodeId, { ...range, metric: query.metric }, MAX_ROWS + 1)
             return {
                 from: range.from.toISOString(),
@@ -50,8 +55,8 @@ export function createReadingsService(deps: {
             }
         },
 
-        metrics(nodeId: string, query: MetricsQuery): MetricsResponse {
-            const range = resolveRange(nodeId, query)
+        metrics(nodeId: string, query: MetricsQuery, viewer: Viewer): MetricsResponse {
+            const range = resolveRange(nodeId, query, viewer)
             const rows = repo.deviceMetrics(nodeId, range, MAX_ROWS + 1)
             return {
                 from: range.from.toISOString(),

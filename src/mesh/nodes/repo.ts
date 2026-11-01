@@ -1,7 +1,7 @@
-import { and, asc, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 
 import { type Db } from '#src/shared/db/connection'
-import { nodeMembers, nodes } from '#src/shared/db/schema'
+import { nodeMembers, nodes, users } from '#src/shared/db/schema'
 
 export type NodeRow = typeof nodes.$inferSelect
 type NewNodeRow = typeof nodes.$inferInsert
@@ -86,6 +86,22 @@ export function createNodeRepo(db: Db) {
                     .where(and(eq(nodeMembers.nodeId, nodeId), eq(nodeMembers.userId, userId)))
                     .get() !== undefined
             )
+        },
+
+        /** The people on these nodes, earliest first. */
+        ownersOf(nodeIds: readonly string[]) {
+            return db
+                .select({
+                    nodeId: nodeMembers.nodeId,
+                    userId: nodeMembers.userId,
+                    name: users.name,
+                    addedAt: nodeMembers.addedAt,
+                })
+                .from(nodeMembers)
+                .innerJoin(users, eq(users.id, nodeMembers.userId))
+                .where(inArray(nodeMembers.nodeId, [...nodeIds]))
+                .orderBy(asc(nodeMembers.addedAt), asc(users.name))
+                .all()
         },
 
         /** Adding someone already on the node changes nothing. */
