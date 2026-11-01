@@ -25,6 +25,9 @@ const NUMERIC_SCALARS: ReadonlySet<ScalarType> = new Set([
     ScalarType.SINT64,
 ])
 
+/** With its clock unset, a node reports its uptime as the time: 2000-01-01 in epoch seconds. */
+const EARLIEST_SENSOR_TIME = 946_684_800
+
 /** Meshtastic reports 101 when a node runs on external power. */
 const MAX_BATTERY_PCT = 100
 
@@ -66,6 +69,7 @@ function telemetryPayload(bytes: Uint8Array): MeshPayload {
     if (variant.case === undefined) {
         return { kind: 'telemetry', deviceMetrics: null, readings: [] }
     }
+    const sensorTime = telemetry.time >= EARLIEST_SENSOR_TIME ? { sensorTime: telemetry.time } : {}
 
     const field = Telemetry.TelemetrySchema.field[variant.case]
     const readings =
@@ -88,7 +92,7 @@ function telemetryPayload(bytes: Uint8Array): MeshPayload {
               }
             : null
 
-    return { kind: 'telemetry', deviceMetrics, readings }
+    return { kind: 'telemetry', ...sensorTime, deviceMetrics, readings }
 }
 
 const LATLON_SCALE = 1e-7

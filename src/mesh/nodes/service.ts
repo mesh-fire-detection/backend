@@ -64,6 +64,9 @@ function toNode(
                   hardware: row.hardware,
                   hardwareId: row.hardwareId,
                   note: row.note,
+                  shortName: row.shortName,
+                  settings: row.settings,
+                  settingsReportedAt: row.settingsReportedAt?.toISOString() ?? null,
                   owners: [...owners],
                   reported:
                       row.reportedAt === null
@@ -228,6 +231,32 @@ export function createNodeService(deps: {
         /** For a node's history: whoever cannot see the node cannot see what it sent. */
         assertVisible(id: string, viewer: Viewer): void {
             visibleRow(id, viewer)
+        },
+
+        /** For what only a node's people may send or read; to anyone else it does not exist. */
+        assertEditable(id: string, viewer: Viewer): void {
+            if (viewer.role !== 'admin' && !repo.isMember(id, viewer.id)) throw notFound('Node')
+            if (repo.findById(id) === undefined) throw notFound('Node')
+        },
+
+        /** What a browser saw at its latest connection; an older connection changes nothing. */
+        recordConnection(
+            id: string,
+            connection: {
+                readonly shortName: string | null
+                readonly settings: Readonly<Record<string, string>>
+                readonly at: Date
+            }
+        ): void {
+            const reportedAt = repo.findById(id)?.settingsReportedAt
+            if (reportedAt !== null && reportedAt !== undefined && reportedAt >= connection.at) {
+                return
+            }
+            repo.update(id, {
+                shortName: connection.shortName,
+                settings: { ...connection.settings },
+                settingsReportedAt: connection.at,
+            })
         },
 
         listMine(viewer: Viewer): Node[] {

@@ -108,6 +108,12 @@ The following decisions were approved on October 23, 2026:
   falls back to Notehub capture time and is always history-only. Reject capture
   or sensor times more than five minutes into the future, or sensor time more
   than five minutes after Notehub capture.
+- A browser's copy of what it saw on `/connect` (`POST /v1/nodes/:id/upload`, for
+  a node's people and admins) is stored with `source = browser`, never live: no
+  alerts, and the node is not marked as heard. A reading the server already holds
+  is skipped: the same sensor time, or the same value within two minutes, which is
+  how one packet heard by a gateway too looks when the node's clock is unset. Times
+  in the future or over a year old are skipped too. Each row records who sent it.
 - Readings older than five minutes at receipt, future readings, and readings
   older than the sender's last-heard time are history-only. They cannot change
   last-heard, the live battery value, or live alerts, including later rule

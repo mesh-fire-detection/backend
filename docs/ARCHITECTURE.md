@@ -246,14 +246,21 @@ Indexed on (`fromNodeNum`, `packetId`, `receivedAt`); not unique (see ingest).
 **device_metrics**: `nodeId`, `recordedAt`, `batteryPct`, `voltage`,
 `uptimeS`, `liveEligible` (true for existing and MQTT data).
 
+**node_events**: what a browser saw happen to a node while connected: `nodeId`,
+`kind` (`connected`, `disconnected`, `restarted`, `malformed`), `at`,
+`uploadedById`. Unique on node, kind and time.
+
 **readings**: one row per value, so alert rules work on any metric.
 
-| Column                 | Notes                                                                 |
-| ---------------------- | --------------------------------------------------------------------- |
-| `nodeId`, `recordedAt` | Indexed together, and with `metric`                                   |
-| `metric`               | Sensor-provided name, e.g. `environmentMetrics.temperature`           |
-| `value`                | Real number                                                           |
-| `liveEligible`         | False for delayed, out-of-order, future, or clockless Notehub history |
+| Column                 | Notes                                                                     |
+| ---------------------- | ------------------------------------------------------------------------- |
+| `nodeId`, `recordedAt` | Indexed together, and with `metric`                                       |
+| `metric`               | Sensor-provided name, e.g. `environmentMetrics.temperature`               |
+| `value`                | Real number                                                               |
+| `measuredAt`           | The sensor's own clock, when it has one; matches a reading across sources |
+| `source`               | `mqtt`, `notehub` or `browser`; null for rows from before it was kept     |
+| `uploadedById`         | Who sent a browser's copy                                                 |
+| `liveEligible`         | False for delayed, out-of-order, future, or clockless Notehub history     |
 
 **link_observations**: `fromNodeId`, `toNodeId`, `observedAt`, `snr`,
 `rssi` (nullable). The feed uses the newest observation per unordered pair,
@@ -309,6 +316,8 @@ single resources return `{ <item>: {...} }`.
 | ------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
 | GET           | `/v1/nodes/:id/readings?metric=&from=&to=` | Sensor history (default last 24 h, max 31 days, 10,000 rows); 404 if you cannot see the node                          |
 | GET           | `/v1/nodes/:id/metrics?from=&to=`          | Battery and uptime history                                                                                            |
+| POST          | `/v1/nodes/:id/upload`                     | A browser's copy of readings, events and settings, for the node's people and admins; never live                       |
+| GET           | `/v1/nodes/:id/events`                     | Connections, restarts and faults, newest first, for the node's people and admins                                      |
 | GET, POST     | `/v1/alert-rules`                          | List (own; admins see all) or create own rules                                                                        |
 | PATCH, DELETE | `/v1/alert-rules/:id`                      | Edit or remove own rule                                                                                               |
 | GET           | `/v1/alerts?status=`                       | System alerts plus own rule alerts (admins see all), newest 500                                                       |
@@ -316,7 +325,7 @@ single resources return `{ <item>: {...} }`.
 | PATCH         | `/v1/me`                                   | `{ name }` → renames yourself; the address and role cannot be changed here                                            |
 | GET, PATCH    | `/v1/me/subscription`                      | Own updates setting; `{ subscribed }` turns it on or off                                                              |
 | GET           | `/v1/nodes`                                | Every visible node, each with `mine`; `details` only on your own                                                      |
-| GET, PATCH    | `/v1/nodes/:id`                            | View; edit if you are on it (mesh ID and enabling are admin-only; firmware is not editable)                            |
+| GET, PATCH    | `/v1/nodes/:id`                            | View; edit if you are on it (mesh ID and enabling are admin-only; firmware is not editable)                           |
 | GET, POST     | `/v1/me/nodes`                             | Nodes you are on; `{ nodes: [{ nodeNum, name?, hardware?, firmware?, hardwareId?, type? }] }` registers or joins each |
 
 **Admin**

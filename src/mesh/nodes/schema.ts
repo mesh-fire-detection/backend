@@ -96,6 +96,9 @@ const NodeDetailsSchema = z.object({
     hardware: z.string().nullable(),
     hardwareId: z.string().nullable(),
     note: z.string().nullable(),
+    shortName: z.string().nullable(),
+    settings: z.record(z.string(), z.string()).nullable(),
+    settingsReportedAt: IsoTimestampSchema.nullable(),
     owners: z.array(NodeOwnerSchema),
     reported: z
         .object({

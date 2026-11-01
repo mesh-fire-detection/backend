@@ -170,6 +170,10 @@ export const nodes = sqliteTable('nodes', {
     note: text(),
     enabled: integer({ mode: 'boolean' }).notNull().default(true),
     lastHeardAt: timestamp(),
+    /** What the node said when a browser last connected to it. */
+    shortName: text(),
+    settings: text({ mode: 'json' }).$type<Record<string, string>>(),
+    settingsReportedAt: timestamp(),
     reportedName: text(),
     reportedLongitude: real(),
     reportedLatitude: real(),
@@ -267,7 +271,12 @@ export const deviceMetrics = sqliteTable(
     (t) => [index('device_metrics_node_time_idx').on(t.nodeId, t.recordedAt)]
 )
 
-/** One row per value. Metric names come from the sensor, e.g. `environmentMetrics.temperature`. */
+/**
+ * One row per value. Metric names come from the sensor, e.g. `environmentMetrics.temperature`.
+ * `measuredAt` is the sensor's own clock, when it sent one: what matches one
+ * measurement across sources, since `recordedAt` is receipt time for MQTT.
+ * `source` is null for rows from before it was recorded.
+ */
 export const readings = sqliteTable(
     'readings',
     {
@@ -279,11 +288,37 @@ export const readings = sqliteTable(
         liveEligible: integer({ mode: 'boolean' }).notNull().default(true),
         metric: text().notNull(),
         value: real().notNull(),
+        measuredAt: timestamp(),
+        source: text({ enum: ['mqtt', 'notehub', 'browser'] }),
+        /** Who sent a browser's copy: anyone on a node can, so it stays attributable. */
+        uploadedById: text().references(() => users.id),
     },
     (t) => [
         index('readings_node_time_idx').on(t.nodeId, t.recordedAt),
         index('readings_node_metric_time_idx').on(t.nodeId, t.metric, t.recordedAt),
+        index('readings_node_metric_measured_idx').on(t.nodeId, t.metric, t.measuredAt),
+        // Only uploads: gateways may repeat a measurement, and must never be refused for it.
+        uniqueIndex('readings_browser_sample_idx')
+            .on(t.nodeId, t.metric, t.recordedAt)
+            .where(sql`source = 'browser'`),
     ]
+)
+
+/** What a browser saw happen to a node while connected to it. */
+export const nodeEvents = sqliteTable(
+    'node_events',
+    {
+        id: integer().primaryKey({ autoIncrement: true }),
+        nodeId: text()
+            .notNull()
+            .references(() => nodes.id),
+        kind: text({ enum: ['connected', 'disconnected', 'restarted', 'malformed'] }).notNull(),
+        at: timestamp().notNull(),
+        uploadedById: text()
+            .notNull()
+            .references(() => users.id),
+    },
+    (t) => [uniqueIndex('node_events_node_kind_at_idx').on(t.nodeId, t.kind, t.at)]
 )
 
 export const linkObservations = sqliteTable(

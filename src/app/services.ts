@@ -130,7 +130,7 @@ export function createServices(deps: ServiceDeps) {
             thresholds: statusThresholds,
             linkWindowMin: config.linkWindowMin,
         }),
-        readings: createReadingsService({ repo: createReadingsRepo(db), nodes, clock }),
+        readings: createReadingsService({ repo: createReadingsRepo(db), nodes, clock, transact }),
         rules: createRuleService({ repo: ruleRepo, nodeRepo, clock }),
         alerts,
         evaluation,

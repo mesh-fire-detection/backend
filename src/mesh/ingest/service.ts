@@ -49,7 +49,8 @@ export function createIngestService(deps: IngestDeps) {
         node: NodeRow,
         payload: MeshPayload,
         at: Date,
-        liveEligible: boolean
+        liveEligible: boolean,
+        source: 'mqtt' | 'notehub'
     ): AcceptedReading[] => {
         switch (payload.kind) {
             case 'telemetry': {
@@ -66,7 +67,11 @@ export function createIngestService(deps: IngestDeps) {
                     recordedAt: at,
                     ...reading,
                 }))
-                repo.insertReadings(readings.map((reading) => ({ ...reading, liveEligible })))
+                const measuredAt =
+                    payload.sensorTime === undefined ? null : new Date(payload.sensorTime * 1000)
+                repo.insertReadings(
+                    readings.map((reading) => ({ ...reading, liveEligible, measuredAt, source }))
+                )
                 return readings
             }
             case 'neighborInfo': {
@@ -145,7 +150,8 @@ export function createIngestService(deps: IngestDeps) {
         })
         const recordedAt = options?.recordedAt ?? receivedAt
         const liveEligible = options?.liveEligible ?? true
-        const stored = storePayload(node, packet.payload, recordedAt, liveEligible)
+        const source = options === undefined ? 'mqtt' : 'notehub'
+        const stored = storePayload(node, packet.payload, recordedAt, liveEligible, source)
         if (liveEligible) {
             if (packet.direct !== null) {
                 repo.insertLinkObservations([

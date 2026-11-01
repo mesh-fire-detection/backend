@@ -58,6 +58,20 @@ function seeded(): Harness {
 }
 
 describe('ingest service', () => {
+    it('records the sensor’s own time and where the reading came from', () => {
+        const h = seeded()
+
+        h.services.ingest.handle(temperature(20), new Date(1_780_000_500_000))
+
+        expect(
+            h.db.$client.prepare('SELECT recorded_at, measured_at, source FROM readings').get()
+        ).toEqual({
+            recorded_at: 1_780_000_500_000,
+            measured_at: 1_780_000_000_000,
+            source: 'mqtt',
+        })
+    })
+
     it('stores readings from a registered node and marks it heard', () => {
         const h = seeded()
 
