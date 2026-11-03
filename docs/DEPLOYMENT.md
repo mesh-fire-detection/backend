@@ -365,9 +365,8 @@ certificate for `mqtt.meshfiredetection.org`, open `8883/tcp`, move gateways to
 - **Email:** a sending-only Resend key and `EMAIL_FROM` are in
   `/etc/mesh-backend/env`, and `/health` reports `"email": "ok"`. The
   `"disabled"` seen on October 31 came from the old droplet, which the public
-  API still reached. `"ok"` means only that a key is configured. Still to do:
-  request a sign-in code and confirm the mail lands in a Gmail and an Outlook
-  inbox.
+  API still reached. A real sign-in code arrived and worked on November 3,
+  2026. Still to do: confirm a code lands in an Outlook inbox, not spam.
   `EMAIL_REPLY_TO` is empty; point it at a Cloudflare Email Routing address once
   one exists. See #20.
 - **Channel key on nodes:** the public firmware and the website's `/firmware`
