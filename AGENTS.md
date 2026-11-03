@@ -120,8 +120,25 @@ src/
   `git restore`, `git reset --hard`, `git clean -fd`).
 - Never commit unless the user explicitly asks.
 
+## Issues and the Project Board
+
+- Work is tracked in issues on the
+  [project board](https://github.com/orgs/mesh-fire-detection/projects/2).
+  Backend issues live here and website ones in `mesh-fire-detection/web`;
+  refer across repos as `web#N`.
+- Before starting, read the issue the work belongs to, comments included.
+  Decisions are recorded there.
+- A PR that finishes an issue says `Closes #N`. One that does part of it says
+  `Part of #N`, which updates nothing, so when it merges, comment on the issue
+  with what shipped and what is left.
+- Keep the board's Status true: In progress when work starts. Closing an issue
+  moves it to Done.
+- A decision made in conversation that changes an issue's scope goes into the
+  issue, not only into the code.
+
 ## Definition of Done
 
 - Type checks, lint, tests, and build pass.
 - `docs/` reflects any changed decision.
+- The issues the work touched say what shipped.
 - No dead code, no temporary workarounds, no unexplained rule suppressions.
