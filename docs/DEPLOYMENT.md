@@ -25,14 +25,15 @@ does not assert the adapter has been deployed or provisioned in production.
 Installed versions at first deploy: Node 24.21, Caddy 2.11.7, Mosquitto 2.0.18,
 Litestream 0.5.17.
 
-> **Nuance — production moved droplets, and this page lagged behind.** The
-> first deploy ran on `137.184.129.131`. Production is now a droplet built from a
-> snapshot of it (hostname `snapshots-s-1vcpu-512mb-10gb-nyc1`): `DEPLOY_HOST`
-> and the `api` record pointed at it while this page and the `mqtt` record still
-> named the old address. The `mqtt` record was moved on October 27, 2026. To
-> confirm which machine is live, compare `readlink /opt/mesh-backend/current`
-> with the latest Deploy run, and check `/var/log/caddy/api.log` for recent
-> requests from Cloudflare.
+> **Nuance — production moved droplets, and finished moving on November 2,
+> 2026.** The first deploy ran on `137.184.129.131`. Production is now a droplet
+> built from a snapshot of it (hostname `snapshots-s-1vcpu-512mb-10gb-nyc1`).
+> The `mqtt` record moved on October 27, but the `api` record and `DEPLOY_HOST`
+> still pointed at the old droplet until November 2, so deploys and public API
+> traffic went there while the email key sat on this one. Data written only to
+> the old droplet was left behind on purpose. To confirm which machine the
+> public API reaches, send it to each address directly:
+> `curl --resolve api.meshfiredetection.org:443:<ip> https://api.meshfiredetection.org/health`.
 
 Secrets are never written to this repository. On the server they live in:
 
@@ -276,7 +277,7 @@ The `production` environment of `mesh-fire-detection/backend` holds:
 | `DEPLOY_HOST`        | `134.209.217.98`                                                 |
 | `DEPLOY_USER`        | `root`                                                           |
 | `DEPLOY_SSH_KEY`     | private key whose public half is in `/root/.ssh/authorized_keys` |
-| `DEPLOY_KNOWN_HOSTS` | output of `ssh-keyscan 134.209.217.98`                           |
+| `DEPLOY_KNOWN_HOSTS` | the host's public keys; see below                                |
 
 Create the deploy key once, on the server or a laptop, then remove the private
 half from wherever it was created after pasting it into GitHub:
@@ -288,7 +289,12 @@ cat mesh_deploy.pub >> /root/.ssh/authorized_keys   # on the server
 
 `DEPLOY_KNOWN_HOSTS` lets the runner verify it is talking to the real server.
 Without it, `ssh` stops at the host-key prompt. Rebuilding the server changes
-its host key; run `ssh-keyscan` again and update the secret.
+its host key, so update the secret after a rebuild.
+
+Take the keys from a machine that has already logged in, which has checked
+them: `ssh-keygen -F 134.209.217.98` prints them; drop the `#` lines. Avoid
+`ssh-keyscan` on Windows: there it prints only `#` comment lines and no keys,
+and an empty secret fails the deploy with `Host key verification failed`.
 
 A push to `main` runs CI; when CI passes, the Deploy workflow builds, uploads the
 release to `/opt/mesh-backend/releases/<sha>`, and runs `release.sh`. That script
@@ -356,12 +362,12 @@ certificate for `mqtt.meshfiredetection.org`, open `8883/tcp`, move gateways to
 ## Open items
 
 - **Backups:** create an R2 or B2 bucket and enable Litestream.
-- **Email:** a sending-only Resend key and `EMAIL_FROM` were put in
-  `/etc/mesh-backend/env` on October 27, 2026, but `/health` reported
-  `"email": "disabled"` on October 31 after a fresh deploy, so the running server
-  does not have them. Check the file, then restart. `"ok"` means only that a key
-  is configured. After that: create the first admin (section 6), request a
-  sign-in code for it, and confirm the mail lands in a Gmail and an Outlook inbox.
+- **Email:** a sending-only Resend key and `EMAIL_FROM` are in
+  `/etc/mesh-backend/env`, and `/health` reports `"email": "ok"`. The
+  `"disabled"` seen on October 31 came from the old droplet, which the public
+  API still reached. `"ok"` means only that a key is configured. Still to do:
+  request a sign-in code and confirm the mail lands in a Gmail and an Outlook
+  inbox.
   `EMAIL_REPLY_TO` is empty; point it at a Cloudflare Email Routing address once
   one exists. See #20.
 - **Channel key on nodes:** the public firmware and the website's `/firmware`
