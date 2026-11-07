@@ -36,18 +36,18 @@ The project owner asked for a backend for the Mesh Fire Detection network
 
 ## Questions asked and answers given
 
-| Question | Owner's answer | Result |
-| --- | --- | --- |
-| How does data reach the server? | Asked for more detail on MQTT | MQTT uplink chosen as the preferred path (see below) |
-| What do devices send? | Sensor readings (AQI, humidity, temperature, etc.) and some low-rate cameras | Telemetry drives the design; camera handling deferred |
-| How do devices prove identity? | Default is fine; registered devices need IDs | Registered-device allowlist; signing adapted for MQTT (see below) |
-| Who can register and see data? | Admins and users, fewer than 100 | Real accounts with `admin` and `user` roles |
-| What triggers alerts? | Users set their own rules per use case (e.g. a firefighter wants temperature or AQI thresholds at a specific node). No notifications yet, but they will come. | User-defined alert rules, plus system alerts; notification table reserved |
-| Scale? | About 100 nodes in year one | One small server is plenty |
-| Hosting? | Will pay for Hetzner; also considered running the backend on GitHub and committing data there | Hetzner chosen; GitHub rejected as the live store (see below) |
-| Retention? | Keep as long as possible, don't delete | No automatic deletion anywhere |
-| Where does the code live? | New repo, same conventions | `mesh-fire-detection/backend` |
-| Camera nodes? | Deferred to a later discussion | Listed as an open question |
+| Question                        | Owner's answer                                                                                                                                                | Result                                                                    |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| How does data reach the server? | Asked for more detail on MQTT                                                                                                                                 | MQTT uplink chosen as the preferred path (see below)                      |
+| What do devices send?           | Sensor readings (AQI, humidity, temperature, etc.) and some low-rate cameras                                                                                  | Telemetry drives the design; camera handling deferred                     |
+| How do devices prove identity?  | Default is fine; registered devices need IDs                                                                                                                  | Registered-device allowlist; signing adapted for MQTT (see below)         |
+| Who can register and see data?  | Admins and users, fewer than 100                                                                                                                              | Real accounts with `admin` and `user` roles                               |
+| What triggers alerts?           | Users set their own rules per use case (e.g. a firefighter wants temperature or AQI thresholds at a specific node). No notifications yet, but they will come. | User-defined alert rules, plus system alerts; notification table reserved |
+| Scale?                          | About 100 nodes in year one                                                                                                                                   | One small server is plenty                                                |
+| Hosting?                        | Will pay for Hetzner; also considered running the backend on GitHub and committing data there                                                                 | Hetzner chosen; GitHub rejected as the live store (see below)             |
+| Retention?                      | Keep as long as possible, don't delete                                                                                                                        | No automatic deletion anywhere                                            |
+| Where does the code live?       | New repo, same conventions                                                                                                                                    | `mesh-fire-detection/backend`                                             |
+| Camera nodes?                   | Deferred to a later discussion                                                                                                                                | Listed as an open question                                                |
 
 ## Key reasoning
 
@@ -141,14 +141,14 @@ forever is fine. Images would be the only fast-growing data.
 
 Questions asked while building the first version, and the owner's answers:
 
-| Question | Owner's answer | Result |
-| --- | --- | --- |
-| Link RSSI when only SNR is known | Nullable RSSI | `MeshLink.rssi` becomes nullable; the web type must change |
-| How to produce AQI | Keep metrics generic; they depend on each device and sensor | Readings use sensor-provided names; no derived AQI |
-| How admins add users | One-time invite link | Admin gets a single-use token; invitee sets name and password |
-| Firmware version source | Set at registration | Admin-entered device field |
-| Website origin | `meshfiredetection.org` | Same-site cookies with `api.meshfiredetection.org` |
-| Build OpenAPI now | Defer | Zod validation only; OpenAPI later |
+| Question                         | Owner's answer                                              | Result                                                        |
+| -------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------- |
+| Link RSSI when only SNR is known | Nullable RSSI                                               | `MeshLink.rssi` becomes nullable; the web type must change    |
+| How to produce AQI               | Keep metrics generic; they depend on each device and sensor | Readings use sensor-provided names; no derived AQI            |
+| How admins add users             | One-time invite link                                        | Admin gets a single-use token; invitee sets name and password |
+| Firmware version source          | Set at registration                                         | Admin-entered device field                                    |
+| Website origin                   | `meshfiredetection.org`                                     | Same-site cookies with `api.meshfiredetection.org`            |
+| Build OpenAPI now                | Defer                                                       | Zod validation only; OpenAPI later                            |
 
 ## Suggested next steps
 

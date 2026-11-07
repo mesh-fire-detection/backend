@@ -327,6 +327,8 @@ single resources return `{ <item>: {...} }`.
 | GET           | `/v1/me/sessions`                          | Where you are signed in, `current` marking this browser; never tokens                                                 |
 | DELETE        | `/v1/me/sessions`                          | Signs you out everywhere, this browser included                                                                       |
 | DELETE        | `/v1/me/sessions/:id`                      | Ends one of your sessions; 404 if it is not yours                                                                     |
+| GET           | `/v1/me/sign-in-methods`                   | `{ methods: [{ kind, removable }] }`, kind `code` or `google`; the emailed code is always there and never removable   |
+| DELETE        | `/v1/me/sign-in-methods/google`            | Unlinks Google; 404 if it was not linked. Linking is Better Auth's `POST /v1/auth/link-social`, same address only     |
 | GET           | `/v1/nodes`                                | Every visible node, each with `mine`; `details` only on your own                                                      |
 | GET, PATCH    | `/v1/nodes/:id`                            | View; edit if you are on it (mesh ID and enabling are admin-only; firmware is not editable)                           |
 | GET, POST     | `/v1/me/nodes`                             | Nodes you are on; `{ nodes: [{ nodeNum, name?, hardware?, firmware?, hardwareId?, type? }] }` registers or joins each |

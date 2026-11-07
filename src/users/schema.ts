@@ -60,6 +60,21 @@ export const SessionSchema = z.object({
 })
 export type Session = z.infer<typeof SessionSchema>
 
+/**
+ * A way the member can sign in. The emailed code is always one, since every
+ * member has an address, so it cannot be removed and neither can the last way
+ * in. The bootstrap admin's password is never offered on the website, so it
+ * is not listed.
+ */
+export const SignInMethodSchema = z.object({
+    kind: z.enum(['code', 'google']),
+    removable: z.boolean(),
+})
+export type SignInMethod = z.infer<typeof SignInMethodSchema>
+
+/** Only Google can be removed; see `SignInMethodSchema`. */
+export const SignInMethodParamsSchema = z.object({ kind: z.literal('google') })
+
 export const SubscriptionSchema = z.object({
     status: z.enum(['none', 'unconfirmed', 'confirmed', 'unsubscribed']),
 })

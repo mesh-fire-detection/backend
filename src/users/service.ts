@@ -14,6 +14,7 @@ import {
     type Join,
     type Me,
     type Session,
+    type SignInMethod,
     type Subscription,
     type UpdateUser,
     type User,
@@ -264,6 +265,23 @@ export function createUserService(deps: {
         /** Signs the member out everywhere, this browser included. */
         endAllMySessions(userId: string): void {
             repo.deleteSessions(userId)
+        },
+
+        /** The emailed code first, which every member has, then anything linked. */
+        mySignInMethods(userId: string): SignInMethod[] {
+            const google = repo.listProviders(userId).includes('google')
+            return [
+                { kind: 'code', removable: false },
+                ...(google ? [{ kind: 'google', removable: true } as const] : []),
+            ]
+        },
+
+        /**
+         * Unlinks Google. The emailed code still signs the member in, so this
+         * can never remove their last way in. Their sessions stand.
+         */
+        removeMySignInMethod(userId: string, kind: 'google'): void {
+            if (!repo.deleteProvider(userId, kind)) throw notFound('Sign-in method')
         },
 
         async createAdmin(address: string, name: string, password: string): Promise<User> {

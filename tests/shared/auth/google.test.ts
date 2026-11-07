@@ -38,23 +38,15 @@ const cookieFrom = (response: Response): string =>
         .join('; ')
 
 /**
- * The whole round trip: ask to sign in with Google, then come back from it as
- * `email`. Google's token endpoint is the only network call, and is faked.
+ * Google's half of a round trip already started: Google sends the browser back
+ * as `email`. Its token endpoint is the only network call, and is faked.
  */
-async function signInWithGoogle(
+async function comeBackFromGoogle(
     h: Harness,
+    started: Response,
     email: string,
-    options: { readonly withNode?: boolean; readonly emailVerified?: boolean } = {}
+    options: { readonly emailVerified?: boolean; readonly cookie?: string } = {}
 ) {
-    const started = await h.request('/v1/auth/sign-in/social', {
-        method: 'POST',
-        body: {
-            provider: 'google',
-            callbackURL: SIGNED_IN,
-            errorCallbackURL: REFUSED,
-            ...(options.withNode === true && { additionalData: { withNode: true } }),
-        },
-    })
     expect(started.status).toBe(200)
     const body = (await started.json()) as { url: string }
     const state = new URL(body.url).searchParams.get('state') ?? ''
@@ -69,11 +61,38 @@ async function signInWithGoogle(
             })
         )
     )
-    const back = await h.request(`/v1/auth/callback/google?code=code&state=${state}`, {
-        cookie: cookieFrom(started),
-    })
+    const cookie = [options.cookie, cookieFrom(started)].filter(Boolean).join('; ')
+    const back = await h.request(`/v1/auth/callback/google?code=code&state=${state}`, { cookie })
     expect(back.status).toBe(302)
     return { location: back.headers.get('location') ?? '', cookie: cookieFrom(back) }
+}
+
+/** The whole round trip of signing in with Google as `email`. */
+async function signInWithGoogle(
+    h: Harness,
+    email: string,
+    options: { readonly withNode?: boolean; readonly emailVerified?: boolean } = {}
+) {
+    const started = await h.request('/v1/auth/sign-in/social', {
+        method: 'POST',
+        body: {
+            provider: 'google',
+            callbackURL: SIGNED_IN,
+            errorCallbackURL: REFUSED,
+            ...(options.withNode === true && { additionalData: { withNode: true } }),
+        },
+    })
+    return comeBackFromGoogle(h, started, email, options)
+}
+
+/** Adding Google from the account page, signed in with `cookie`, as `email`. */
+async function linkGoogle(h: Harness, cookie: string, email: string) {
+    const started = await h.request('/v1/auth/link-social', {
+        method: 'POST',
+        cookie,
+        body: { provider: 'google', callbackURL: SIGNED_IN, errorCallbackURL: SIGNED_IN },
+    })
+    return comeBackFromGoogle(h, started, email, { cookie })
 }
 
 /** Whether the cookie belongs to a member: only a member's session reaches a `user` route. */
@@ -229,6 +248,85 @@ describe('who Google turns away', () => {
         const { location } = await signInWithGoogle(h, member.email)
 
         expect(refusedAs(location)).toBe('not_admitted')
+    })
+})
+
+describe('linking Google from the account page', () => {
+    it('adds Google to a member who signed in with a code, then removes it', async () => {
+        const h = createHarness({ google: true })
+        const member = await h.createUser('user')
+        const cookie = await h.signIn(member.email, member.password)
+
+        const { location } = await linkGoogle(h, cookie, member.email)
+        const linked = await h.request('/v1/me/sign-in-methods', { cookie })
+        const removed = await h.request('/v1/me/sign-in-methods/google', {
+            method: 'DELETE',
+            cookie,
+        })
+
+        expect(location).toBe(SIGNED_IN)
+        expect(await linked.json()).toEqual({
+            methods: [
+                { kind: 'code', removable: false },
+                { kind: 'google', removable: true },
+            ],
+        })
+        expect(removed.status).toBe(204)
+        expect(googleAccountOf(h, member.id)).toBeUndefined()
+        // The session stands: the emailed code is still a way in.
+        expect(await isMemberSession(h, cookie)).toBe(true)
+    })
+
+    it('refuses a Google account with a different address', async () => {
+        const h = createHarness({ google: true })
+        const member = await h.createUser('user')
+        const cookie = await h.signIn(member.email, member.password)
+
+        const { location } = await linkGoogle(h, cookie, 'someone-else@example.org')
+
+        expect(new URL(location).searchParams.get('error')).not.toBeNull()
+        expect(googleAccountOf(h, member.id)).toBeUndefined()
+    })
+
+    it('lets a member who joined through Google remove it, keeping the code', async () => {
+        const h = createHarness({ google: true })
+        const member = await h.createUser('user')
+        const { cookie } = await signInWithGoogle(h, member.email)
+        // A member Google made has no other linked account; the code is their way in.
+        h.db.delete(accounts).where(eq(accounts.providerId, 'credential')).run()
+
+        const removed = await h.request('/v1/me/sign-in-methods/google', {
+            method: 'DELETE',
+            cookie,
+        })
+        const methods = await h.request('/v1/me/sign-in-methods', { cookie })
+
+        expect(removed.status).toBe(204)
+        expect(await methods.json()).toEqual({ methods: [{ kind: 'code', removable: false }] })
+    })
+
+    it('refuses to remove the emailed code', async () => {
+        const h = createHarness()
+        const { cookie } = await h.signInAs('user')
+
+        const removed = await h.request('/v1/me/sign-in-methods/code', {
+            method: 'DELETE',
+            cookie,
+        })
+
+        expect(removed.status).toBe(400)
+    })
+
+    it('answers 404 when Google was never linked', async () => {
+        const h = createHarness()
+        const { cookie } = await h.signInAs('user')
+
+        const removed = await h.request('/v1/me/sign-in-methods/google', {
+            method: 'DELETE',
+            cookie,
+        })
+
+        expect(removed.status).toBe(404)
     })
 })
 

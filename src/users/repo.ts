@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gt, isNull } from 'drizzle-orm'
 
 import { type Db } from '#src/shared/db/connection'
-import { invites, sessions, subscriptions, users } from '#src/shared/db/schema'
+import { accounts, invites, sessions, subscriptions, users } from '#src/shared/db/schema'
 
 export type UserRow = typeof users.$inferSelect
 export type InviteRow = typeof invites.$inferSelect
@@ -105,6 +105,25 @@ export function createUserRepo(db: Db) {
                 .where(and(eq(sessions.id, id), eq(sessions.userId, userId)))
                 .run()
             return result.changes === 1
+        },
+
+        /** The providers linked to the user, such as `google` or `credential`. */
+        listProviders(userId: string): string[] {
+            return db
+                .select({ providerId: accounts.providerId })
+                .from(accounts)
+                .where(eq(accounts.userId, userId))
+                .all()
+                .map((row) => row.providerId)
+        },
+
+        /** Unlinks a provider, with its tokens. False if it was not linked. */
+        deleteProvider(userId: string, providerId: string): boolean {
+            const result = db
+                .delete(accounts)
+                .where(and(eq(accounts.userId, userId), eq(accounts.providerId, providerId)))
+                .run()
+            return result.changes > 0
         },
 
         insertInvite(row: NewInviteRow): InviteRow {
