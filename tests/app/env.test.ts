@@ -28,6 +28,8 @@ describe('parseEnv', () => {
             EMAIL_FROM: undefined,
             EMAIL_REPLY_TO: undefined,
             EMAIL_PREVIEW_DIR: 'tmp/mail',
+            GOOGLE_CLIENT_ID: undefined,
+            GOOGLE_CLIENT_SECRET: undefined,
             STATUS_DEGRADED_MIN: 30,
             STATUS_OFFLINE_MIN: 120,
             LOW_BATTERY_PCT: 20,
@@ -80,6 +82,21 @@ describe('parseEnv', () => {
         expect(
             parseEnv({ ...REQUIRED, RESEND_API_KEY: 'test-key', EMAIL_FROM: 'a@b.org' }).EMAIL_FROM
         ).toBe('a@b.org')
+    })
+
+    it('takes the Google client ID and secret together or not at all', () => {
+        expect(() => parseEnv({ ...REQUIRED, GOOGLE_CLIENT_ID: 'id' })).toThrow(
+            /GOOGLE_CLIENT_SECRET/
+        )
+        expect(() => parseEnv({ ...REQUIRED, GOOGLE_CLIENT_SECRET: 'secret' })).toThrow(
+            /GOOGLE_CLIENT_ID/
+        )
+        const env = parseEnv({
+            ...REQUIRED,
+            GOOGLE_CLIENT_ID: 'id',
+            GOOGLE_CLIENT_SECRET: 'secret',
+        })
+        expect(env.GOOGLE_CLIENT_ID).toBe('id')
     })
 
     it('runs without a key, which is how development sends nothing', () => {

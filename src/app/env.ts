@@ -54,6 +54,12 @@ const EnvSchema = z
         /** Public URL of this API, e.g. https://api.meshfiredetection.org */
         AUTH_URL: z.url(),
         CORS_ORIGIN: z.url(),
+        /**
+         * Google sign-in, from the OAuth client in Google Cloud. Set both or
+         * neither; unset leaves Google off.
+         */
+        GOOGLE_CLIENT_ID: optionalText,
+        GOOGLE_CLIENT_SECRET: optionalText,
 
         STATUS_DEGRADED_MIN: minutes(30),
         STATUS_OFFLINE_MIN: minutes(120),
@@ -73,6 +79,17 @@ const EnvSchema = z
                 code: 'custom',
                 path: ['EMAIL_FROM'],
                 message: 'required with RESEND_API_KEY: the address messages are sent from',
+            })
+        }
+        if ((env.GOOGLE_CLIENT_ID === undefined) !== (env.GOOGLE_CLIENT_SECRET === undefined)) {
+            ctx.addIssue({
+                code: 'custom',
+                path: [
+                    env.GOOGLE_CLIENT_ID === undefined
+                        ? 'GOOGLE_CLIENT_ID'
+                        : 'GOOGLE_CLIENT_SECRET',
+                ],
+                message: 'set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET together, or neither',
             })
         }
         if (env.MQTT_URL === undefined && !env.NOTEHUB_ENABLED) return

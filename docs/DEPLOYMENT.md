@@ -25,8 +25,7 @@ does not assert the adapter has been deployed or provisioned in production.
 Installed versions at first deploy: Node 24.21, Caddy 2.11.7, Mosquitto 2.0.18,
 Litestream 0.5.17.
 
-> **Nuance — production moved droplets, and finished moving on November 2,
-> 2026.** The first deploy ran on `137.184.129.131`. Production is now a droplet
+> **Nuance — production moved droplets, and finished moving on November 2, 2026.** The first deploy ran on `137.184.129.131`. Production is now a droplet
 > built from a snapshot of it (hostname `snapshots-s-1vcpu-512mb-10gb-nyc1`).
 > The `mqtt` record moved on October 27, but the `api` record and `DEPLOY_HOST`
 > still pointed at the old droplet until November 2, so deploys and public API
@@ -135,9 +134,17 @@ MQTT_USERNAME=mesh-backend
 MQTT_PASSWORD=<broker password for mesh-backend>
 MQTT_TOPIC="msh/US/2/e/#"
 MESH_CHANNEL_KEY=<base64 private channel key>
+GOOGLE_CLIENT_ID=<"MFD production" OAuth client ID>
+GOOGLE_CLIENT_SECRET=<its client secret>
 ```
 
 - Quote `MQTT_TOPIC`: unquoted, `#` starts a comment.
+- Google sign-in uses the **MFD production** OAuth client in the Google Cloud
+  project `mesh-fire-detection`, whose only redirect URI is
+  `https://api.meshfiredetection.org/v1/auth/callback/google`. Local
+  development uses the separate **MFD local dev** client, with
+  `http://localhost:3000/v1/auth/callback/google`. Leave both variables unset
+  and Google stays off.
 - The app refuses to start with an empty or default `MESH_CHANNEL_KEY`. A
   deploy before the key is set fails its health check.
 - Generate the channel key once with `openssl rand -base64 32`. The same key
@@ -365,8 +372,7 @@ certificate for `mqtt.meshfiredetection.org`, open `8883/tcp`, move gateways to
 - **Email:** a sending-only Resend key and `EMAIL_FROM` are in
   `/etc/mesh-backend/env`, and `/health` reports `"email": "ok"`. The
   `"disabled"` seen on October 31 came from the old droplet, which the public
-  API still reached. A real sign-in code arrived and worked on November 3,
-  2026. Still to do: confirm a code lands in an Outlook inbox, not spam.
+  API still reached. A real sign-in code arrived and worked on November 3, 2026. Still to do: confirm a code lands in an Outlook inbox, not spam.
   `EMAIL_REPLY_TO` is empty; point it at a Cloudflare Email Routing address once
   one exists. See #20.
 - **Channel key on nodes:** the public firmware and the website's `/firmware`

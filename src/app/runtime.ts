@@ -44,6 +44,10 @@ export function createRuntime(deps: {
         rateLimit: true,
         mailer: createCodeMailer({ membership, email: email.service, logger }),
         membership,
+        google:
+            env.GOOGLE_CLIENT_ID !== undefined && env.GOOGLE_CLIENT_SECRET !== undefined
+                ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET }
+                : undefined,
     })
     const services = createServices({
         db,

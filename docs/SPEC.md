@@ -209,6 +209,16 @@ that is not a member gets a byte-identical response and no email, so the
 endpoint cannot be used to discover who has an account. A session held by
 anyone who is not a member counts as signed out.
 
+**Or Google.** Google is a second way in for the same people, not a way to
+make an account (backend#10). A member who chooses it lands on their existing
+account when Google reports the same, verified address, and keeps the code as
+well. Someone who may join (invited, or joining with a node they connected)
+can join through Google instead of a code; Google has then proven the address.
+Everyone else (subscribers, banned members, unknown addresses, and any
+address Google has not verified) is sent back to sign-in with the same
+answer, and nothing is stored. The account picker always shows, so nobody is
+signed in silently as whichever Google account the browser had.
+
 ### Joining
 
 Two ways in (backend#9): an address an admin has invited, or a person whose

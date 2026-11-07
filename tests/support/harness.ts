@@ -15,6 +15,7 @@ import { createFakeEmail } from '#tests/support/email'
 
 export const SITE_ORIGIN = 'https://meshfiredetection.org'
 export const START = new Date('2026-06-01T12:00:00.000Z')
+export const GOOGLE_TEST_CLIENT = { clientId: 'test-client-id', clientSecret: 'test-client-secret' }
 
 export const TEST_CONFIG: AppConfig = {
     statusDegradedMin: 30,
@@ -40,6 +41,8 @@ type HarnessOptions = {
     readonly emailConfigured?: boolean | undefined
     /** Supplied when a test wants /dev/mail, which the app mounts only with one. */
     readonly emailPreview?: PreviewStore | undefined
+    /** Turns on Google sign-in with a test client; tests fake Google's token endpoint. */
+    readonly google?: boolean | undefined
 }
 
 /** A fresh in-memory database, services, and HTTP app per call, with a controllable clock. */
@@ -49,6 +52,7 @@ export function createHarness({
     notehubChannelKey,
     emailConfigured = true,
     emailPreview,
+    google = false,
 }: HarnessOptions = {}) {
     let now = START.getTime()
     let mqttState: MqttState = 'disabled'
@@ -77,6 +81,7 @@ export function createHarness({
         rateLimit: false,
         mailer: createCodeMailer({ membership, email: emailService, logger }),
         membership,
+        google: google ? GOOGLE_TEST_CLIENT : undefined,
     })
     const services = createServices({
         db,

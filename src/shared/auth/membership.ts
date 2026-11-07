@@ -97,30 +97,38 @@ export function createMembership({ db, clock }: { readonly db: Db; readonly cloc
         },
 
         /**
-         * Whether an address may receive a join code: not yet a member, not
-         * banned, and either invited or asking with nodes it connected.
+         * Whether an address may join: not yet a member, not banned, and either
+         * invited or asking with nodes it connected. `withNode` is that ask
+         * arriving now, as it does through Google, rather than recorded by
+         * `/v1/join`.
          */
-        mayJoin(address: string): boolean {
+        mayJoin(address: string, withNode = false): boolean {
             const user = findUser(address)
-            return user !== undefined && (user.status === 'member' || user.banned === true)
-                ? false
-                : user?.nodeJoinRequestedAt != null || findOpenInvite(address) !== undefined
+            const settled = user !== undefined && (user.status === 'member' || user.banned === true)
+            return (
+                !settled &&
+                (withNode ||
+                    user?.nodeJoinRequestedAt != null ||
+                    findOpenInvite(address) !== undefined)
+            )
         },
 
         /**
          * Makes the person a member and subscribes them, together or not at
          * all. An invite sets their role and is marked used; a node request
-         * makes them a `user`. False when they are not eligible, which leaves
-         * them exactly as they were.
+         * makes them a `user`, whether recorded earlier or passed as `withNode`.
+         * False when they are not eligible, which leaves them exactly as they were.
          */
-        promote(userId: string): boolean {
+        promote(userId: string, withNode = false): boolean {
             return transaction(db, () => {
                 const user = db.select().from(users).where(eq(users.id, userId)).get()
                 if (user === undefined || user.status === 'member' || user.banned === true) {
                     return false
                 }
                 const invite = findOpenInvite(user.email)
-                if (invite === undefined && user.nodeJoinRequestedAt === null) return false
+                if (!withNode && invite === undefined && user.nodeJoinRequestedAt === null) {
+                    return false
+                }
 
                 const now = clock()
                 db.update(users)
