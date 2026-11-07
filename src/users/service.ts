@@ -224,7 +224,13 @@ export function createUserService(deps: {
             const row = repo.findById(userId)
             if (row === undefined) throw notFound('User')
             const user = toUser(row)
-            return { id: user.id, name: user.name, email: user.email, role: user.role }
+            return {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                createdAt: user.createdAt,
+            }
         },
 
         /**

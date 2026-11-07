@@ -39,6 +39,8 @@ export const MeSchema = z.object({
     name: z.string(),
     email: z.string(),
     role: RoleSchema,
+    /** When the account was made, as Better Auth's session also reports it. */
+    createdAt: z.iso.datetime(),
 })
 export type Me = z.infer<typeof MeSchema>
 
