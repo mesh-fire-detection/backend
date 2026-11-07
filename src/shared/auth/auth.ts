@@ -4,6 +4,12 @@ import { APIError } from 'better-auth/api'
 import { admin } from 'better-auth/plugins/admin'
 import { emailOTP } from 'better-auth/plugins/email-otp'
 
+import {
+    admitGoogle,
+    type GoogleConfig,
+    isGoogleCallback,
+    joiningWithNode,
+} from '#src/shared/auth/google'
 import { type Membership } from '#src/shared/auth/membership'
 import {
     CODE_ATTEMPTS,
@@ -26,6 +32,8 @@ export type AuthConfig = {
     readonly mailer: CodeMailer
     /** Who is a member, and the step that makes someone one. */
     readonly membership: Membership
+    /** Sign-in with Google, a second way in for the same people. Off when unset. */
+    readonly google?: GoogleConfig | undefined
 }
 
 export const AUTH_BASE_PATH = '/v1/auth'
@@ -41,6 +49,11 @@ export const AUTH_BASE_PATH = '/v1/auth'
  *
  * Passwords remain enabled, unadvertised, for the bootstrap admin created by
  * `src/app/createAdmin.ts` on a fresh server. The website never offers them.
+ *
+ * Google admits the same people as a code (`admitGoogle`): it signs a member
+ * in, lands on their existing account when the address matches, and lets
+ * someone eligible join. An account Google creates starts as a subscriber and
+ * is promoted as the session is made, by the same step the join code uses.
  */
 export function createAuth(db: Db, config: AuthConfig) {
     return betterAuth({
@@ -50,6 +63,29 @@ export function createAuth(db: Db, config: AuthConfig) {
         trustedOrigins: [config.trustedOrigin],
         database: drizzleAdapter(db, { provider: 'sqlite', schema, usePlural: true }),
         emailAndPassword: { enabled: true, disableSignUp: true, minPasswordLength: 12 },
+        ...(config.google !== undefined && {
+            socialProviders: {
+                google: {
+                    clientId: config.google.clientId,
+                    clientSecret: config.google.clientSecret,
+                    // Never sign someone in silently with whichever account the browser has.
+                    prompt: 'select_account' as const,
+                },
+            },
+        }),
+        account: {
+            accountLinking: {
+                // Google signing in as a known address lands on that account,
+                // when Google says the address is verified. Better Auth also
+                // wants the local address verified, which protects against a
+                // password sign-up squatting someone's address; there is no
+                // password sign-up here, and subscribers and admin-made
+                // accounts are never verified locally, so it would only block
+                // the people Google should let in.
+                enabled: true,
+                requireLocalEmailVerified: false,
+            },
+        },
         user: {
             additionalFields: {
                 // Read on every session; never settable from a request. Better
@@ -58,16 +94,40 @@ export function createAuth(db: Db, config: AuthConfig) {
                 // who have not joined are inserted by `users/` as subscribers.
                 status: { type: 'string', required: false, defaultValue: 'member', input: false },
             },
+            validateUserInfo: ({ user, source }) =>
+                source.method === 'oauth' && source.oauth?.providerId === 'google'
+                    ? admitGoogle(config.membership, user)
+                    : undefined,
         },
         databaseHooks: {
             user: {
                 create: {
+                    // Google may admit someone who has not joined yet; joining
+                    // is `promote`'s to decide, so they start as a subscriber.
+                    before: (user, ctx) =>
+                        Promise.resolve(
+                            isGoogleCallback(ctx)
+                                ? { data: { ...user, status: 'subscriber' } }
+                                : undefined
+                        ),
                     // Members get updates by default, including those Better
                     // Auth creates directly: the bootstrap admin, and accounts
                     // an admin makes. Joining enrols through `promote` instead.
                     after: (user) => {
                         if (user['status'] === 'member') config.membership.enrollByDefault(user.id)
                         return Promise.resolve()
+                    },
+                },
+            },
+            session: {
+                create: {
+                    // A Google sign-in that `admitGoogle` let through for joining
+                    // becomes a member here, before the session it gets is used.
+                    // For a member, `promote` changes nothing.
+                    before: async (session, ctx) => {
+                        if (isGoogleCallback(ctx)) {
+                            config.membership.promote(session.userId, await joiningWithNode())
+                        }
                     },
                 },
             },

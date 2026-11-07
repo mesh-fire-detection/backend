@@ -419,6 +419,7 @@ See `DEPLOYMENT.md` for the runbook.
 | `AUTH_SECRET`                                | Session signing, 32+ characters                                                             |
 | `AUTH_URL`                                   | Public URL of the API                                                                       |
 | `CORS_ORIGIN`                                | The website's origin                                                                        |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`   | Google sign-in's OAuth client; set both or neither, unset turns Google off                  |
 | `STATUS_DEGRADED_MIN`, `STATUS_OFFLINE_MIN`  | Node status thresholds                                                                      |
 | `LOW_BATTERY_PCT`                            | Degraded status and low battery alerts                                                      |
 | `LINK_WINDOW_MIN`                            | How old a link observation may be to appear on the map                                      |
