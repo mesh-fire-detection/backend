@@ -19,6 +19,8 @@ export type Viewer = {
 export type AppEnv = {
     Variables: {
         viewer: Viewer | null
+        /** The session this request came in on, when the viewer is signed in. */
+        sessionId: string | null
     }
 }
 
@@ -33,6 +35,7 @@ export function sessionMiddleware(auth: Auth): MiddlewareHandler<AppEnv> {
         const usable =
             session !== null && role.success && isMember(session.user.status, session.user.banned)
         c.set('viewer', usable ? { id: session.user.id, role: role.data } : null)
+        c.set('sessionId', usable ? session.session.id : null)
         await next()
     })
 }

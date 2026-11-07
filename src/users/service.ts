@@ -7,12 +7,13 @@ import { type EmailService } from '#src/shared/email/service'
 import { confirmSubscription } from '#src/shared/email/templates'
 import { DomainError, notFound } from '#src/shared/errors'
 import { type Clock, MS_PER_MINUTE } from '#src/shared/time'
-import { type InviteRow, type UserRepo, type UserRow } from '#src/users/repo'
+import { type InviteRow, type SessionRow, type UserRepo, type UserRow } from '#src/users/repo'
 import {
     type Invite,
     type InviteUser,
     type Join,
     type Me,
+    type Session,
     type Subscription,
     type UpdateUser,
     type User,
@@ -42,6 +43,17 @@ function toUser(row: UserRow): User {
         status: row.status,
         disabled: row.banned === true,
         createdAt: row.createdAt.toISOString(),
+    }
+}
+
+function toSession(row: SessionRow, currentId: string | null): Session {
+    return {
+        id: row.id,
+        current: row.id === currentId,
+        userAgent: row.userAgent,
+        createdAt: row.createdAt.toISOString(),
+        lastActiveAt: row.updatedAt.toISOString(),
+        expiresAt: row.expiresAt.toISOString(),
     }
 }
 
@@ -237,6 +249,21 @@ export function createUserService(deps: {
                   }
             repo.saveSubscription(userId, change, consent)
             return mySubscription(userId)
+        },
+
+        /** Where the member is signed in, marking the session asking. */
+        mySessions(userId: string, currentId: string | null): Session[] {
+            return repo.listSessions(userId, clock()).map((row) => toSession(row, currentId))
+        },
+
+        /** Ends one of the member's own sessions, which may be the one asking. */
+        endMySession(userId: string, id: string): void {
+            if (!repo.deleteSession(userId, id)) throw notFound('Session')
+        },
+
+        /** Signs the member out everywhere, this browser included. */
+        endAllMySessions(userId: string): void {
+            repo.deleteSessions(userId)
         },
 
         async createAdmin(address: string, name: string, password: string): Promise<User> {

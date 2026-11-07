@@ -324,6 +324,9 @@ single resources return `{ <item>: {...} }`.
 | PATCH         | `/v1/alerts/:id`                           | `{ status: acknowledged                                                                                               | resolved, note? }` |
 | PATCH         | `/v1/me`                                   | `{ name }` → renames yourself; the address and role cannot be changed here                                            |
 | GET, PATCH    | `/v1/me/subscription`                      | Own updates setting; `{ subscribed }` turns it on or off                                                              |
+| GET           | `/v1/me/sessions`                          | Where you are signed in, `current` marking this browser; never tokens                                                 |
+| DELETE        | `/v1/me/sessions`                          | Signs you out everywhere, this browser included                                                                       |
+| DELETE        | `/v1/me/sessions/:id`                      | Ends one of your sessions; 404 if it is not yours                                                                     |
 | GET           | `/v1/nodes`                                | Every visible node, each with `mine`; `details` only on your own                                                      |
 | GET, PATCH    | `/v1/nodes/:id`                            | View; edit if you are on it (mesh ID and enabling are admin-only; firmware is not editable)                           |
 | GET, POST     | `/v1/me/nodes`                             | Nodes you are on; `{ nodes: [{ nodeNum, name?, hardware?, firmware?, hardwareId?, type? }] }` registers or joins each |

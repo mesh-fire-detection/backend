@@ -42,6 +42,24 @@ export const MeSchema = z.object({
 })
 export type Me = z.infer<typeof MeSchema>
 
+export const SessionParamsSchema = z.object({ id: z.string().min(1).max(64) })
+
+/**
+ * One place the member is signed in. The token never leaves the server: the
+ * id is enough to end it, and only its owner can.
+ */
+export const SessionSchema = z.object({
+    id: z.string(),
+    /** The session this request came in on. */
+    current: z.boolean(),
+    userAgent: z.string().nullable(),
+    createdAt: z.iso.datetime(),
+    /** When the session was last renewed, which use does at most once a day. */
+    lastActiveAt: z.iso.datetime(),
+    expiresAt: z.iso.datetime(),
+})
+export type Session = z.infer<typeof SessionSchema>
+
 export const SubscriptionSchema = z.object({
     status: z.enum(['none', 'unconfirmed', 'confirmed', 'unsubscribed']),
 })

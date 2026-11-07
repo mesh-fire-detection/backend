@@ -8,6 +8,7 @@ import {
     InviteParamsSchema,
     InviteUserSchema,
     JoinSchema,
+    SessionParamsSchema,
     SubscribeSchema,
     UpdateMeSchema,
     UpdateSubscriptionSchema,
@@ -85,6 +86,24 @@ export function userRoutes(service: UserService) {
                 c.json({
                     user: service.renameMe(requireViewer(c).id, c.req.valid('json').name),
                 })
+            )
+            .get('/v1/me/sessions', access('user'), (c) =>
+                c.json({
+                    sessions: service.mySessions(requireViewer(c).id, c.get('sessionId')),
+                })
+            )
+            .delete('/v1/me/sessions', access('user'), (c) => {
+                service.endAllMySessions(requireViewer(c).id)
+                return c.body(null, 204)
+            })
+            .delete(
+                '/v1/me/sessions/:id',
+                access('user'),
+                validate('param', SessionParamsSchema),
+                (c) => {
+                    service.endMySession(requireViewer(c).id, c.req.valid('param').id)
+                    return c.body(null, 204)
+                }
             )
             .get('/v1/me/subscription', access('user'), (c) =>
                 c.json({ subscription: service.mySubscription(requireViewer(c).id) })

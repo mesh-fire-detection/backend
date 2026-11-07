@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, isNull } from 'drizzle-orm'
 
 import { type Db } from '#src/shared/db/connection'
 import { invites, sessions, subscriptions, users } from '#src/shared/db/schema'
@@ -7,6 +7,7 @@ export type UserRow = typeof users.$inferSelect
 export type InviteRow = typeof invites.$inferSelect
 type NewInviteRow = typeof invites.$inferInsert
 export type SubscriptionRow = typeof subscriptions.$inferSelect
+export type SessionRow = typeof sessions.$inferSelect
 type SubscriptionChange = Partial<Omit<SubscriptionRow, 'userId' | 'createdAt'>> &
     Pick<SubscriptionRow, 'updatedAt'>
 
@@ -85,6 +86,25 @@ export function createUserRepo(db: Db) {
         /** Signs the user out everywhere. Sessions are credentials, not data. */
         deleteSessions(userId: string): void {
             db.delete(sessions).where(eq(sessions.userId, userId)).run()
+        },
+
+        /** The user's sessions that have not expired, most recently used first. */
+        listSessions(userId: string, now: Date): SessionRow[] {
+            return db
+                .select()
+                .from(sessions)
+                .where(and(eq(sessions.userId, userId), gt(sessions.expiresAt, now)))
+                .orderBy(desc(sessions.updatedAt))
+                .all()
+        },
+
+        /** Ends one of the user's sessions. False if they have none by that id. */
+        deleteSession(userId: string, id: string): boolean {
+            const result = db
+                .delete(sessions)
+                .where(and(eq(sessions.id, id), eq(sessions.userId, userId)))
+                .run()
+            return result.changes === 1
         },
 
         insertInvite(row: NewInviteRow): InviteRow {
