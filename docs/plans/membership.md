@@ -3,7 +3,9 @@
 Status: agreed October 27, 2026. Built locally on October 27: membership
 status, joining by invitation (API only) and with a node, subscriptions, and
 the website pages. Nodes are recorded against members (`member_nodes`); turning
-them into registered nodes is still #12.
+them into registered nodes is still #12. Shipped November 3, 2026 (#32,
+web#10). #29 closed November 7; what it left unbuilt, unsubscribing from the
+email and sending updates, is #40.
 
 Covers backend #9 (who may join), #29 (subscriptions) and the website half of
 both (web#3, web#8). Ships together with the sign-in pages already built on the
@@ -91,9 +93,10 @@ them, approximate positions and the hardware ID are planned in
 - `users.status` — `'subscriber' | 'member'`, not null.
 - `invites` — keyed by address; the token columns go.
 - `subscriptions` — one per user: `status` (`unconfirmed`, `confirmed`,
-  `unsubscribed`), hashed confirm and unsubscribe tokens, `confirmedAt`,
-  `unsubscribedAt`, `source` (`footer` or `join`). Consent is recorded here:
-  when, from where, and the wording shown.
+  `unsubscribed`), hashed confirm and unsubscribe tokens (the unsubscribe
+  token is not built yet; #40), `confirmedAt`, `unsubscribedAt`, `source`
+  (`footer` or `join`). Consent is recorded here: when, from where, and the
+  wording shown.
 - `node_members` and the `nodes` changes above, from #12.
 
 `notification_channels` stays reserved for alert delivery, which has different
@@ -106,15 +109,15 @@ explicitly).
 All public ones are rate limited and answer identically whether or not an
 address is known, so none of them can be used to find out who is here.
 
-| Method | Path                              | Does                                                                                 |
-| ------ | --------------------------------- | ------------------------------------------------------------------------------------ |
-| POST   | `/v1/subscribe`                   | Creates a subscriber if new; sends a confirmation link                               |
-| POST   | `/v1/subscribe/confirm`           | Confirms, from the token in that link                                                |
-| POST   | `/v1/unsubscribe`                 | Unsubscribes, from the token in any update; also RFC 8058 one-click                  |
-| POST   | `/v1/join`                        | Checks eligibility, sends a join code if eligible                                    |
-| POST   | `/v1/auth/email-otp/verify-email` | Better Auth's: checks the code; our hook makes the person a member and signs them in |
-| POST   | `/v1/nodes`                       | Opened to members by #12; registering an existing node adds you to it                |
-| GET    | `/v1/me/nodes`                    | The nodes you are on                                                                 |
+| Method | Path                              | Does                                                                                     |
+| ------ | --------------------------------- | ---------------------------------------------------------------------------------------- |
+| POST   | `/v1/subscribe`                   | Creates a subscriber if new; sends a confirmation link                                   |
+| POST   | `/v1/subscribe/confirm`           | Confirms, from the token in that link                                                    |
+| POST   | `/v1/unsubscribe`                 | Not built yet (#40). Unsubscribes, from the token in any update; also RFC 8058 one-click |
+| POST   | `/v1/join`                        | Checks eligibility, sends a join code if eligible                                        |
+| POST   | `/v1/auth/email-otp/verify-email` | Better Auth's: checks the code; our hook makes the person a member and signs them in     |
+| POST   | `/v1/nodes`                       | Opened to members by #12; registering an existing node adds you to it                    |
+| GET    | `/v1/me/nodes`                    | The nodes you are on                                                                     |
 
 **Join codes are Better Auth's**, using the email-OTP plugin's verification
 type rather than a second token scheme: one code, ten minutes, three attempts,
@@ -151,10 +154,11 @@ The confirm and unsubscribe links open pages on the website with a button that
 does the POST. Mail scanners fetch links before people do; a link that acted on
 GET would be confirmed or unsubscribed by a robot.
 
-**Not in this release:** writing and sending updates. This release collects
-confirmed subscribers and honours unsubscribes. #29's open question about what
-goes in an update, and who writes it, still needs answering before the first
-one is sent.
+**Not in this release:** writing and sending updates, and unsubscribing from
+an email without signing in. This release collects confirmed subscribers, and
+members can turn updates off on `/account`. Both are #40, where unsubscribe
+comes first so it exists before the first update is sent; what goes in an
+update, and who writes it, still needs answering there.
 
 ## Website
 
@@ -167,7 +171,7 @@ one is sent.
 | `/sign-in`           | Built. Adds **No account? Join**, a resend cooldown, and non-revealing copy (web#3)                                            |
 | `/account`           | Built (web#8 asked for `/profile`). Adds your nodes and your updates setting                                                   |
 | `/subscribe/confirm` | **Confirm subscription** button, from the email link                                                                           |
-| `/unsubscribe`       | **Unsubscribe** button, from the email link                                                                                    |
+| `/unsubscribe`       | Not built yet (#40). **Unsubscribe** button, from the email link                                                               |
 | `/privacy`           | Rewritten for the session cookie, codes, subscriptions and node membership                                                     |
 
 Join says plainly that it also subscribes you (web#3). The invited route on
@@ -205,4 +209,4 @@ address, and `/health` already reports email trouble.
   Recommendation: the server assigns it, as #15 suggests.
 - **Whether a node really carries our private channel key** (web#6), since
   route 2 trusts that the connected node is one of ours.
-- **What an update contains, and who writes it** (#29).
+- **What an update contains, and who writes it** (#40; asked in #29).
