@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { accounts, invites, subscriptions, users } from '#src/shared/db/schema'
+import { SignInMethodSchema } from '#src/users/schema'
 import {
     createHarness,
     GOOGLE_TEST_CLIENT,
@@ -302,7 +303,10 @@ describe('linking Google from the account page', () => {
         const methods = await h.request('/v1/me/sign-in-methods', { cookie })
 
         expect(removed.status).toBe(204)
-        expect(await methods.json()).toEqual({ methods: [{ kind: 'code', removable: false }] })
+        const body = (await methods.json()) as { methods: unknown[] }
+        expect(body.methods.map((method) => SignInMethodSchema.parse(method))).toEqual([
+            { kind: 'code', removable: false },
+        ])
     })
 
     it('refuses to remove the emailed code', async () => {

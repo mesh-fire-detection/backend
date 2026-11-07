@@ -284,6 +284,25 @@ export function createUserService(deps: {
             if (!repo.deleteProvider(userId, kind)) throw notFound('Sign-in method')
         },
 
+        /**
+         * Deletes the member's own account (web#8). Their nodes stay, even
+         * with nobody left on them, and so does everything the nodes reported:
+         * the project keeps data indefinitely. The address may join again
+         * later, as a new person. The last admin cannot leave, or nobody could
+         * run the server from the website.
+         */
+        deleteMe(userId: string): void {
+            const row = repo.findById(userId)
+            if (row === undefined) throw notFound('User')
+            if (row.role === 'admin' && repo.countOtherActiveAdmins(userId) === 0) {
+                throw new DomainError(
+                    'conflict',
+                    'You are the only admin. Make someone else an admin first.'
+                )
+            }
+            repo.erase(userId, row.email, `deleted-${userId}@deleted.invalid`, clock())
+        },
+
         async createAdmin(address: string, name: string, password: string): Promise<User> {
             const lowered = address.toLowerCase()
             if (repo.findByEmail(lowered) !== undefined) {

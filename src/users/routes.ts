@@ -88,6 +88,10 @@ export function userRoutes(service: UserService) {
                     user: service.renameMe(requireViewer(c).id, c.req.valid('json').name),
                 })
             )
+            .delete('/v1/me', access('user'), (c) => {
+                service.deleteMe(requireViewer(c).id)
+                return c.body(null, 204)
+            })
             .get('/v1/me/sessions', access('user'), (c) =>
                 c.json({
                     sessions: service.mySessions(requireViewer(c).id, c.get('sessionId')),

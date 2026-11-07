@@ -52,6 +52,12 @@ export const users = sqliteTable('users', {
      * themselves stay in the browser until the code is verified (backend#9).
      */
     nodeJoinRequestedAt: timestamp(),
+    /**
+     * When the person deleted their account. The row stays, because readings,
+     * events and alerts point at it, but everything that identifies them is
+     * gone and they can never sign in again (web#8).
+     */
+    deletedAt: timestamp(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
 })

@@ -278,6 +278,29 @@ join code; a member gets a sign-in code instead, so they are not stuck; anyone
 else gets nothing, and nothing about them is stored. An invite withdrawn while
 its code is unused makes the code worthless.
 
+### Leaving
+
+A member deletes their own account on `/account` (web#8). Decided November 7,
+2026: their details go and their nodes stay.
+
+- **Gone:** their name and address, every session, Google if linked, any code
+  in flight, and their notification targets. They can never sign in as that
+  account again.
+- **Stopped:** their updates, which are marked unsubscribed, and their alert
+  rules, which are soft-deleted like any removed rule.
+- **Left standing:** their nodes, even with nobody left on them, and everything
+  those nodes reported. Readings belong to the network, which keeps data
+  indefinitely; an admin can still edit or disable such a node.
+- **Kept, unnamed:** the row itself, because readings, node events and alert
+  history point at it. The invite they joined with stays as the record of how
+  someone joined, without their address.
+
+The address is free afterwards: it may join again, as a new person, by the
+usual routes. The only admin cannot leave, since nobody could then run the
+project from the website; they make someone else an admin first. The person
+leaving is choosing this, so it is not the automatic deletion the retention
+rule forbids.
+
 ### Updates
 
 Occasional project news by email (backend#29). One row per person in
