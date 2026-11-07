@@ -219,6 +219,13 @@ address Google has not verified) is sent back to sign-in with the same
 answer, and nothing is stored. The account picker always shows, so nobody is
 signed in silently as whichever Google account the browser had.
 
+**Sessions last seven days from last use** (#15 Q18). Using the site renews
+one, at most once a day, so someone who visits weekly is never asked for a
+code. Rolling means there is no absolute limit: a session ends when the person
+signs out, ends it from `/account`, signs out everywhere, or is disabled.
+Longer would mean a stolen cookie lasts longer; shorter would spend more of the
+daily email allowance on sign-in codes.
+
 ### Joining
 
 Two ways in (backend#9): an address an admin has invited, or a person whose
