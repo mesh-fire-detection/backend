@@ -112,6 +112,7 @@ the native `#src/*` alias in `package.json`: `src/*.ts` in development and
 - [Requirements and decisions](docs/SPEC.md)
 - [Architecture and API](docs/ARCHITECTURE.md)
 - [Deployment and backups](docs/DEPLOYMENT.md)
+- [Releasing](docs/RELEASING.md) and the [changelog](docs/CHANGELOG.md)
 - [MQTT and gateway setup](docs/MQTT.md)
 - [Blues Notecard / Notehub API and setup](docs/NOTEHUB.md)
 - [Notecard implementation checklist and remaining dependencies](docs/plans/notecard-ingest.md)

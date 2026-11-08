@@ -303,15 +303,19 @@ them: `ssh-keygen -F 134.209.217.98` prints them; drop the `#` lines. Avoid
 `ssh-keyscan` on Windows: there it prints only `#` comment lines and no keys,
 and an empty secret fails the deploy with `Host key verification failed`.
 
-A push to `main` runs CI; when CI passes, the Deploy workflow builds, uploads the
-release to `/opt/mesh-backend/releases/<sha>`, and runs `release.sh`. That script
-installs production dependencies, switches `/opt/mesh-backend/current`, restarts
-the service, and checks `/health`. Database migrations run when the app starts.
+Publishing a GitHub Release runs the Deploy workflow (#42); merging to `main`
+only runs CI. Deploy checks the tag against `package.json` and `main`, runs
+`npm run check` on that commit, builds, uploads the release to
+`/opt/mesh-backend/releases/<tag>`, and runs `release.sh`. That script copies
+the database, installs production dependencies, switches
+`/opt/mesh-backend/current`, restarts the service, and checks `/health`.
+Database migrations run when the app starts. How to cut a release is in
+[RELEASING.md](RELEASING.md).
 
 > **Nuance — an empty `SSH` target.** The first Deploy runs failed with an
 > `ssh` usage message: the secrets had not been created, so `user@host` was
-> empty. To retry a deploy for the same commit, re-run the failed Deploy run
-> (`gh run rerun <id>`); the workflow has no manual trigger.
+> empty. To retry a deploy, re-run the failed run (`gh run rerun <id>`) or run
+> Deploy by hand with the tag (`gh workflow run deploy.yml -f tag=vX.Y.Z`).
 
 ## 6. First admin
 
@@ -356,9 +360,11 @@ certificate for `mqtt.meshfiredetection.org`, open `8883/tcp`, move gateways to
 - **Health:** point an external uptime monitor at
   `https://api.meshfiredetection.org/health`. It returns 503 when the database
   or broker connection is down.
-- **Rollback:** `ln -sfn /opt/mesh-backend/releases/<previous> /opt/mesh-backend/current`
-  then `systemctl restart mesh-backend`. Only roll back across releases without
-  new migrations.
+- **Rollback:** run Deploy by hand with the previous tag
+  (`gh workflow run deploy.yml -f tag=vX.Y.Z`). Without GitHub,
+  `ln -sfn /opt/mesh-backend/releases/<previous> /opt/mesh-backend/current`
+  then `systemctl restart mesh-backend`. Either way, only across releases
+  without new migrations; see [RELEASING.md](RELEASING.md).
 - **Restore test (once Litestream is enabled, then yearly):**
 
     ```sh

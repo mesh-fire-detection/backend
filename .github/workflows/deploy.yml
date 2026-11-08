@@ -1,30 +1,63 @@
 name: Deploy
 
-# Deploys main after the checks pass. Requires repository secrets:
+# Deploys a published release (backend#42). Merges collect on main until
+# someone publishes a release, so shipping is a decision rather than a side
+# effect of merging. Running this by hand with an earlier tag deploys that
+# release again, which is how to roll back; see docs/RELEASING.md.
+#
+# Requires repository secrets:
 #   DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY (private key), DEPLOY_KNOWN_HOSTS
 on:
-    workflow_run:
-        workflows: [CI]
-        types: [completed]
-        branches: [main]
+    release:
+        types: [published]
+    workflow_dispatch:
+        inputs:
+            tag:
+                description: The release tag to deploy, such as v0.2.0
+                required: true
 
 concurrency: deploy
 
 jobs:
     deploy:
-        if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+        # A prerelease is for looking at, not for running in production.
+        if: github.event_name == 'workflow_dispatch' || !github.event.release.prerelease
         runs-on: ubuntu-latest
         environment: production
+        env:
+            TAG: ${{ github.event.release.tag_name || inputs.tag }}
         steps:
             - uses: actions/checkout@v4
               with:
-                  ref: ${{ github.event.workflow_run.head_sha }}
+                  ref: refs/tags/${{ env.TAG }}
+                  # The whole history, to check the tag is on main.
+                  fetch-depth: 0
             - uses: actions/setup-node@v4
               with:
                   node-version-file: .nvmrc
                   cache: npm
+
+            - name: Check the tag
+              run: |
+                  if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                      echo "::error::$TAG is not a release tag like v1.2.3"
+                      exit 1
+                  fi
+                  # /health reports package.json's version, so the two must agree.
+                  version="v$(node -p "require('./package.json').version")"
+                  if [[ "$version" != "$TAG" ]]; then
+                      echo "::error::package.json says $version but the tag is $TAG"
+                      exit 1
+                  fi
+                  # Only reviewed code ships: the tag must be on main.
+                  if ! git merge-base --is-ancestor HEAD origin/main; then
+                      echo "::error::$TAG is not on main"
+                      exit 1
+                  fi
+
             - run: npm ci
-            - run: npm run build
+            # CI checked main on all three platforms; this checks exactly what ships.
+            - run: npm run check
 
             - name: Configure SSH
               run: |
@@ -36,7 +69,7 @@ jobs:
             - name: Upload and activate release
               env:
                   TARGET: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
-                  RELEASE: /opt/mesh-backend/releases/${{ github.event.workflow_run.head_sha }}
+                  RELEASE: /opt/mesh-backend/releases/${{ env.TAG }}
               run: |
                   ssh "$TARGET" "mkdir -p $RELEASE"
                   # -R keeps relative paths; `npm ci` runs the prepare script in config/build.
