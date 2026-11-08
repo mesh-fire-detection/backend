@@ -5,7 +5,28 @@ Notable changes to the backend, by release. How releases are cut is in
 
 ## Unreleased
 
+## 0.2.0 — 2026-11-08
+
+The first tagged release. Until now every merge to `main` deployed, so most of
+this already ran in production while `/health` still said 0.1.1. Only the
+account changes and migration 0012 are new to the server.
+
+### Added
+
+- Your sessions on `/v1/me/sessions`: see where you are signed in, end one
+  session, or sign out everywhere. Tokens never leave the server.
+- Your sign-in methods on `/v1/me/sign-in-methods`: the emailed code, which
+  cannot be removed, and Google, which can.
+- Deleting your own account, `DELETE /v1/me` (SPEC, Leaving). **Migration
+  0012** adds `users.deleted_at`; it is additive.
+- Sign in and join with Google (#41).
+- Membership: sign in with an emailed code, join by invitation or with a node
+  you connected, and project updates (#31, #32).
+- Members register nodes and are listed on them; approximate positions for
+  everyone else; a browser's copy of a node's readings is accepted.
+
 ### Changed
 
 - Deploys run when a GitHub Release is published, not on every merge to `main`
   (#42). Running Deploy by hand with an earlier tag rolls back to it.
+- Sessions last seven days from last use, set explicitly (#15 Q18).
