@@ -92,6 +92,7 @@ src/
     errors.ts         DomainError, thrown by services
     logger.ts, time.ts
   health/             GET /health
+    events/           the event log: what happened, for admins and alerting
   users/              users and invites
   mesh/
     nodes/            registration, the people on a node, approximate positions
@@ -289,7 +290,16 @@ with RSSI from the newest observation that had one.
 **notification_channels**: `userId`, `kind`, `target`, `enabled`. Empty until
 notifications are built.
 
-Nothing is deleted automatically. If `readings` grows large, add indexes or
+**events**: the event log (SPEC, Event log). `id`, `at`, `severity`
+(`info`, `warn`, `error`), `type` (a fixed code from `src/health/events/schema.ts`,
+which also fixes its severity), `subjectKind` and `subjectId` (a gateway, node or
+user), `count`, and `details` (codes and numbers only; any string that is not a
+code is stored as `invalid`). Written by `EventLog.record` where something
+happens, and by `EventLog.count` for things that repeat, which the five-minute
+job writes as one row per kind. The same job notices silent gateways and
+deletes events older than 90 days. Writing an event never throws.
+
+Nothing else is deleted automatically. If `readings` grows large, add indexes or
 summary tables; do not prune without a decision in `SPEC.md`.
 
 ## API
@@ -338,16 +348,17 @@ single resources return `{ <item>: {...} }`.
 
 **Admin**
 
-| Method    | Path                   | Purpose                                                                              |
-| --------- | ---------------------- | ------------------------------------------------------------------------------------ |
-| POST      | `/v1/nodes`            | Register a node with a chosen ID                                                     |
-| PATCH     | `/v1/nodes/:id`        | Edit any node, including its mesh ID and enabling                                    |
-| GET, POST | `/v1/gateways`         | List or register gateways                                                            |
-| PATCH     | `/v1/gateways/:nodeId` | Change MQTT username/Notecard UID, rotate or revoke Notehub token, enable or disable |
-| GET, POST | `/v1/users`            | List users; invite an address (`{ email, role }`, sends nothing)                     |
-| GET       | `/v1/invites`          | Invites not yet used                                                                 |
-| DELETE    | `/v1/invites/:id`      | Withdraw an unused invite                                                            |
-| PATCH     | `/v1/users/:id`        | Change role, disable                                                                 |
+| Method    | Path                       | Purpose                                                                              |
+| --------- | -------------------------- | ------------------------------------------------------------------------------------ |
+| POST      | `/v1/nodes`                | Register a node with a chosen ID                                                     |
+| PATCH     | `/v1/nodes/:id`            | Edit any node, including its mesh ID and enabling                                    |
+| GET, POST | `/v1/gateways`             | List or register gateways                                                            |
+| PATCH     | `/v1/gateways/:nodeId`     | Change MQTT username/Notecard UID, rotate or revoke Notehub token, enable or disable |
+| GET, POST | `/v1/users`                | List users; invite an address (`{ email, role }`, sends nothing)                     |
+| GET       | `/v1/invites`              | Invites not yet used                                                                 |
+| DELETE    | `/v1/invites/:id`          | Withdraw an unused invite                                                            |
+| PATCH     | `/v1/users/:id`            | Change role, disable                                                                 |
+| GET       | `/v1/events?after=&limit=` | The event log after a given id, oldest first, with `next` to continue from (max 500) |
 
 Rate limits: 600 requests per 15 minutes per client on `/v1/*`, 120 per minute
 on the map feed, 10 per 15 minutes on joining, subscribing, and on code

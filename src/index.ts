@@ -6,6 +6,7 @@ import { parseEnv } from '#src/app/env'
 import { startJobs } from '#src/app/jobs'
 import { createRuntime } from '#src/app/runtime'
 import { createApp } from '#src/app/server'
+import { APP_VERSION } from '#src/app/version'
 import { startSubscriber, type Subscriber } from '#src/mesh/ingest/subscriber'
 import { closeDatabase } from '#src/shared/db/connection'
 import { createLogger } from '#src/shared/logger'
@@ -41,6 +42,7 @@ try {
             ingest: services.ingest,
             clock,
             logger,
+            events: services.events,
         })
     }
 
@@ -55,11 +57,16 @@ try {
     })
     const server = serve({ fetch: app.fetch, port: env.PORT, hostname: env.HOST }, (info) => {
         logger.info({ host: info.address, port: info.port }, 'listening')
+        // The version, so every deploy shows in the event log.
+        services.events.record('server.started', { details: { version: APP_VERSION } })
     })
 
     const shutdown = (signal: NodeJS.Signals): void => {
         logger.info({ signal }, 'shutting down')
         stopJobs()
+        services.events.record('server.stopping', { details: { signal } })
+        // Counts not yet written would otherwise be lost with the process.
+        services.events.flush()
         void (subscriber?.close() ?? Promise.resolve()).finally(() => {
             server.close((error) => {
                 closeDatabase(db)

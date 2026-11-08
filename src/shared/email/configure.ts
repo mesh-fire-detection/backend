@@ -28,13 +28,20 @@ export function createEmail(deps: {
     readonly config: EmailConfig
     readonly logger: Logger
     readonly clock: Clock
+    /** Told the template of every message that could not be sent. */
+    readonly onFailure: (template: string) => void
 }): Email {
-    const { config, logger, clock } = deps
+    const { config, logger, clock, onFailure } = deps
 
     if (config.apiKey === undefined || config.from === undefined) {
         const preview = createPreviewStore(config.previewDir, clock)
         return {
-            service: createEmailService({ sender: preview.sender, configured: false, logger }),
+            service: createEmailService({
+                sender: preview.sender,
+                configured: false,
+                logger,
+                onFailure,
+            }),
             preview,
         }
     }
@@ -45,7 +52,7 @@ export function createEmail(deps: {
         replyTo: config.replyTo,
     })
     return {
-        service: createEmailService({ sender, configured: true, logger }),
+        service: createEmailService({ sender, configured: true, logger, onFailure }),
         preview: undefined,
     }
 }

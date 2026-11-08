@@ -4,7 +4,8 @@ import { secureHeaders } from 'hono/secure-headers'
 
 import { alertRoutes } from '#src/alerts/lifecycle/routes'
 import { ruleRoutes } from '#src/alerts/rules/routes'
-import { type Services } from '#src/app/services'
+import { eventHooks, type Services } from '#src/app/services'
+import { eventRoutes } from '#src/health/events/routes'
 import { healthRoutes } from '#src/health/routes'
 import { gatewayRoutes } from '#src/mesh/gateways/routes'
 import { networkRoutes } from '#src/mesh/network/routes'
@@ -46,7 +47,7 @@ export function createApp({
 }: AppDeps): Hono<AppEnv> {
     const app = new Hono<AppEnv>()
 
-    app.onError(createErrorHandler(logger))
+    app.onError(createErrorHandler(logger, eventHooks(services.events).onServerFailure))
     app.notFound(notFound)
 
     app.use(secureHeaders())
@@ -70,6 +71,7 @@ export function createApp({
     app.on(['GET', 'POST'], `${AUTH_BASE_PATH}/*`, access('public'), (c) => auth.handler(c.req.raw))
 
     app.route('/', healthRoutes(services.health))
+    app.route('/', eventRoutes(services.events))
     app.route('/', networkRoutes(services.network))
     app.route('/', userRoutes(services.users))
     app.route('/', nodeRoutes(services.nodes))

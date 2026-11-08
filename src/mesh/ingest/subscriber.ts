@@ -1,5 +1,6 @@
 import mqtt from 'mqtt'
 
+import { type EventLog } from '#src/health/events/service'
 import { type MqttState } from '#src/health/schema'
 import { decodeEnvelope } from '#src/mesh/ingest/decode'
 import { type IngestService } from '#src/mesh/ingest/service'
@@ -19,6 +20,16 @@ export type Subscriber = {
     readonly close: () => Promise<void>
 }
 
+/**
+ * The gateway a message came through, from the last part of its topic
+ * (`.../!a1b2c3d4`), before the packet is decoded. The topic is the sender's
+ * to choose, so anything not shaped like a mesh ID is left out.
+ */
+const gatewayFromTopic = (topic: string) => {
+    const last = topic.split('/').at(-1) ?? ''
+    return /^![\da-f]{8}$/u.test(last) ? ({ kind: 'gateway', id: last } as const) : undefined
+}
+
 /** Largest envelope worth decoding; LoRa payloads are a few hundred bytes. */
 const MAX_MESSAGE_BYTES = 4096
 
@@ -31,8 +42,9 @@ export function startSubscriber(deps: {
     readonly ingest: IngestService
     readonly clock: Clock
     readonly logger: Logger
+    readonly events: EventLog
 }): Subscriber {
-    const { config, ingest, clock } = deps
+    const { config, ingest, clock, events } = deps
     const logger = deps.logger.child({ component: 'mqtt' })
     let connected = false
 
@@ -48,12 +60,19 @@ export function startSubscriber(deps: {
     client.on('connect', () => {
         connected = true
         logger.info({ topic: config.topic }, 'connected to broker')
+        events.record('broker.connected')
         client.subscribe(config.topic, { qos: 1 }, (error) => {
-            if (error) logger.error({ err: error }, 'subscribe failed')
+            if (!error) return
+            logger.error({ err: error }, 'subscribe failed')
+            events.record('broker.subscribe_failed')
         })
     })
     client.on('close', () => {
-        if (connected) logger.warn('broker connection closed')
+        // Once per outage: the client retries every few seconds while it is down.
+        if (connected) {
+            logger.warn('broker connection closed')
+            events.record('broker.disconnected')
+        }
         connected = false
     })
     client.on('error', (error) => {
@@ -64,11 +83,19 @@ export function startSubscriber(deps: {
         try {
             if (payload.length > MAX_MESSAGE_BYTES) {
                 logger.warn({ topic, bytes: payload.length }, 'dropped: message too large')
+                events.count('ingest.dropped', {
+                    subject: gatewayFromTopic(topic),
+                    details: { reason: 'too_large' },
+                })
                 return
             }
             const decoded = decodeEnvelope(payload, config.channelKey)
             if (!decoded.ok) {
                 logger.debug({ topic, reason: decoded.reason }, 'dropped packet')
+                events.count('ingest.dropped', {
+                    subject: gatewayFromTopic(topic),
+                    details: { reason: decoded.reason },
+                })
                 return
             }
             const outcome = ingest.handle(decoded.packet, clock())
@@ -86,6 +113,7 @@ export function startSubscriber(deps: {
             )
         } catch (error) {
             logger.error({ err: error, topic }, 'ingest failed')
+            events.count('ingest.failed', { subject: gatewayFromTopic(topic) })
         }
     })
 

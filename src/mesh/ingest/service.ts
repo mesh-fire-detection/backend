@@ -1,6 +1,8 @@
+import { type EventLog } from '#src/health/events/service'
 import { type GatewayRepo } from '#src/mesh/gateways/repo'
 import { type IngestRepo } from '#src/mesh/ingest/repo'
 import { type MeshPacket, type MeshPayload } from '#src/mesh/ingest/schema'
+import { formatMeshId } from '#src/mesh/meshId'
 import { type NodeRepo, type NodeRow } from '#src/mesh/nodes/repo'
 import { type Logger } from '#src/shared/logger'
 import { MS_PER_MINUTE } from '#src/shared/time'
@@ -35,10 +37,11 @@ export type IngestDeps = {
     /** Called after the packet is stored; a failure here never loses the data. */
     readonly onReadings: (readings: readonly AcceptedReading[]) => void
     readonly logger: Logger
+    readonly events: EventLog
 }
 
 export function createIngestService(deps: IngestDeps) {
-    const { nodeRepo, gatewayRepo, repo, transact, onReadings, logger } = deps
+    const { nodeRepo, gatewayRepo, repo, transact, onReadings, logger, events } = deps
 
     const enabledNode = (nodeNum: number): NodeRow | undefined => {
         const node = nodeRepo.findByNodeNum(nodeNum)
@@ -177,6 +180,7 @@ export function createIngestService(deps: IngestDeps) {
             onReadings(readings)
         } catch (error) {
             logger.error({ err: error }, 'alert evaluation failed')
+            events.count('alerts.evaluation_failed')
         }
     }
 
@@ -187,6 +191,15 @@ export function createIngestService(deps: IngestDeps) {
         handle(packet: MeshPacket, receivedAt: Date): IngestOutcome {
             const { outcome, readings } = transact(() => store(packet, receivedAt))
             evaluate(readings)
+            // Duplicates are Meshtastic working as designed: several gateways
+            // hear the same packet. Any other rejection is worth counting, by
+            // the gateway's mesh ID, since it may not be registered.
+            if (!outcome.accepted && outcome.reason !== 'duplicate') {
+                events.count('ingest.rejected', {
+                    subject: { kind: 'gateway', id: formatMeshId(packet.gatewayNodeNum) },
+                    details: { reason: outcome.reason },
+                })
+            }
             return outcome
         },
     }
