@@ -202,7 +202,9 @@ Nothing cascades deletes.
 **users, sessions, accounts, verifications**: managed by Better Auth with the
 admin plugin. `users.role` is `admin` or `user`; `users.banned` means disabled.
 `users.status` is ours: `subscriber` or `member`, and only a member can sign in
-or hold a usable session (`src/shared/auth/membership.ts`).
+or hold a usable session (`src/shared/auth/membership.ts`). `users.deletedAt` marks an
+account its owner deleted: the row stays for the data that points at it,
+scrubbed and unable to sign in (see `erase` in `src/users/repo.ts`).
 
 **invites**: the allowlist. `id`, `email` (unique), `role`, `invitedById`,
 `acceptedAt`, `acceptedUserId`, `createdAt`. No token and no expiry: the emailed
@@ -324,6 +326,12 @@ single resources return `{ <item>: {...} }`.
 | PATCH         | `/v1/alerts/:id`                           | `{ status: acknowledged                                                                                               | resolved, note? }` |
 | PATCH         | `/v1/me`                                   | `{ name }` → renames yourself; the address and role cannot be changed here                                            |
 | GET, PATCH    | `/v1/me/subscription`                      | Own updates setting; `{ subscribed }` turns it on or off                                                              |
+| DELETE        | `/v1/me`                                   | Deletes your account (SPEC, Leaving); 409 for the only admin                                                          |
+| GET           | `/v1/me/sessions`                          | Where you are signed in, `current` marking this browser; never tokens                                                 |
+| DELETE        | `/v1/me/sessions`                          | Signs you out everywhere, this browser included                                                                       |
+| DELETE        | `/v1/me/sessions/:id`                      | Ends one of your sessions; 404 if it is not yours                                                                     |
+| GET           | `/v1/me/sign-in-methods`                   | `{ methods: [{ kind, removable }] }`, kind `code` or `google`; the emailed code is always there and never removable   |
+| DELETE        | `/v1/me/sign-in-methods/google`            | Unlinks Google; 404 if it was not linked. Linking is Better Auth's `POST /v1/auth/link-social`, same address only     |
 | GET           | `/v1/nodes`                                | Every visible node, each with `mine`; `details` only on your own                                                      |
 | GET, PATCH    | `/v1/nodes/:id`                            | View; edit if you are on it (mesh ID and enabling are admin-only; firmware is not editable)                           |
 | GET, POST     | `/v1/me/nodes`                             | Nodes you are on; `{ nodes: [{ nodeNum, name?, hardware?, firmware?, hardwareId?, type? }] }` registers or joins each |

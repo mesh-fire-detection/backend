@@ -7,12 +7,14 @@ import { type EmailService } from '#src/shared/email/service'
 import { confirmSubscription } from '#src/shared/email/templates'
 import { DomainError, notFound } from '#src/shared/errors'
 import { type Clock, MS_PER_MINUTE } from '#src/shared/time'
-import { type InviteRow, type UserRepo, type UserRow } from '#src/users/repo'
+import { type InviteRow, type SessionRow, type UserRepo, type UserRow } from '#src/users/repo'
 import {
     type Invite,
     type InviteUser,
     type Join,
     type Me,
+    type Session,
+    type SignInMethod,
     type Subscription,
     type UpdateUser,
     type User,
@@ -42,6 +44,17 @@ function toUser(row: UserRow): User {
         status: row.status,
         disabled: row.banned === true,
         createdAt: row.createdAt.toISOString(),
+    }
+}
+
+function toSession(row: SessionRow, currentId: string | null): Session {
+    return {
+        id: row.id,
+        current: row.id === currentId,
+        userAgent: row.userAgent,
+        createdAt: row.createdAt.toISOString(),
+        lastActiveAt: row.updatedAt.toISOString(),
+        expiresAt: row.expiresAt.toISOString(),
     }
 }
 
@@ -211,7 +224,13 @@ export function createUserService(deps: {
             const row = repo.findById(userId)
             if (row === undefined) throw notFound('User')
             const user = toUser(row)
-            return { id: user.id, name: user.name, email: user.email, role: user.role }
+            return {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                createdAt: user.createdAt,
+            }
         },
 
         /**
@@ -237,6 +256,57 @@ export function createUserService(deps: {
                   }
             repo.saveSubscription(userId, change, consent)
             return mySubscription(userId)
+        },
+
+        /** Where the member is signed in, marking the session asking. */
+        mySessions(userId: string, currentId: string | null): Session[] {
+            return repo.listSessions(userId, clock()).map((row) => toSession(row, currentId))
+        },
+
+        /** Ends one of the member's own sessions, which may be the one asking. */
+        endMySession(userId: string, id: string): void {
+            if (!repo.deleteSession(userId, id)) throw notFound('Session')
+        },
+
+        /** Signs the member out everywhere, this browser included. */
+        endAllMySessions(userId: string): void {
+            repo.deleteSessions(userId)
+        },
+
+        /** The emailed code first, which every member has, then anything linked. */
+        mySignInMethods(userId: string): SignInMethod[] {
+            const google = repo.listProviders(userId).includes('google')
+            return [
+                { kind: 'code', removable: false },
+                ...(google ? [{ kind: 'google', removable: true } as const] : []),
+            ]
+        },
+
+        /**
+         * Unlinks Google. The emailed code still signs the member in, so this
+         * can never remove their last way in. Their sessions stand.
+         */
+        removeMySignInMethod(userId: string, kind: 'google'): void {
+            if (!repo.deleteProvider(userId, kind)) throw notFound('Sign-in method')
+        },
+
+        /**
+         * Deletes the member's own account (web#8). Their nodes stay, even
+         * with nobody left on them, and so does everything the nodes reported:
+         * the project keeps data indefinitely. The address may join again
+         * later, as a new person. The last admin cannot leave, or nobody could
+         * run the server from the website.
+         */
+        deleteMe(userId: string): void {
+            const row = repo.findById(userId)
+            if (row === undefined) throw notFound('User')
+            if (row.role === 'admin' && repo.countOtherActiveAdmins(userId) === 0) {
+                throw new DomainError(
+                    'conflict',
+                    'You are the only admin. Make someone else an admin first.'
+                )
+            }
+            repo.erase(userId, row.email, `deleted-${userId}@deleted.invalid`, clock())
         },
 
         async createAdmin(address: string, name: string, password: string): Promise<User> {

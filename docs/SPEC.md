@@ -219,6 +219,17 @@ address Google has not verified) is sent back to sign-in with the same
 answer, and nothing is stored. The account picker always shows, so nobody is
 signed in silently as whichever Google account the browser had.
 
+A member adds or removes Google on `/account`. Only a Google account with the
+same address can be added. The emailed code cannot be removed, since every
+member has an address, so removing Google can never take away the last way in.
+
+**Sessions last seven days from last use** (#15 Q18). Using the site renews
+one, at most once a day, so someone who visits weekly is never asked for a
+code. Rolling means there is no absolute limit: a session ends when the person
+signs out, ends it from `/account`, signs out everywhere, or is disabled.
+Longer would mean a stolen cookie lasts longer; shorter would spend more of the
+daily email allowance on sign-in codes.
+
 ### Joining
 
 Two ways in (backend#9): an address an admin has invited, or a person whose
@@ -266,6 +277,29 @@ Asking to join answers every address the same way. An eligible address gets a
 join code; a member gets a sign-in code instead, so they are not stuck; anyone
 else gets nothing, and nothing about them is stored. An invite withdrawn while
 its code is unused makes the code worthless.
+
+### Leaving
+
+A member deletes their own account on `/account` (web#8). Decided November 7,
+2026: their details go and their nodes stay.
+
+- **Gone:** their name and address, every session, Google if linked, any code
+  in flight, and their notification targets. They can never sign in as that
+  account again.
+- **Stopped:** their updates, which are marked unsubscribed, and their alert
+  rules, which are soft-deleted like any removed rule.
+- **Left standing:** their nodes, even with nobody left on them, and everything
+  those nodes reported. Readings belong to the network, which keeps data
+  indefinitely; an admin can still edit or disable such a node.
+- **Kept, unnamed:** the row itself, because readings, node events and alert
+  history point at it. The invite they joined with stays as the record of how
+  someone joined, without their address.
+
+The address is free afterwards: it may join again, as a new person, by the
+usual routes. The only admin cannot leave, since nobody could then run the
+project from the website; they make someone else an admin first. The person
+leaving is choosing this, so it is not the automatic deletion the retention
+rule forbids.
 
 ### Updates
 

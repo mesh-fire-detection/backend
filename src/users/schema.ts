@@ -39,8 +39,43 @@ export const MeSchema = z.object({
     name: z.string(),
     email: z.string(),
     role: RoleSchema,
+    /** When the account was made, as Better Auth's session also reports it. */
+    createdAt: z.iso.datetime(),
 })
 export type Me = z.infer<typeof MeSchema>
+
+export const SessionParamsSchema = z.object({ id: z.string().min(1).max(64) })
+
+/**
+ * One place the member is signed in. The token never leaves the server: the
+ * id is enough to end it, and only its owner can.
+ */
+export const SessionSchema = z.object({
+    id: z.string(),
+    /** The session this request came in on. */
+    current: z.boolean(),
+    userAgent: z.string().nullable(),
+    createdAt: z.iso.datetime(),
+    /** When the session was last renewed, which use does at most once a day. */
+    lastActiveAt: z.iso.datetime(),
+    expiresAt: z.iso.datetime(),
+})
+export type Session = z.infer<typeof SessionSchema>
+
+/**
+ * A way the member can sign in. The emailed code is always one, since every
+ * member has an address, so it cannot be removed and neither can the last way
+ * in. The bootstrap admin's password is never offered on the website, so it
+ * is not listed.
+ */
+export const SignInMethodSchema = z.object({
+    kind: z.enum(['code', 'google']),
+    removable: z.boolean(),
+})
+export type SignInMethod = z.infer<typeof SignInMethodSchema>
+
+/** Only Google can be removed; see `SignInMethodSchema`. */
+export const SignInMethodParamsSchema = z.object({ kind: z.literal('google') })
 
 export const SubscriptionSchema = z.object({
     status: z.enum(['none', 'unconfirmed', 'confirmed', 'unsubscribed']),

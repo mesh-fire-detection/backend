@@ -38,6 +38,15 @@ export type AuthConfig = {
 
 export const AUTH_BASE_PATH = '/v1/auth'
 
+const SECONDS_PER_DAY = 24 * 60 * 60
+
+/**
+ * A session lasts seven days from its last use, renewed at most once a day
+ * (#15 Q18). It rolls, so there is no absolute limit: signing out, disabling
+ * the person, or ending the session from the account page is what stops it.
+ */
+const SESSION = { expiresIn: 7 * SECONDS_PER_DAY, updateAge: SECONDS_PER_DAY } as const
+
 /**
  * Sign-in is a code emailed to a member, with `admin` and `user` roles. The
  * site and API share a parent domain, so the default SameSite=Lax cookie works.
@@ -62,6 +71,7 @@ export function createAuth(db: Db, config: AuthConfig) {
         basePath: AUTH_BASE_PATH,
         trustedOrigins: [config.trustedOrigin],
         database: drizzleAdapter(db, { provider: 'sqlite', schema, usePlural: true }),
+        session: SESSION,
         emailAndPassword: { enabled: true, disableSignUp: true, minPasswordLength: 12 },
         ...(config.google !== undefined && {
             socialProviders: {
