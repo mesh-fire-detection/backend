@@ -23,6 +23,11 @@ Notable changes to the backend, by release. How releases are cut is in
   its data reaches the backend (MQTT, Notecard with its network, browser).
   **Migration 0015** keeps Notehub's `transport` per event. `type` is unchanged
   for now.
+- A node's path to the server, `GET /v1/nodes/:id/path`: which gateways
+  delivered its packets and over how many hops, the gateway's signal when it
+  heard the node directly, how each gateway reaches the server, and the nodes
+  around it. `connections` now includes `mesh`, one per delivering gateway.
+  **Migration 0016** records the hops each packet took.
 
 ### Changed
 

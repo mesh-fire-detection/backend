@@ -57,6 +57,8 @@ export const MeshPacketSchema = z.object({
     gatewayNodeNum: NodeNumSchema,
     fromNodeNum: NodeNumSchema,
     packetId: z.number().int().min(1).max(0xff_ff_ff_ff),
+    /** Hops the packet took to the gateway; null when the sender's firmware does not say. */
+    hops: z.number().int().min(0).max(7).nullable(),
     /** Signal as heard by the gateway, only when it heard the sender directly. */
     direct: z.object({ snr: z.number(), rssi: z.number().nullable() }).nullable(),
     payload: PayloadSchema,

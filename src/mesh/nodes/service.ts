@@ -14,6 +14,7 @@ import {
 import {
     ADMIN_FIELDS,
     type Node,
+    type NodePath,
     type RegisterNode,
     type ReportedNode,
     type UpdateNode,
@@ -134,6 +135,20 @@ export function createNodeService(deps: {
         }
     }
 
+    /** What the backend has seen in the window, gathered once per request. */
+    const observe = (links: readonly GatewayLinks[], since: Date): Observed => {
+        const meshDeliveries = new Map<string, { gatewayId: string; lastAt: Date }[]>()
+        for (const { nodeId, ...delivery } of repo.meshDeliveriesSince(since)) {
+            meshDeliveries.set(nodeId, [...(meshDeliveries.get(nodeId) ?? []), delivery])
+        }
+        return {
+            sensors: repo.sensorNodeIdsSince(since),
+            gateways: new Map(links.map((link) => [link.nodeId, link])),
+            meshDeliveries,
+            since,
+        }
+    }
+
     /** Builds views for rows, looking up the caller's nodes and batteries once. */
     const viewsFor = (rows: readonly NodeRow[], viewer: Viewer): Node[] => {
         const mine = repo.memberNodeIds(viewer.id)
@@ -141,11 +156,7 @@ export function createNodeService(deps: {
         const now = clock()
         const links = gatewayLinks()
         const since = new Date(now.getTime() - OBSERVED_WINDOW_MS)
-        const observed: Observed = {
-            sensors: repo.sensorNodeIdsSince(since),
-            gateways: new Map(links.map((link) => [link.nodeId, link])),
-            since,
-        }
+        const observed = observe(links, since)
         const notecardGateways = new Set(
             links.filter((link) => link.notecard).map((link) => link.nodeId)
         )
@@ -254,6 +265,74 @@ export function createNodeService(deps: {
                 repo.list().filter((row) => visibleTo(row, viewer)),
                 viewer
             )
+        },
+
+        /**
+         * How a node's packets reach the server and which nodes are around it.
+         * Gateways and neighbours the caller may not see are left out.
+         */
+        path(id: string, viewer: Viewer): NodePath {
+            const row = visibleRow(id, viewer)
+            const now = clock()
+            const since = new Date(now.getTime() - OBSERVED_WINDOW_MS)
+            const observed = observe(gatewayLinks(), since)
+            const shown = (nodeId: string): NodeRow | undefined => {
+                const other = repo.findById(nodeId)
+                return other !== undefined && visibleTo(other, viewer) ? other : undefined
+            }
+            const links = repo.linksOf(row.id, since)
+            const signal = (link: (typeof links)[number] | undefined) =>
+                link === undefined
+                    ? null
+                    : { snr: link.snr, rssi: link.rssi, at: link.observedAt.toISOString() }
+
+            const deliveries = repo.deliveriesOf(row.nodeNum, since).flatMap((delivery) => {
+                const gateway = shown(delivery.gatewayId)
+                if (gateway === undefined) return []
+                const direct = links.find(
+                    (link) => link.fromNodeId === row.id && link.toNodeId === gateway.id
+                )
+                return [
+                    {
+                        gateway: { id: gateway.id, name: gateway.name },
+                        hops: gateway.id === row.id ? 0 : delivery.hops,
+                        lastAt: delivery.lastAt.toISOString(),
+                        signal: gateway.id === row.id ? null : signal(direct),
+                        connections: connectionsOf(gateway, observed).filter(
+                            (connection) =>
+                                connection.via === 'mqtt' || connection.via === 'notecard'
+                        ),
+                    },
+                ]
+            })
+
+            const others = [
+                ...new Set(
+                    links.map((link) =>
+                        link.fromNodeId === row.id ? link.toNodeId : link.fromNodeId
+                    )
+                ),
+            ]
+            // Newest first, so the first match is the latest reading.
+            const latest = (from: string, to: string) =>
+                signal(links.find((link) => link.fromNodeId === from && link.toNodeId === to))
+            const nearby = others.flatMap((otherId) => {
+                const other = shown(otherId)
+                return other === undefined
+                    ? []
+                    : [
+                          {
+                              node: { id: other.id, name: other.name },
+                              hears: latest(otherId, row.id),
+                              heardBy: latest(row.id, otherId),
+                          },
+                      ]
+            })
+
+            return {
+                deliveries: deliveries.toSorted((a, b) => b.lastAt.localeCompare(a.lastAt)),
+                nearby,
+            }
         },
 
         get(id: string, viewer: Viewer): Node {

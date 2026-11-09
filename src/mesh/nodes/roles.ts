@@ -24,6 +24,11 @@ export type Observed = {
     /** Nodes with particle or environment readings inside the window. */
     readonly sensors: ReadonlySet<string>
     readonly gateways: ReadonlyMap<string, GatewayLinks>
+    /** For each node, the gateways that delivered its packets and when each last did. */
+    readonly meshDeliveries: ReadonlyMap<
+        string,
+        readonly { readonly gatewayId: string; readonly lastAt: Date }[]
+    >
     readonly since: Date
 }
 
@@ -81,7 +86,9 @@ function networkOf(transport: string | null): NodeConnection['network'] {
 const iso = (at: Date | null): string | null => at?.toISOString() ?? null
 
 /**
- * How a node's data reaches the backend, the most recently used first. A
+ * How a node's data reaches the backend, the most recently used first: over
+ * the mesh to each gateway that delivered its packets in the window, then, for a
+ * gateway, its own links. A
  * gateway's MQTT and Notecard links stay while it is registered, used or not.
  * MQTT is Meshtastic's own internet connection, shown as Wi-Fi: Ethernet is
  * rare and the difference does not matter here. A browser connection (USB or
@@ -93,7 +100,14 @@ export function connectionsOf(row: NodeRow, observed: Observed): NodeConnection[
         row.settingsReportedAt !== null && row.settingsReportedAt >= observed.since
             ? row.settingsReportedAt
             : null
+    const mesh = observed.meshDeliveries.get(row.id) ?? []
     const connections: NodeConnection[] = [
+        ...mesh.map((delivery) => ({
+            via: 'mesh' as const,
+            network: null,
+            lastUsedAt: iso(delivery.lastAt),
+            gatewayId: delivery.gatewayId,
+        })),
         ...(links?.mqtt === true
             ? [
                   {

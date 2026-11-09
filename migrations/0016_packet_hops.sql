@@ -1,0 +1,1 @@
+ALTER TABLE `packets_seen` ADD `hops` integer;

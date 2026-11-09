@@ -86,9 +86,11 @@ export type NodeRole = z.infer<typeof NodeRoleSchema>
 
 /** One way a node's data reaches the backend. `network` is null when it isn't known. */
 const NodeConnectionSchema = z.object({
-    via: z.enum(['mqtt', 'notecard', 'browser']),
+    via: z.enum(['mesh', 'mqtt', 'notecard', 'browser']),
     network: z.enum(['wifi', 'cellular', 'satellite']).nullable(),
     lastUsedAt: IsoTimestampSchema.nullable(),
+    /** For `mesh`: the gateway that delivered the node's packets. */
+    gatewayId: NodeIdSchema.optional(),
 })
 export type NodeConnection = z.infer<typeof NodeConnectionSchema>
 export type NodeStatus = z.infer<typeof NodeStatusSchema>
@@ -151,3 +153,44 @@ export const NodeSchema = z.object({
     details: NodeDetailsSchema.nullable(),
 })
 export type Node = z.infer<typeof NodeSchema>
+
+const SignalSchema = z.object({
+    snr: z.number(),
+    rssi: z.number().nullable(),
+    at: IsoTimestampSchema,
+})
+
+const NodeRefSchema = z.object({ id: NodeIdSchema, name: z.string() })
+
+/**
+ * How one node's packets reach the server, and the nodes around it, from the
+ * last 7 days. The mesh does not record which relays a packet passed through,
+ * only how many hops it took.
+ */
+const HopsSchema = z.number().int().min(0).nullable()
+
+const DeliverySchema = z.object({
+    /** The node itself when it is a gateway delivering its own packets. */
+    gateway: NodeRefSchema,
+    /** Hops to the gateway on the latest packet; null when the firmware did not say. */
+    hops: HopsSchema,
+    lastAt: IsoTimestampSchema,
+    /** The gateway's reading of this node, when it heard it directly. */
+    signal: SignalSchema.nullable(),
+    /** How the gateway reaches the server. */
+    connections: z.array(NodeConnectionSchema),
+})
+
+const NearbySchema = z.object({
+    node: NodeRefSchema,
+    /** This node hearing the other one. */
+    hears: SignalSchema.nullable(),
+    /** The other node hearing this one. */
+    heardBy: SignalSchema.nullable(),
+})
+
+export const NodePathSchema = z.object({
+    deliveries: z.array(DeliverySchema),
+    nearby: z.array(NearbySchema),
+})
+export type NodePath = z.infer<typeof NodePathSchema>

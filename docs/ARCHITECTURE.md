@@ -345,6 +345,7 @@ single resources return `{ <item>: {...} }`.
 | GET           | `/v1/me/sign-in-methods`                   | `{ methods: [{ kind, removable }] }`, kind `code` or `google`; the emailed code is always there and never removable                                            |
 | DELETE        | `/v1/me/sign-in-methods/google`            | Unlinks Google; 404 if it was not linked. Linking is Better Auth's `POST /v1/auth/link-social`, same address only                                              |
 | GET           | `/v1/nodes`                                | Every visible node, each with `mine`, `roles` and `connections`; `details` only on your own                                                                    |
+| GET           | `/v1/nodes/:id/path`                       | How the node's packets reach the server (gateway, hops, signal when heard directly, the gateway's own links) and the nodes around it, from the last 7 days     |
 | GET, PATCH    | `/v1/nodes/:id`                            | View; edit if you are on it (mesh ID and enabling are admin-only; firmware is not editable)                                                                    |
 | GET           | `/v1/gateways/status`                      | Each gateway's paths (MQTT, Notecard), when each last delivered, refusals in the last 24 hours, and the MQTT broker's state; disabled gateways for admins only |
 | GET, POST     | `/v1/me/nodes`                             | Nodes you are on; `{ nodes: [{ nodeNum, name?, hardware?, firmware?, hardwareId?, type? }] }` registers or joins each                                          |
@@ -387,7 +388,8 @@ A node not heard from in the window keeps the roles its people chose
 (`cellular` counts as `gateway`).
 
 `connections` lists how its data reaches the backend, the most recently used
-first: `mqtt` (Meshtastic's own internet, shown as Wi-Fi), `notecard` (with the
+first: `mesh` (one per gateway that delivered its packets, with `gatewayId`),
+`mqtt` (Meshtastic's own internet, shown as Wi-Fi), `notecard` (with the
 network from Notehub's `transport` when an event carried one: cellular, Wi-Fi or
 satellite), and `browser` (USB or Bluetooth from `/connect`, shown only to the
 node's people and admins). A gateway's links stay while it is registered; a
