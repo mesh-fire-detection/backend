@@ -110,3 +110,61 @@ describe('gateway routes', () => {
         })
     })
 })
+
+describe('a Notecard on the node', () => {
+    const NOTECARD = 'dev:867730051798100'
+
+    it('makes the node cellular, and moves with the Notecard', async () => {
+        const { h, admin } = await setup()
+        h.services.nodes.register(nodeInput({ id: 'sen-01', meshId: 0x0d, type: 'sensor' }), ADMIN)
+        h.services.nodes.register(nodeInput({ id: 'sen-02', meshId: 0x0c, type: 'sensor' }), ADMIN)
+        const typeOf = async (id: string) => {
+            const response = await h.request(`/v1/nodes/${id}`, { cookie: admin.cookie })
+            return ((await response.json()) as { node: { type: string | null } }).node.type
+        }
+        const mapTypes = () => {
+            h.advance(60_000)
+            return Object.fromEntries(
+                h.services.network.get().nodes.map((node) => [node.id, node.type])
+            )
+        }
+
+        h.services.gateways.register({ nodeId: 'sen-01', mqttUsername: 'gw-sen-01' })
+        expect(await typeOf('sen-01')).toBe('sensor')
+
+        h.services.gateways.update('sen-01', { notecardUid: NOTECARD })
+        h.services.gateways.update('sen-01', { enabled: false })
+        expect(await typeOf('sen-01')).toBe('cellular')
+        expect(mapTypes()).toMatchObject({ 'sen-01': 'cellular', 'sen-02': 'sensor' })
+
+        h.services.gateways.update('sen-01', { notecardUid: null })
+        const removed = await h.request('/v1/gateways/sen-01', {
+            method: 'DELETE',
+            cookie: admin.cookie,
+        })
+        h.services.gateways.register({ nodeId: 'sen-02', notecardUid: NOTECARD })
+
+        expect(removed.status).toBe(204)
+        expect(await typeOf('sen-01')).toBe('sensor')
+        expect(await typeOf('sen-02')).toBe('cellular')
+        expect(mapTypes()).toMatchObject({ 'sen-01': 'sensor', 'sen-02': 'cellular' })
+    })
+
+    it('can be freed by removing a Notecard-only gateway, which only an admin may do', async () => {
+        const { h, admin, user } = await setup()
+        h.services.gateways.register({ nodeId: 'cel-01', notecardUid: NOTECARD })
+        const remove = (cookie?: string) =>
+            h.request('/v1/gateways/cel-01', { method: 'DELETE', ...(cookie && { cookie }) })
+
+        const anonymous = await remove()
+        const notAdmin = await remove(user.cookie)
+        const removed = await remove(admin.cookie)
+        const again = await remove(admin.cookie)
+
+        expect(anonymous.status).toBe(401)
+        expect(notAdmin.status).toBe(403)
+        expect(removed.status).toBe(204)
+        expect(again.status).toBe(404)
+        expect(h.services.gateways.list()).toEqual([])
+    })
+})

@@ -344,6 +344,7 @@ single resources return `{ <item>: {...} }`.
 | PATCH     | `/v1/nodes/:id`        | Edit any node, including its mesh ID and enabling                                    |
 | GET, POST | `/v1/gateways`         | List or register gateways                                                            |
 | PATCH     | `/v1/gateways/:nodeId` | Change MQTT username/Notecard UID, rotate or revoke Notehub token, enable or disable |
+| DELETE    | `/v1/gateways/:nodeId` | Stop a node being a gateway, freeing its Notecard UID for another node               |
 | GET, POST | `/v1/users`            | List users; invite an address (`{ email, role }`, sends nothing)                     |
 | GET       | `/v1/invites`          | Invites not yet used                                                                 |
 | DELETE    | `/v1/invites/:id`      | Withdraw an unused invite                                                            |

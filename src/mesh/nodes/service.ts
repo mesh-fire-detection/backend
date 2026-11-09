@@ -9,6 +9,7 @@ import {
     type ReportedNode,
     type UpdateNode,
 } from '#src/mesh/nodes/schema'
+import { shownType } from '#src/mesh/nodes/type'
 import { type Viewer } from '#src/shared/auth/access'
 import { DomainError, notFound } from '#src/shared/errors'
 import { type Clock, MS_PER_MINUTE } from '#src/shared/time'
@@ -121,6 +122,7 @@ export function createNodeService(deps: {
     const viewsFor = (rows: readonly NodeRow[], viewer: Viewer): Node[] => {
         const mine = repo.memberNodeIds(viewer.id)
         const levels = batteries()
+        const notecardGateways = repo.notecardGatewayIds()
         const now = clock()
         const canEdit = (row: NodeRow) => viewer.role === 'admin' || mine.has(row.id)
         const owners = new Map<string, Owner[]>()
@@ -136,7 +138,7 @@ export function createNodeService(deps: {
         }
         return rows.map((row) =>
             toNode(
-                row,
+                { ...row, type: shownType(row, notecardGateways) },
                 { mine: mine.has(row.id), canEdit: canEdit(row) },
                 owners.get(row.id) ?? [],
                 levels.get(row.id) ?? null,

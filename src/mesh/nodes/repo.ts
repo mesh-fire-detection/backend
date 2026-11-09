@@ -1,7 +1,7 @@
-import { and, asc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm'
 
 import { type Db } from '#src/shared/db/connection'
-import { nodeMembers, nodes, users } from '#src/shared/db/schema'
+import { gateways, nodeMembers, nodes, users } from '#src/shared/db/schema'
 
 export type NodeRow = typeof nodes.$inferSelect
 type NewNodeRow = typeof nodes.$inferInsert
@@ -56,6 +56,16 @@ export function createNodeRepo(db: Db) {
 
         update(id: string, patch: NodeRowPatch): NodeRow | undefined {
             return db.update(nodes).set(patch).where(eq(nodes.id, id)).returning().get()
+        },
+
+        /** Nodes registered as gateways with a Notecard, enabled or not. */
+        notecardGatewayIds(): Set<string> {
+            const rows = db
+                .select({ nodeId: gateways.nodeId })
+                .from(gateways)
+                .where(isNotNull(gateways.notecardUid))
+                .all()
+            return new Set(rows.map((row) => row.nodeId))
         },
 
         listByMember(userId: string): NodeRow[] {

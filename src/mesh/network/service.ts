@@ -3,6 +3,7 @@ import { type MeshLink, type MeshNode, type Network } from '#src/mesh/network/sc
 import { shownLocation } from '#src/mesh/nodes/position'
 import { type NodeRepo, type NodeRow } from '#src/mesh/nodes/repo'
 import { type NodeStatus } from '#src/mesh/nodes/schema'
+import { shownType } from '#src/mesh/nodes/type'
 import { type Clock, MS_PER_MINUTE, MS_PER_SECOND } from '#src/shared/time'
 
 export type StatusThresholds = {
@@ -147,7 +148,10 @@ export function createNetworkService(deps: {
     let cached: { readonly network: Network; readonly expiresAt: number } | undefined
 
     const build = (now: Date): Network => {
-        const nodes = nodeRepo.listEnabled().flatMap((node) => mappable(node) ?? [])
+        const notecardGateways = nodeRepo.notecardGatewayIds()
+        const nodes = nodeRepo
+            .listEnabled()
+            .flatMap((node) => mappable({ ...node, type: shownType(node, notecardGateways) }) ?? [])
         const batteries = repo.latestBatteryByNode()
         const nodesById = new Map(nodes.map((node) => [node.id, node]))
         const since = new Date(now.getTime() - linkWindowMin * MS_PER_MINUTE)

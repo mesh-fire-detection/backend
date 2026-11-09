@@ -28,6 +28,12 @@ export function createGatewayRepo(db: Db) {
             return db.select().from(gateways).where(eq(gateways.notehubTokenHash, tokenHash)).get()
         },
 
+        delete(nodeId: string): boolean {
+            return (
+                db.delete(gateways).where(eq(gateways.nodeId, nodeId)).returning().all().length > 0
+            )
+        },
+
         insert(row: NewGatewayRow): GatewayRow {
             return db.insert(gateways).values(row).returning().get()
         },

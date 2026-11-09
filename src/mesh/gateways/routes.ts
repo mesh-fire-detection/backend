@@ -25,4 +25,13 @@ export function gatewayRoutes(service: GatewayService) {
                     gateway: service.update(c.req.valid('param').nodeId, c.req.valid('json')),
                 })
         )
+        .delete(
+            '/v1/gateways/:nodeId',
+            access('admin'),
+            validate('param', GatewayParamsSchema),
+            (c) => {
+                service.remove(c.req.valid('param').nodeId)
+                return c.body(null, 204)
+            }
+        )
 }
