@@ -286,25 +286,51 @@ export function createNodeService(deps: {
                     ? null
                     : { snr: link.snr, rssi: link.rssi, at: link.observedAt.toISOString() }
 
-            const deliveries = repo.deliveriesOf(row.nodeNum, since).flatMap((delivery) => {
-                const gateway = shown(delivery.gatewayId)
-                if (gateway === undefined) return []
-                const direct = links.find(
-                    (link) => link.fromNodeId === row.id && link.toNodeId === gateway.id
+            const serverLinks = (gateway: NodeRow) =>
+                connectionsOf(gateway, observed).filter(
+                    (connection) => connection.via === 'mqtt' || connection.via === 'notecard'
                 )
-                return [
-                    {
-                        gateway: { id: gateway.id, name: gateway.name },
-                        hops: gateway.id === row.id ? 0 : delivery.hops,
-                        lastAt: delivery.lastAt.toISOString(),
-                        signal: gateway.id === row.id ? null : signal(direct),
-                        connections: connectionsOf(gateway, observed).filter(
-                            (connection) =>
-                                connection.via === 'mqtt' || connection.via === 'notecard'
-                        ),
-                    },
-                ]
-            })
+            const meshDeliveries = repo
+                .deliveriesOf(row.nodeNum, since)
+                .filter((delivery) => delivery.gatewayId !== row.id)
+                .flatMap((delivery) => {
+                    const gateway = shown(delivery.gatewayId)
+                    if (gateway === undefined) return []
+                    const direct = links.find(
+                        (link) => link.fromNodeId === row.id && link.toNodeId === gateway.id
+                    )
+                    return [
+                        {
+                            gateway: { id: gateway.id, name: gateway.name },
+                            hops: delivery.hops,
+                            lastAt: delivery.lastAt.toISOString(),
+                            signal: signal(direct),
+                            connections: serverLinks(gateway),
+                        },
+                    ]
+                })
+            // A gateway's own route is in use whenever its links deliver anything,
+            // including the packets it forwards, not only the ones it sends itself.
+            const ownLinks = observed.gateways.has(row.id) ? serverLinks(row) : []
+            const ownLastAt = ownLinks
+                .map((connection) => connection.lastUsedAt)
+                .filter((at) => at !== null)
+                .toSorted((a, b) => a.localeCompare(b))
+                .at(-1)
+            const deliveries = [
+                ...meshDeliveries,
+                ...(ownLastAt === undefined
+                    ? []
+                    : [
+                          {
+                              gateway: { id: row.id, name: row.name },
+                              hops: 0,
+                              lastAt: ownLastAt,
+                              signal: null,
+                              connections: ownLinks,
+                          },
+                      ]),
+            ]
 
             const others = [
                 ...new Set(
@@ -316,22 +342,33 @@ export function createNodeService(deps: {
             // Newest first, so the first match is the latest reading.
             const latest = (from: string, to: string) =>
                 signal(links.find((link) => link.fromNodeId === from && link.toNodeId === to))
+            const levels = batteries()
             const nearby = others.flatMap((otherId) => {
                 const other = shown(otherId)
-                return other === undefined
-                    ? []
-                    : [
-                          {
-                              node: { id: other.id, name: other.name },
-                              hears: latest(otherId, row.id),
-                              heardBy: latest(row.id, otherId),
-                          },
-                      ]
+                if (other === undefined) return []
+                const battery = levels.get(other.id)
+                return [
+                    {
+                        node: {
+                            id: other.id,
+                            name: other.name,
+                            meshId: formatMeshId(other.nodeNum),
+                            hardware: other.hardware,
+                            firmware: other.firmware,
+                            batteryPct: battery === undefined ? null : Math.round(battery),
+                        },
+                        hears: latest(otherId, row.id),
+                        heardBy: latest(row.id, otherId),
+                    },
+                ]
             })
+            // Strongest first, as /connect lists them: by how well this node hears it.
+            const strength = (entry: (typeof nearby)[number]) =>
+                entry.hears?.snr ?? entry.heardBy?.snr ?? -Infinity
 
             return {
                 deliveries: deliveries.toSorted((a, b) => b.lastAt.localeCompare(a.lastAt)),
-                nearby,
+                nearby: nearby.toSorted((a, b) => strength(b) - strength(a)),
             }
         },
 

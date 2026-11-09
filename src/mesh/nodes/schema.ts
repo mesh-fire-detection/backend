@@ -181,8 +181,16 @@ const DeliverySchema = z.object({
     connections: z.array(NodeConnectionSchema),
 })
 
+/** What /connect shows of a peer: what it is, and its last battery level. */
+const NearbyNodeSchema = NodeRefSchema.extend({
+    meshId: z.string(),
+    hardware: z.string().nullable(),
+    firmware: z.string().nullable(),
+    batteryPct: z.number().nullable(),
+})
+
 const NearbySchema = z.object({
-    node: NodeRefSchema,
+    node: NearbyNodeSchema,
     /** This node hearing the other one. */
     hears: SignalSchema.nullable(),
     /** The other node hearing this one. */

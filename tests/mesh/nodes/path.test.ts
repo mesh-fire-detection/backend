@@ -105,7 +105,27 @@ describe('a node’s path to the server', () => {
         ).toEqual(['mqtt'])
     })
 
-    it('lists the nodes around it, in both directions, for the window', async () => {
+    it('shows a gateway’s own route when it only forwards other nodes’ packets', async () => {
+        const h = createHarness()
+        seedMesh(h)
+        const member = await h.signInAs('user')
+
+        send(h, SENSOR_NODE)
+        const at = h.clock().toISOString()
+
+        const { deliveries } = await pathOf(h, 'cel-01', member.cookie)
+        expect(deliveries).toEqual([
+            {
+                gateway: { id: 'cel-01', name: 'Ridge gateway' },
+                hops: 0,
+                lastAt: at,
+                signal: null,
+                connections: [{ via: 'mqtt', network: 'wifi', lastUsedAt: at }],
+            },
+        ])
+    })
+
+    it('lists the nodes around it, strongest first, in both directions, for the window', async () => {
         const h = createHarness()
         seedMesh(h)
         const member = await h.signInAs('user')
@@ -124,7 +144,14 @@ describe('a node’s path to the server', () => {
         const now = await pathOf(h, 'sen-01', member.cookie)
         expect(now.nearby).toEqual([
             {
-                node: { id: 'sen-02', name: 'Rattlesnake Ridge 2' },
+                node: {
+                    id: 'sen-02',
+                    name: 'Rattlesnake Ridge 2',
+                    meshId: '!0a000003',
+                    hardware: null,
+                    firmware: '2.5.9',
+                    batteryPct: null,
+                },
                 hears: { snr: 4, rssi: null, at },
                 heardBy: { snr: -2, rssi: null, at },
             },
