@@ -135,6 +135,10 @@ export function createIngestService(deps: IngestDeps) {
         ) {
             return rejected('unknown_gateway')
         }
+        // The gateway delivered, so it is alive, whether or not the packet is
+        // new or its sender registered. Its own telemetry alone is too rare.
+        repo.markHeard(gatewayNode.id, receivedAt)
+        const source = options === undefined ? 'mqtt' : 'notehub'
         const node = enabledNode(packet.fromNodeNum)
         if (node === undefined) return rejected('unregistered_node')
         if (packet.sourceHash !== undefined && repo.wasAcceptedViaNotehub(packet.sourceHash)) {
@@ -150,10 +154,10 @@ export function createIngestService(deps: IngestDeps) {
             sourceHash: packet.sourceHash ?? null,
             gatewayId: gatewayNode.id,
             receivedAt,
+            via: source,
         })
         const recordedAt = options?.recordedAt ?? receivedAt
         const liveEligible = options?.liveEligible ?? true
-        const source = options === undefined ? 'mqtt' : 'notehub'
         const stored = storePayload(node, packet.payload, recordedAt, liveEligible, source)
         if (liveEligible) {
             if (packet.direct !== null) {
@@ -187,6 +191,10 @@ export function createIngestService(deps: IngestDeps) {
     return {
         store,
         evaluate,
+        /** For a delivery that stores nothing new, such as a repeated Notehub event. */
+        gatewayDelivered(gatewayId: string, at: Date): void {
+            repo.markHeard(gatewayId, at)
+        },
         /** Stores one MQTT packet at server receipt time. */
         handle(packet: MeshPacket, receivedAt: Date): IngestOutcome {
             const { outcome, readings } = transact(() => store(packet, receivedAt))

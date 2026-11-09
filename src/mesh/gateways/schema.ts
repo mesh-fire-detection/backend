@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { MqttStateSchema } from '#src/health/schema'
 import { NodeIdSchema, IsoTimestampSchema } from '#src/mesh/nodes/schema'
 
 /** Must match the gateway's username in Mosquitto's password file. */
@@ -52,3 +53,28 @@ export const GatewaySchema = z.object({
     updatedAt: IsoTimestampSchema,
 })
 export type Gateway = z.infer<typeof GatewaySchema>
+
+/**
+ * One gateway as anyone signed in sees it: how it connects and when each path
+ * last delivered. No credentials or identities, so members can see it.
+ */
+const GatewayConnectionSchema = z.object({
+    via: z.enum(['mqtt', 'notecard']),
+    lastDeliveryAt: IsoTimestampSchema.nullable(),
+})
+
+const GatewayStatusSchema = z.object({
+    nodeId: NodeIdSchema,
+    name: z.string(),
+    enabled: z.boolean(),
+    connections: z.array(GatewayConnectionSchema),
+    lastDeliveryAt: IsoTimestampSchema.nullable(),
+    /** Deliveries refused in the last 24 hours, as the event log has counted them. */
+    rejectedLast24h: z.number().int().min(0),
+})
+
+export const GatewaysStatusSchema = z.object({
+    broker: MqttStateSchema,
+    gateways: z.array(GatewayStatusSchema),
+})
+export type GatewaysStatus = z.infer<typeof GatewaysStatusSchema>

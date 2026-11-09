@@ -1,11 +1,23 @@
 import { createHash } from 'node:crypto'
 
 import { type EventLog } from '#src/health/events/service'
+import { type MqttState } from '#src/health/schema'
 import { type GatewayRepo, type GatewayRow } from '#src/mesh/gateways/repo'
-import { type Gateway, type RegisterGateway, type UpdateGateway } from '#src/mesh/gateways/schema'
+import {
+    type Gateway,
+    type GatewaysStatus,
+    type RegisterGateway,
+    type UpdateGateway,
+} from '#src/mesh/gateways/schema'
+import { formatMeshId } from '#src/mesh/meshId'
 import { type NodeRepo } from '#src/mesh/nodes/repo'
+import { type Viewer } from '#src/shared/auth/access'
 import { DomainError, notFound } from '#src/shared/errors'
-import { type Clock } from '#src/shared/time'
+import { type Clock, MS_PER_MINUTE } from '#src/shared/time'
+
+const REJECTION_WINDOW_MS = 24 * 60 * MS_PER_MINUTE
+
+const iso = (at: Date | null): string | null => at?.toISOString() ?? null
 
 function toGateway(row: GatewayRow): Gateway {
     return {
@@ -24,8 +36,9 @@ export function createGatewayService(deps: {
     readonly nodeRepo: NodeRepo
     readonly clock: Clock
     readonly events: EventLog
+    readonly mqttState: () => MqttState
 }) {
-    const { repo, nodeRepo, clock, events } = deps
+    const { repo, nodeRepo, clock, events, mqttState } = deps
 
     const assertUsernameFree = (mqttUsername: string, exceptNodeId?: string): void => {
         const holder = repo.findByMqttUsername(mqttUsername)
@@ -54,6 +67,42 @@ export function createGatewayService(deps: {
     return {
         list(): Gateway[] {
             return repo.list().map((row) => toGateway(row))
+        },
+
+        /** Admins see every gateway; everyone else only the enabled ones. */
+        status(viewer: Viewer): GatewaysStatus {
+            const since = new Date(clock().getTime() - REJECTION_WINDOW_MS)
+            const gateways = repo.list().flatMap((row) => {
+                const node = nodeRepo.findById(row.nodeId)
+                if (node === undefined) return []
+                const enabled = row.enabled && node.enabled
+                if (!enabled && viewer.role !== 'admin') return []
+                const last = repo.lastDeliveryByPath(row.nodeId)
+                const connections = [
+                    ...(row.mqttUsername === null
+                        ? []
+                        : [{ via: 'mqtt' as const, lastDeliveryAt: iso(last.mqtt) }]),
+                    ...(row.notecardUid === null
+                        ? []
+                        : [{ via: 'notecard' as const, lastDeliveryAt: iso(last.notehub) }]),
+                ]
+                const times = [last.mqtt, last.notehub].filter((at) => at !== null)
+                const latest = times.length === 0 ? null : new Date(Math.max(...times.map(Number)))
+                return [
+                    {
+                        nodeId: row.nodeId,
+                        name: node.name,
+                        enabled,
+                        connections,
+                        lastDeliveryAt: iso(latest),
+                        rejectedLast24h: repo.rejectionsSince(
+                            [row.nodeId, formatMeshId(node.nodeNum)],
+                            since
+                        ),
+                    },
+                ]
+            })
+            return { broker: mqttState(), gateways }
         },
 
         register(input: RegisterGateway): Gateway {

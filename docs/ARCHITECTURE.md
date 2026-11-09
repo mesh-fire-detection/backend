@@ -180,15 +180,17 @@ ingest and alert evaluation run inside real transactions.
 5. Look up the sender's node number. Drop and log if unregistered or disabled.
 6. Drop the packet if the same (`fromNodeNum`, `packetId`) was accepted in the
    last 24 hours.
-7. In one transaction: record the packet in `packets_seen`, then route by
-   payload:
+7. In one transaction: mark the **gateway** heard (any delivery from a
+   registered, enabled gateway, even a duplicate or an unregistered sender),
+   record the packet in `packets_seen` with the path that delivered it (`via`:
+   `mqtt` or `notehub`), then route by payload:
     - Telemetry → `readings` (every set numeric field), and device metrics
       also → `device_metrics`
     - NeighborInfo → `link_observations` (SNR only)
     - Position and NodeInfo → the node's `reported*` fields
     - If the gateway heard the sender directly (`hopStart == hopLimit`), a
       `link_observations` row from sender to gateway with SNR and RSSI
-    - Update the node's `lastHeardAt`
+    - Update the sender's `lastHeardAt`
 8. After commit, evaluate alert rules for the new readings. A failure there is
    logged and never loses the stored data.
 
@@ -223,19 +225,19 @@ with a node the browser connected.
 
 **nodes**
 
-| Column                                                                                     | Notes                                                                              |
-| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| `id`                                                                                       | Primary key: `n-0001` assigned by the server, or chosen by an admin (`cel-01`)     |
-| `nodeNum`                                                                                  | Meshtastic node number. Unique.                                                    |
-| `hardwareId`                                                                               | Meshtastic `MyNodeInfo.device_id`; survives a reflash. Unique, nullable            |
-| `name`, `type`                                                                             | `type` is `base`, `cellular`, `sensor`, `vision`, or null until set                |
-| `longitude`, `latitude`, `elevationM`, `antennaHeightM`                                    | Exact location, nullable until deployed                                            |
-| `exactPosition`                                                                            | Show the position exactly to everyone; off by default                              |
-| `hardware`, `firmware`, `deployedOn`, `note`                                               | Nullable                                                                           |
-| `enabled`                                                                                  | Disabled nodes are ignored at ingest and hidden from the map                       |
-| `lastHeardAt`                                                                              | Updated monotonically by accepted MQTT packets and eligible live Notehub telemetry |
-| `reportedName`, `reportedLongitude`, `reportedLatitude`, `reportedAltitudeM`, `reportedAt` | Last NodeInfo / Position from the node                                             |
-| `createdAt`, `updatedAt`                                                                   |                                                                                    |
+| Column                                                                                     | Notes                                                                                                                            |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                                                                                       | Primary key: `n-0001` assigned by the server, or chosen by an admin (`cel-01`)                                                   |
+| `nodeNum`                                                                                  | Meshtastic node number. Unique.                                                                                                  |
+| `hardwareId`                                                                               | Meshtastic `MyNodeInfo.device_id`; survives a reflash. Unique, nullable                                                          |
+| `name`, `type`                                                                             | `type` is `base`, `cellular`, `sensor`, `vision`, or null until set                                                              |
+| `longitude`, `latitude`, `elevationM`, `antennaHeightM`                                    | Exact location, nullable until deployed                                                                                          |
+| `exactPosition`                                                                            | Show the position exactly to everyone; off by default                                                                            |
+| `hardware`, `firmware`, `deployedOn`, `note`                                               | Nullable                                                                                                                         |
+| `enabled`                                                                                  | Disabled nodes are ignored at ingest and hidden from the map                                                                     |
+| `lastHeardAt`                                                                              | Updated monotonically by accepted MQTT packets and eligible live Notehub telemetry, and for a gateway by every delivery it makes |
+| `reportedName`, `reportedLongitude`, `reportedLatitude`, `reportedAltitudeM`, `reportedAt` | Last NodeInfo / Position from the node                                                                                           |
+| `createdAt`, `updatedAt`                                                                   |                                                                                                                                  |
 
 **gateways**: `nodeId` (primary key), nullable unique `mqttUsername`, nullable
 unique `notecardUid`, nullable unique `notehubTokenHash`, `enabled`, timestamps.
@@ -324,27 +326,28 @@ single resources return `{ <item>: {...} }`.
 
 **User** (logged in)
 
-| Method        | Path                                       | Purpose                                                                                                               |
-| ------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| GET           | `/v1/nodes/:id/readings?metric=&from=&to=` | Sensor history (default last 24 h, max 31 days, 10,000 rows); 404 if you cannot see the node                          |
-| GET           | `/v1/nodes/:id/metrics?from=&to=`          | Battery and uptime history                                                                                            |
-| POST          | `/v1/nodes/:id/upload`                     | A browser's copy of readings, events and settings, for the node's people and admins; never live                       |
-| GET           | `/v1/nodes/:id/events`                     | Connections, restarts and faults, newest first, for the node's people and admins                                      |
-| GET, POST     | `/v1/alert-rules`                          | List (own; admins see all) or create own rules                                                                        |
-| PATCH, DELETE | `/v1/alert-rules/:id`                      | Edit or remove own rule                                                                                               |
-| GET           | `/v1/alerts?status=`                       | System alerts plus own rule alerts (admins see all), newest 500                                                       |
-| PATCH         | `/v1/alerts/:id`                           | `{ status: acknowledged                                                                                               | resolved, note? }` |
-| PATCH         | `/v1/me`                                   | `{ name }` → renames yourself; the address and role cannot be changed here                                            |
-| GET, PATCH    | `/v1/me/subscription`                      | Own updates setting; `{ subscribed }` turns it on or off                                                              |
-| DELETE        | `/v1/me`                                   | Deletes your account (SPEC, Leaving); 409 for the only admin                                                          |
-| GET           | `/v1/me/sessions`                          | Where you are signed in, `current` marking this browser; never tokens                                                 |
-| DELETE        | `/v1/me/sessions`                          | Signs you out everywhere, this browser included                                                                       |
-| DELETE        | `/v1/me/sessions/:id`                      | Ends one of your sessions; 404 if it is not yours                                                                     |
-| GET           | `/v1/me/sign-in-methods`                   | `{ methods: [{ kind, removable }] }`, kind `code` or `google`; the emailed code is always there and never removable   |
-| DELETE        | `/v1/me/sign-in-methods/google`            | Unlinks Google; 404 if it was not linked. Linking is Better Auth's `POST /v1/auth/link-social`, same address only     |
-| GET           | `/v1/nodes`                                | Every visible node, each with `mine`; `details` only on your own                                                      |
-| GET, PATCH    | `/v1/nodes/:id`                            | View; edit if you are on it (mesh ID and enabling are admin-only; firmware is not editable)                           |
-| GET, POST     | `/v1/me/nodes`                             | Nodes you are on; `{ nodes: [{ nodeNum, name?, hardware?, firmware?, hardwareId?, type? }] }` registers or joins each |
+| Method        | Path                                       | Purpose                                                                                                                                                        |
+| ------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET           | `/v1/nodes/:id/readings?metric=&from=&to=` | Sensor history (default last 24 h, max 31 days, 10,000 rows); 404 if you cannot see the node                                                                   |
+| GET           | `/v1/nodes/:id/metrics?from=&to=`          | Battery and uptime history                                                                                                                                     |
+| POST          | `/v1/nodes/:id/upload`                     | A browser's copy of readings, events and settings, for the node's people and admins; never live                                                                |
+| GET           | `/v1/nodes/:id/events`                     | Connections, restarts and faults, newest first, for the node's people and admins                                                                               |
+| GET, POST     | `/v1/alert-rules`                          | List (own; admins see all) or create own rules                                                                                                                 |
+| PATCH, DELETE | `/v1/alert-rules/:id`                      | Edit or remove own rule                                                                                                                                        |
+| GET           | `/v1/alerts?status=`                       | System alerts plus own rule alerts (admins see all), newest 500                                                                                                |
+| PATCH         | `/v1/alerts/:id`                           | `{ status: acknowledged                                                                                                                                        | resolved, note? }` |
+| PATCH         | `/v1/me`                                   | `{ name }` → renames yourself; the address and role cannot be changed here                                                                                     |
+| GET, PATCH    | `/v1/me/subscription`                      | Own updates setting; `{ subscribed }` turns it on or off                                                                                                       |
+| DELETE        | `/v1/me`                                   | Deletes your account (SPEC, Leaving); 409 for the only admin                                                                                                   |
+| GET           | `/v1/me/sessions`                          | Where you are signed in, `current` marking this browser; never tokens                                                                                          |
+| DELETE        | `/v1/me/sessions`                          | Signs you out everywhere, this browser included                                                                                                                |
+| DELETE        | `/v1/me/sessions/:id`                      | Ends one of your sessions; 404 if it is not yours                                                                                                              |
+| GET           | `/v1/me/sign-in-methods`                   | `{ methods: [{ kind, removable }] }`, kind `code` or `google`; the emailed code is always there and never removable                                            |
+| DELETE        | `/v1/me/sign-in-methods/google`            | Unlinks Google; 404 if it was not linked. Linking is Better Auth's `POST /v1/auth/link-social`, same address only                                              |
+| GET           | `/v1/nodes`                                | Every visible node, each with `mine`; `details` only on your own                                                                                               |
+| GET, PATCH    | `/v1/nodes/:id`                            | View; edit if you are on it (mesh ID and enabling are admin-only; firmware is not editable)                                                                    |
+| GET           | `/v1/gateways/status`                      | Each gateway's paths (MQTT, Notecard), when each last delivered, refusals in the last 24 hours, and the MQTT broker's state; disabled gateways for admins only |
+| GET, POST     | `/v1/me/nodes`                             | Nodes you are on; `{ nodes: [{ nodeNum, name?, hardware?, firmware?, hardwareId?, type? }] }` registers or joins each                                          |
 
 **Admin**
 

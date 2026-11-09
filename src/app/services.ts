@@ -169,7 +169,13 @@ export function createServices(deps: ServiceDeps) {
             events,
         }),
         nodes,
-        gateways: createGatewayService({ repo: gatewayRepo, nodeRepo, clock, events }),
+        gateways: createGatewayService({
+            repo: gatewayRepo,
+            nodeRepo,
+            clock,
+            events,
+            mqttState: deps.mqttState,
+        }),
         ingest,
         notehub,
         network: createNetworkService({

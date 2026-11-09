@@ -193,6 +193,7 @@ export function createNotehubService(deps: {
                             receivedAt,
                         })
                     }
+                    ingest.gatewayDelivered(gatewayId, receivedAt)
                 })
                 storageFailed = false
             } catch (error) {

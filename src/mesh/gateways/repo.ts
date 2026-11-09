@@ -1,7 +1,7 @@
-import { asc, eq, max } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, max, sum } from 'drizzle-orm'
 
 import { type Db } from '#src/shared/db/connection'
-import { gateways, notehubEvents, packetsSeen } from '#src/shared/db/schema'
+import { events, gateways, notehubEvents, packetsSeen } from '#src/shared/db/schema'
 
 export type GatewayRow = typeof gateways.$inferSelect
 type NewGatewayRow = typeof gateways.$inferInsert
@@ -38,6 +38,42 @@ export function createGatewayRepo(db: Db) {
                         lastAt: times.length === 0 ? null : new Date(Math.max(...times)),
                     }
                 })
+        },
+
+        /** When this gateway last delivered over each path; `null` if never. */
+        lastDeliveryByPath(gatewayId: string): { mqtt: Date | null; notehub: Date | null } {
+            const mqtt = db
+                .select({ at: max(packetsSeen.receivedAt) })
+                .from(packetsSeen)
+                .where(and(eq(packetsSeen.gatewayId, gatewayId), eq(packetsSeen.via, 'mqtt')))
+                .get()
+            const notehub = db
+                .select({ at: max(notehubEvents.receivedAt) })
+                .from(notehubEvents)
+                .where(eq(notehubEvents.gatewayId, gatewayId))
+                .get()
+            return { mqtt: mqtt?.at ?? null, notehub: notehub?.at ?? null }
+        },
+
+        /**
+         * Refused deliveries counted against a gateway since `since`. MQTT
+         * rejections name the gateway by mesh ID, since it may not be
+         * registered; Notehub ones by node ID, so both are passed.
+         */
+        rejectionsSince(subjectIds: readonly string[], since: Date): number {
+            const row = db
+                .select({ total: sum(events.count) })
+                .from(events)
+                .where(
+                    and(
+                        inArray(events.type, ['ingest.rejected', 'notehub.rejected']),
+                        eq(events.subjectKind, 'gateway'),
+                        inArray(events.subjectId, [...subjectIds]),
+                        gte(events.at, since)
+                    )
+                )
+                .get()
+            return Number(row?.total ?? 0)
         },
 
         findByNodeId(nodeId: string): GatewayRow | undefined {
