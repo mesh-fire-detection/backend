@@ -256,6 +256,8 @@ export const notehubEvents = sqliteTable(
         contentHash: text().notNull(),
         capturedAt: timestamp().notNull(),
         receivedAt: timestamp().notNull(),
+        /** The network Notehub says the Notecard used, e.g. `cell:emtc:lte-fdd`; null if not sent. */
+        transport: text(),
     },
     (t) => [
         index('notehub_events_received_at_idx').on(t.receivedAt),

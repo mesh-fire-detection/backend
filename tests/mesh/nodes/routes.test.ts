@@ -191,6 +191,7 @@ describe('node routes', () => {
             'antennaHeightM',
             'approximate',
             'batteryPct',
+            'connections',
             'deployedOn',
             'details',
             'elevationM',
@@ -202,6 +203,7 @@ describe('node routes', () => {
             'mine',
             'name',
             'position',
+            'roles',
             'status',
             'type',
         ])

@@ -1,5 +1,6 @@
-import { and, asc, eq, gte, inArray, max, sum } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, max, sum } from 'drizzle-orm'
 
+import { type GatewayLinks } from '#src/mesh/nodes/roles'
 import { type Db } from '#src/shared/db/connection'
 import { events, gateways, notehubEvents, packetsSeen } from '#src/shared/db/schema'
 
@@ -7,7 +8,54 @@ export type GatewayRow = typeof gateways.$inferSelect
 type NewGatewayRow = typeof gateways.$inferInsert
 
 export function createGatewayRepo(db: Db) {
+    /** When this gateway last delivered over each path; `null` if never. */
+    const lastDeliveryByPath = (gatewayId: string): { mqtt: Date | null; notehub: Date | null } => {
+        const mqtt = db
+            .select({ at: max(packetsSeen.receivedAt) })
+            .from(packetsSeen)
+            .where(and(eq(packetsSeen.gatewayId, gatewayId), eq(packetsSeen.via, 'mqtt')))
+            .get()
+        const notehub = db
+            .select({ at: max(notehubEvents.receivedAt) })
+            .from(notehubEvents)
+            .where(eq(notehubEvents.gatewayId, gatewayId))
+            .get()
+        return { mqtt: mqtt?.at ?? null, notehub: notehub?.at ?? null }
+    }
+
+    /** Notehub's network on the gateway's latest event that named one. */
+    const latestTransport = (gatewayId: string): string | null =>
+        db
+            .select({ transport: notehubEvents.transport })
+            .from(notehubEvents)
+            .where(and(eq(notehubEvents.gatewayId, gatewayId), isNotNull(notehubEvents.transport)))
+            .orderBy(desc(notehubEvents.receivedAt))
+            .limit(1)
+            .get()?.transport ?? null
+
     return {
+        lastDeliveryByPath,
+
+        /** Every registered gateway's paths, deliveries and latest Notehub network. */
+        links(): GatewayLinks[] {
+            return db
+                .select()
+                .from(gateways)
+                .orderBy(asc(gateways.nodeId))
+                .all()
+                .map((row) => {
+                    const last = lastDeliveryByPath(row.nodeId)
+                    return {
+                        nodeId: row.nodeId,
+                        mqtt: row.mqttUsername !== null,
+                        notecard: row.notecardUid !== null,
+                        lastMqttAt: last.mqtt,
+                        lastNotehubAt: last.notehub,
+                        notehubTransport: latestTransport(row.nodeId),
+                    }
+                })
+        },
+
         list(): GatewayRow[] {
             return db.select().from(gateways).orderBy(asc(gateways.nodeId)).all()
         },
@@ -38,21 +86,6 @@ export function createGatewayRepo(db: Db) {
                         lastAt: times.length === 0 ? null : new Date(Math.max(...times)),
                     }
                 })
-        },
-
-        /** When this gateway last delivered over each path; `null` if never. */
-        lastDeliveryByPath(gatewayId: string): { mqtt: Date | null; notehub: Date | null } {
-            const mqtt = db
-                .select({ at: max(packetsSeen.receivedAt) })
-                .from(packetsSeen)
-                .where(and(eq(packetsSeen.gatewayId, gatewayId), eq(packetsSeen.via, 'mqtt')))
-                .get()
-            const notehub = db
-                .select({ at: max(notehubEvents.receivedAt) })
-                .from(notehubEvents)
-                .where(eq(notehubEvents.gatewayId, gatewayId))
-                .get()
-            return { mqtt: mqtt?.at ?? null, notehub: notehub?.at ?? null }
         },
 
         /**

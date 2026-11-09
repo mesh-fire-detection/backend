@@ -2,8 +2,8 @@ import { type LinkObservationRow, type NetworkRepo } from '#src/mesh/network/rep
 import { type MeshLink, type MeshNode, type Network } from '#src/mesh/network/schema'
 import { shownLocation } from '#src/mesh/nodes/position'
 import { type NodeRepo, type NodeRow } from '#src/mesh/nodes/repo'
+import { shownType } from '#src/mesh/nodes/roles'
 import { type NodeStatus } from '#src/mesh/nodes/schema'
-import { shownType } from '#src/mesh/nodes/type'
 import { type Clock, MS_PER_MINUTE, MS_PER_SECOND } from '#src/shared/time'
 
 export type StatusThresholds = {
