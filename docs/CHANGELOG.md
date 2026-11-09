@@ -12,10 +12,18 @@ Notable changes to the backend, by release. How releases are cut is in
   counted rather than repeated, silent gateways are noticed, and events are
   kept for 90 days. **Migration 0013** adds the `events` table and indexes
   on when each gateway last delivered.
+- `DELETE /v1/gateways/:nodeId` stops a node being a gateway, so a Notecard
+  can move to another board. No migration.
 
 ### Changed
 
 - `createAdmin` no longer writes the new admin's email address to the log.
+
+### Fixed
+
+- A node with a Notecard on its gateway is shown as `cellular`, not the type
+  it was first registered with (often `sensor`, from the firmware's default
+  name). Moving the Notecard moves the type with it.
 
 ## 0.2.1 — 2026-11-08
 

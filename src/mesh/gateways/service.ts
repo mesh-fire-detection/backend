@@ -114,6 +114,15 @@ export function createGatewayService(deps: {
             if (row === undefined) throw notFound('Gateway')
             return toGateway(row)
         },
+
+        /**
+         * The node stops being a gateway: what it forwards is refused, and its
+         * Notecard UID and credential are free for another node. Readings it
+         * already delivered stay, since they belong to the sensors that sent them.
+         */
+        remove(nodeId: string): void {
+            if (!repo.delete(nodeId)) throw notFound('Gateway')
+        },
     }
 }
 

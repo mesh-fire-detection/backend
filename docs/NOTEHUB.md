@@ -72,6 +72,14 @@ change and reroute failures afterward. There is no overlapping-key grace period.
 Set `notehubToken: null` to revoke it. Disable the gateway or its node to stop
 accepting its events. Coordinate Notecard UID changes with route provisioning.
 
+A node with a Notecard UID on its gateway is shown as `cellular` everywhere,
+whatever type it was registered with. Boards are named by their firmware's
+default role (`MFD Sensor xxxx`), and a Notecard is often added later. To move
+a Notecard to another board, free its UID first: PATCH `notecardUid: null` if
+the old gateway keeps MQTT, or `DELETE /v1/gateways/<nodeId>` if the Notecard
+was its only transport. Then register or PATCH the new node with the UID, and
+move the Notehub route's fleet to match. The old node returns to its stored type.
+
 Registration does not create a Notehub account, fleet, route, secret, or gateway
 firmware configuration. Existing MQTT gateways still need their Mosquitto
 password and ACL setup from [MQTT.md](MQTT.md).
