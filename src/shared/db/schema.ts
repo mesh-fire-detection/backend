@@ -235,6 +235,8 @@ export const packetsSeen = sqliteTable(
             .references(() => nodes.id),
         receivedAt: timestamp().notNull(),
         sourceHash: text(),
+        /** Which ingest path delivered it. Older rows were filled in by migration 0014. */
+        via: text({ enum: ['mqtt', 'notehub'] }),
     },
     (t) => [
         index('packets_seen_key_idx').on(t.fromNodeNum, t.packetId, t.receivedAt),

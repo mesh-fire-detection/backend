@@ -99,6 +99,13 @@
       "when": 1794162086686,
       "tag": "0013_event_log",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1794247762674,
+      "tag": "0014_gateway_delivery_path",
+      "breakpoints": true
     }
   ]
 }

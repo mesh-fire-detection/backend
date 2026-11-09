@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { NotehubHealthSchema } from '#src/mesh/notehub/schema'
 
-const MqttStateSchema = z.enum(['connected', 'disconnected', 'disabled'])
+export const MqttStateSchema = z.enum(['connected', 'disconnected', 'disabled'])
 export type MqttState = z.infer<typeof MqttStateSchema>
 
 const EmailStateSchema = z.enum(['ok', 'failing', 'disabled'])

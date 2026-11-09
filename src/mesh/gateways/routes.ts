@@ -6,12 +6,13 @@ import {
     UpdateGatewaySchema,
 } from '#src/mesh/gateways/schema'
 import { type GatewayService } from '#src/mesh/gateways/service'
-import { access, type AppEnv } from '#src/shared/auth/access'
+import { access, type AppEnv, requireViewer } from '#src/shared/auth/access'
 import { validate } from '#src/shared/http/validate'
 
 export function gatewayRoutes(service: GatewayService) {
     return new Hono<AppEnv>()
         .get('/v1/gateways', access('admin'), (c) => c.json({ gateways: service.list() }))
+        .get('/v1/gateways/status', access('user'), (c) => c.json(service.status(requireViewer(c))))
         .post('/v1/gateways', access('admin'), validate('json', RegisterGatewaySchema), (c) =>
             c.json({ gateway: service.register(c.req.valid('json')) }, 201)
         )
