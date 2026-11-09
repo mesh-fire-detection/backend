@@ -2,12 +2,12 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { describe, expect, it } from 'vitest'
 
-import { createErrorHandler, notFound } from '#src/shared/http/handler'
+import { createErrorHandler, notFound, type ServerFailure } from '#src/shared/http/handler'
 import { createLogger } from '#src/shared/logger'
 
 function appThrowing(error: Error): Hono {
     const app = new Hono()
-    app.onError(createErrorHandler(createLogger('silent')))
+    app.onError(createErrorHandler(createLogger('silent'), () => {}))
     app.notFound(notFound)
     app.get('/boom', () => {
         throw error
@@ -47,5 +47,22 @@ describe('error handler', () => {
 
         expect(response.status).toBe(500)
         expect(await response.text()).not.toContain('locked')
+    })
+
+    it('reports a 5xx by route pattern and error class, never the path or message', async () => {
+        const failures: ServerFailure[] = []
+        const app = new Hono()
+        app.onError(
+            createErrorHandler(createLogger('silent'), (failure) => {
+                failures.push(failure)
+            })
+        )
+        app.get('/v1/nodes/:id', () => {
+            throw new TypeError('ada@example.org broke it')
+        })
+
+        await app.request('/v1/nodes/ada@example.org')
+
+        expect(failures).toEqual([{ method: 'GET', route: '/v1/nodes/:id', error: 'TypeError' }])
     })
 })

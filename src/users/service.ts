@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 
+import { type EventLog } from '#src/health/events/service'
 import { RoleSchema, type Viewer } from '#src/shared/auth/access'
 import { type Auth } from '#src/shared/auth/auth'
 import { isMember, type Membership } from '#src/shared/auth/membership'
@@ -75,8 +76,9 @@ export function createUserService(deps: {
     /** The website's origin, for the confirmation link. */
     readonly siteUrl: string
     readonly clock: Clock
+    readonly events: EventLog
 }) {
-    const { repo, auth, membership, email, siteUrl, clock } = deps
+    const { repo, auth, membership, email, siteUrl, clock, events } = deps
 
     /** Asks Better Auth for a code; the code mailer decides whether it is sent. */
     const sendCode = async (address: string, type: 'sign-in' | 'email-verification') => {
@@ -119,6 +121,10 @@ export function createUserService(deps: {
                 invitedById: invitedBy.id,
                 createdAt: clock(),
             })
+            // The invite's id, never its address.
+            events.record('invite.created', {
+                details: { invite: row.id, role: row.role, by: invitedBy.id },
+            })
             return { invite: toInvite(row) }
         },
 
@@ -128,6 +134,7 @@ export function createUserService(deps: {
 
         removeInvite(id: string): void {
             if (!repo.deleteOpenInvite(id)) throw notFound('Invite')
+            events.record('invite.removed', { details: { invite: id } })
         },
 
         /**
@@ -307,6 +314,7 @@ export function createUserService(deps: {
                 )
             }
             repo.erase(userId, row.email, `deleted-${userId}@deleted.invalid`, clock())
+            events.record('account.deleted', { subject: { kind: 'user', id: userId } })
         },
 
         async createAdmin(address: string, name: string, password: string): Promise<User> {
@@ -320,6 +328,7 @@ export function createUserService(deps: {
             })
             const row = repo.findById(user.id)
             if (row === undefined) throw new Error('created user is missing')
+            events.record('admin.created', { subject: { kind: 'user', id: row.id } })
             return toUser(row)
         },
 
@@ -327,7 +336,8 @@ export function createUserService(deps: {
             if (id === actor.id) {
                 throw new DomainError('forbidden', 'You cannot change your own role or access')
             }
-            if (repo.findById(id) === undefined) throw notFound('User')
+            const before = repo.findById(id)
+            if (before === undefined) throw notFound('User')
 
             const row = repo.update(id, {
                 role: input.role,
@@ -336,6 +346,19 @@ export function createUserService(deps: {
             })
             if (row === undefined) throw notFound('User')
             if (input.disabled === true) repo.deleteSessions(id)
+            const subject = { kind: 'user', id } as const
+            if (input.role !== undefined && input.role !== before.role) {
+                events.record('user.role_changed', {
+                    subject,
+                    details: { role: input.role, by: actor.id },
+                })
+            }
+            if (input.disabled !== undefined && input.disabled !== (before.banned === true)) {
+                events.record(input.disabled ? 'user.disabled' : 'user.enabled', {
+                    subject,
+                    details: { by: actor.id },
+                })
+            }
             return toUser(row)
         },
     }

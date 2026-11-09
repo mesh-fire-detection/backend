@@ -2,6 +2,7 @@ import { type EvaluationRepo } from '#src/alerts/evaluation/repo'
 import { type AlertRepo } from '#src/alerts/lifecycle/repo'
 import { type AlertService } from '#src/alerts/lifecycle/service'
 import { type RuleRepo, type RuleRow } from '#src/alerts/rules/repo'
+import { type EventLog } from '#src/health/events/service'
 import { type AcceptedReading } from '#src/mesh/ingest/service'
 import { type NetworkRepo } from '#src/mesh/network/repo'
 import { type NodeRepo } from '#src/mesh/nodes/repo'
@@ -23,9 +24,20 @@ export function createEvaluationService(deps: {
     readonly nodeRepo: NodeRepo
     readonly networkRepo: NetworkRepo
     readonly transact: <T>(fn: () => T) => T
+    readonly events: EventLog
     readonly thresholds: SystemThresholds
 }) {
-    const { repo, ruleRepo, alertRepo, alerts, nodeRepo, networkRepo, transact, thresholds } = deps
+    const {
+        repo,
+        ruleRepo,
+        alertRepo,
+        alerts,
+        nodeRepo,
+        networkRepo,
+        transact,
+        thresholds,
+        events,
+    } = deps
 
     const evaluateRule = (rule: RuleRow, reading: AcceptedReading): void => {
         const { nodeId, value, recordedAt: at } = reading
@@ -101,7 +113,12 @@ export function createEvaluationService(deps: {
                             : (now.getTime() - node.lastHeardAt.getTime()) / MS_PER_MINUTE
                     const offline = silentMin !== null && silentMin >= thresholds.offlineMin
                     const offlineAlert = openOffline.get(node.id)
+                    const subject = { kind: 'node', id: node.id } as const
                     if (offline && offlineAlert === undefined) {
+                        events.record('node.offline', {
+                            subject,
+                            details: { silentMin: Math.floor(silentMin) },
+                        })
                         alerts.open({
                             kind: 'offline',
                             ruleId: null,
@@ -110,6 +127,7 @@ export function createEvaluationService(deps: {
                             at: now,
                         })
                     } else if (!offline && offlineAlert !== undefined) {
+                        events.record('node.back', { subject })
                         alerts.resolve(offlineAlert, now, 'node heard again')
                     }
 
@@ -117,6 +135,10 @@ export function createEvaluationService(deps: {
                     const low = battery !== undefined && battery < thresholds.lowBatteryPct
                     const lowAlert = openLowBattery.get(node.id)
                     if (low && lowAlert === undefined) {
+                        events.record('node.battery_low', {
+                            subject,
+                            details: { batteryPct: battery },
+                        })
                         alerts.open({
                             kind: 'low_battery',
                             ruleId: null,
@@ -125,6 +147,7 @@ export function createEvaluationService(deps: {
                             at: now,
                         })
                     } else if (!low && lowAlert !== undefined) {
+                        events.record('node.battery_ok', { subject })
                         alerts.resolve(lowAlert, now, 'battery recovered')
                     }
                 }

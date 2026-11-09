@@ -1,5 +1,5 @@
 import { type Env } from '#src/app/env'
-import { createServices, type Services } from '#src/app/services'
+import { createEvents, createServices, eventHooks, type Services } from '#src/app/services'
 import { type MqttState } from '#src/health/schema'
 import { createAuth, type Auth } from '#src/shared/auth/auth'
 import { createMembership } from '#src/shared/auth/membership'
@@ -25,6 +25,8 @@ export function createRuntime(deps: {
 }): Runtime {
     const { env, clock, logger } = deps
     const db = openDatabase(env.DATABASE_PATH)
+    const events = createEvents({ db, clock, logger, silentAfterMin: env.STATUS_OFFLINE_MIN })
+    const hooks = eventHooks(events)
     const email = createEmail({
         config: {
             apiKey: env.RESEND_API_KEY,
@@ -34,9 +36,10 @@ export function createRuntime(deps: {
         },
         logger,
         clock,
+        onFailure: hooks.onEmailFailure,
     })
     // Email is built first: auth sends sign-in and join codes through it.
-    const membership = createMembership({ db, clock })
+    const membership = createMembership({ db, clock, onJoined: hooks.onJoined })
     const auth = createAuth(db, {
         secret: env.AUTH_SECRET,
         baseUrl: env.AUTH_URL,
@@ -66,6 +69,7 @@ export function createRuntime(deps: {
         },
         mqttState: deps.mqttState,
         email: email.service,
+        events,
     })
     return { db, auth, services, email }
 }

@@ -1,3 +1,4 @@
+import { type EventLog } from '#src/health/events/service'
 import { formatMeshId } from '#src/mesh/meshId'
 import { nodeStatus, type StatusThresholds } from '#src/mesh/network/service'
 import { shownLocation } from '#src/mesh/nodes/position'
@@ -103,10 +104,11 @@ export function createNodeService(deps: {
     readonly repo: NodeRepo
     readonly clock: Clock
     readonly transact: <T>(fn: () => T) => T
+    readonly events: EventLog
     readonly batteries: () => ReadonlyMap<string, number>
     readonly thresholds: StatusThresholds
 }) {
-    const { repo, clock, transact, batteries, thresholds } = deps
+    const { repo, clock, transact, batteries, thresholds, events } = deps
 
     const assertNodeNumFree = (nodeNum: number, exceptId?: string): void => {
         const holder = repo.findByNodeNum(nodeNum)
@@ -216,6 +218,10 @@ export function createNodeService(deps: {
             updatedAt: now,
         })
         repo.addMember(created.id, viewer.id, now)
+        events.record('node.registered', {
+            subject: { kind: 'node', id: created.id },
+            details: { by: viewer.id, via: 'connect' },
+        })
     }
 
     return {
@@ -293,6 +299,10 @@ export function createNodeService(deps: {
                 latitude: position?.[1] ?? null,
                 createdAt: now,
                 updatedAt: now,
+            })
+            events.record('node.registered', {
+                subject: { kind: 'node', id: row.id },
+                details: { by: viewer.id, via: 'admin' },
             })
             return viewOf(row, viewer)
         },

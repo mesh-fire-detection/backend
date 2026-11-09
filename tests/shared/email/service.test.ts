@@ -17,6 +17,7 @@ function setup(configured = true) {
         sender: email.sender,
         configured,
         logger: createLogger('silent'),
+        onFailure: () => {},
     })
     return { email, service }
 }

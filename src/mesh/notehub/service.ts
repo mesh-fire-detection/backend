@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 
+import { type EventLog } from '#src/health/events/service'
 import { type GatewayRepo } from '#src/mesh/gateways/repo'
 import { decodeEnvelope } from '#src/mesh/ingest/decode'
 import {
@@ -24,9 +25,11 @@ export function createNotehubService(deps: {
     readonly transact: <T>(fn: () => T) => T
     readonly clock: Clock
     readonly logger: Logger
+    readonly eventLog: EventLog
     readonly channelKey: Buffer | undefined
 }) {
-    const { repo, gatewayRepo, nodeRepo, ingest, transact, clock, logger, channelKey } = deps
+    const { repo, gatewayRepo, nodeRepo, ingest, transact, clock, logger, eventLog, channelKey } =
+        deps
     let storageFailed = false
 
     const gatewayFor = (nodeId: string) => {
@@ -195,10 +198,17 @@ export function createNotehubService(deps: {
             } catch (error) {
                 if (error instanceof DomainError) {
                     logger.warn({ gatewayId, reason: error.kind }, 'Notehub delivery rejected')
+                    eventLog.count('notehub.rejected', {
+                        subject: { kind: 'gateway', id: gatewayId },
+                        details: { reason: error.kind },
+                    })
                     throw error
                 }
                 storageFailed = true
                 logger.error({ gatewayId }, 'Notehub storage failed')
+                eventLog.count('notehub.storage_failed', {
+                    subject: { kind: 'gateway', id: gatewayId },
+                })
                 throw new DomainError('unavailable', 'Unable to store delivery; retry later')
             }
             ingest.evaluate(readings)
