@@ -86,6 +86,11 @@ export function decodeEnvelope(bytes: Uint8Array, channelKey: Buffer): DecodeRes
         gatewayNodeNum,
         fromNodeNum: packet.from,
         packetId: packet.id,
+        // hopStart is 0 from firmware older than 2.3, which did not record it.
+        hops:
+            packet.hopStart > 0 && packet.hopLimit <= packet.hopStart
+                ? packet.hopStart - packet.hopLimit
+                : null,
         direct:
             heardDirectly && packet.from !== gatewayNodeNum
                 ? {

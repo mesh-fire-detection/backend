@@ -155,6 +155,7 @@ export function createIngestService(deps: IngestDeps) {
             gatewayId: gatewayNode.id,
             receivedAt,
             via: source,
+            hops: packet.hops,
         })
         const recordedAt = options?.recordedAt ?? receivedAt
         const liveEligible = options?.liveEligible ?? true

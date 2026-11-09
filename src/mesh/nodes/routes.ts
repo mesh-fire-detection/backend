@@ -20,6 +20,9 @@ export function nodeRoutes(service: NodeService) {
         .get('/v1/nodes/:id', access('user'), validate('param', NodeParamsSchema), (c) =>
             c.json({ node: service.get(c.req.valid('param').id, requireViewer(c)) })
         )
+        .get('/v1/nodes/:id/path', access('user'), validate('param', NodeParamsSchema), (c) =>
+            c.json(service.path(c.req.valid('param').id, requireViewer(c)))
+        )
         .patch(
             '/v1/nodes/:id',
             access('user'),

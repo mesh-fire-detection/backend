@@ -14,6 +14,7 @@ import {
 import {
     ADMIN_FIELDS,
     type Node,
+    type NodePath,
     type RegisterNode,
     type ReportedNode,
     type UpdateNode,
@@ -134,6 +135,20 @@ export function createNodeService(deps: {
         }
     }
 
+    /** What the backend has seen in the window, gathered once per request. */
+    const observe = (links: readonly GatewayLinks[], since: Date): Observed => {
+        const meshDeliveries = new Map<string, { gatewayId: string; lastAt: Date }[]>()
+        for (const { nodeId, ...delivery } of repo.meshDeliveriesSince(since)) {
+            meshDeliveries.set(nodeId, [...(meshDeliveries.get(nodeId) ?? []), delivery])
+        }
+        return {
+            sensors: repo.sensorNodeIdsSince(since),
+            gateways: new Map(links.map((link) => [link.nodeId, link])),
+            meshDeliveries,
+            since,
+        }
+    }
+
     /** Builds views for rows, looking up the caller's nodes and batteries once. */
     const viewsFor = (rows: readonly NodeRow[], viewer: Viewer): Node[] => {
         const mine = repo.memberNodeIds(viewer.id)
@@ -141,11 +156,7 @@ export function createNodeService(deps: {
         const now = clock()
         const links = gatewayLinks()
         const since = new Date(now.getTime() - OBSERVED_WINDOW_MS)
-        const observed: Observed = {
-            sensors: repo.sensorNodeIdsSince(since),
-            gateways: new Map(links.map((link) => [link.nodeId, link])),
-            since,
-        }
+        const observed = observe(links, since)
         const notecardGateways = new Set(
             links.filter((link) => link.notecard).map((link) => link.nodeId)
         )
@@ -254,6 +265,111 @@ export function createNodeService(deps: {
                 repo.list().filter((row) => visibleTo(row, viewer)),
                 viewer
             )
+        },
+
+        /**
+         * How a node's packets reach the server and which nodes are around it.
+         * Gateways and neighbours the caller may not see are left out.
+         */
+        path(id: string, viewer: Viewer): NodePath {
+            const row = visibleRow(id, viewer)
+            const now = clock()
+            const since = new Date(now.getTime() - OBSERVED_WINDOW_MS)
+            const observed = observe(gatewayLinks(), since)
+            const shown = (nodeId: string): NodeRow | undefined => {
+                const other = repo.findById(nodeId)
+                return other !== undefined && visibleTo(other, viewer) ? other : undefined
+            }
+            const links = repo.linksOf(row.id, since)
+            const signal = (link: (typeof links)[number] | undefined) =>
+                link === undefined
+                    ? null
+                    : { snr: link.snr, rssi: link.rssi, at: link.observedAt.toISOString() }
+
+            const serverLinks = (gateway: NodeRow) =>
+                connectionsOf(gateway, observed).filter(
+                    (connection) => connection.via === 'mqtt' || connection.via === 'notecard'
+                )
+            const meshDeliveries = repo
+                .deliveriesOf(row.nodeNum, since)
+                .filter((delivery) => delivery.gatewayId !== row.id)
+                .flatMap((delivery) => {
+                    const gateway = shown(delivery.gatewayId)
+                    if (gateway === undefined) return []
+                    const direct = links.find(
+                        (link) => link.fromNodeId === row.id && link.toNodeId === gateway.id
+                    )
+                    return [
+                        {
+                            gateway: { id: gateway.id, name: gateway.name },
+                            hops: delivery.hops,
+                            lastAt: delivery.lastAt.toISOString(),
+                            signal: signal(direct),
+                            connections: serverLinks(gateway),
+                        },
+                    ]
+                })
+            // A gateway's own route is in use whenever its links deliver anything,
+            // including the packets it forwards, not only the ones it sends itself.
+            const ownLinks = observed.gateways.has(row.id) ? serverLinks(row) : []
+            const ownLastAt = ownLinks
+                .map((connection) => connection.lastUsedAt)
+                .filter((at) => at !== null)
+                .toSorted((a, b) => a.localeCompare(b))
+                .at(-1)
+            const deliveries = [
+                ...meshDeliveries,
+                ...(ownLastAt === undefined
+                    ? []
+                    : [
+                          {
+                              gateway: { id: row.id, name: row.name },
+                              hops: 0,
+                              lastAt: ownLastAt,
+                              signal: null,
+                              connections: ownLinks,
+                          },
+                      ]),
+            ]
+
+            const others = [
+                ...new Set(
+                    links.map((link) =>
+                        link.fromNodeId === row.id ? link.toNodeId : link.fromNodeId
+                    )
+                ),
+            ]
+            // Newest first, so the first match is the latest reading.
+            const latest = (from: string, to: string) =>
+                signal(links.find((link) => link.fromNodeId === from && link.toNodeId === to))
+            const levels = batteries()
+            const nearby = others.flatMap((otherId) => {
+                const other = shown(otherId)
+                if (other === undefined) return []
+                const battery = levels.get(other.id)
+                return [
+                    {
+                        node: {
+                            id: other.id,
+                            name: other.name,
+                            meshId: formatMeshId(other.nodeNum),
+                            hardware: other.hardware,
+                            firmware: other.firmware,
+                            batteryPct: battery === undefined ? null : Math.round(battery),
+                        },
+                        hears: latest(otherId, row.id),
+                        heardBy: latest(row.id, otherId),
+                    },
+                ]
+            })
+            // Strongest first, as /connect lists them: by how well this node hears it.
+            const strength = (entry: (typeof nearby)[number]) =>
+                entry.hears?.snr ?? entry.heardBy?.snr ?? -Infinity
+
+            return {
+                deliveries: deliveries.toSorted((a, b) => b.lastAt.localeCompare(a.lastAt)),
+                nearby: nearby.toSorted((a, b) => strength(b) - strength(a)),
+            }
         },
 
         get(id: string, viewer: Viewer): Node {

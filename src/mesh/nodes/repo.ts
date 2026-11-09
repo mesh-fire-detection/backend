@@ -1,7 +1,29 @@
-import { and, asc, eq, exists, gte, inArray, isNotNull, like, or, sql } from 'drizzle-orm'
+import {
+    and,
+    asc,
+    desc,
+    eq,
+    exists,
+    gte,
+    inArray,
+    isNotNull,
+    like,
+    max,
+    ne,
+    or,
+    sql,
+} from 'drizzle-orm'
 
 import { type Db } from '#src/shared/db/connection'
-import { gateways, nodeMembers, nodes, readings, users } from '#src/shared/db/schema'
+import {
+    gateways,
+    linkObservations,
+    nodeMembers,
+    nodes,
+    packetsSeen,
+    readings,
+    users,
+} from '#src/shared/db/schema'
 
 export type NodeRow = typeof nodes.$inferSelect
 type NewNodeRow = typeof nodes.$inferInsert
@@ -79,6 +101,80 @@ export function createNodeRepo(db: Db) {
                 )
             const rows = db.select({ id: nodes.id }).from(nodes).where(exists(sensorReading)).all()
             return new Set(rows.map((row) => row.id))
+        },
+
+        /**
+         * For every node, the gateways that delivered its packets since `since`
+         * and when each last did. A gateway's own packets are left out. One
+         * indexed range per gateway, since there are few.
+         */
+        meshDeliveriesSince(since: Date): { nodeId: string; gatewayId: string; lastAt: Date }[] {
+            const gatewayIds = db.select({ id: gateways.nodeId }).from(gateways).all()
+            return gatewayIds.flatMap(({ id }) =>
+                db
+                    .select({
+                        nodeId: nodes.id,
+                        gatewayId: packetsSeen.gatewayId,
+                        lastAt: max(packetsSeen.receivedAt),
+                    })
+                    .from(packetsSeen)
+                    .innerJoin(nodes, eq(nodes.nodeNum, packetsSeen.fromNodeNum))
+                    .where(
+                        and(
+                            eq(packetsSeen.gatewayId, id),
+                            gte(packetsSeen.receivedAt, since),
+                            ne(nodes.id, id)
+                        )
+                    )
+                    .groupBy(nodes.id)
+                    .all()
+                    .flatMap((row) => (row.lastAt === null ? [] : [{ ...row, lastAt: row.lastAt }]))
+            )
+        },
+
+        /** The gateways that delivered one node's packets since `since`, with hops on the latest. */
+        deliveriesOf(
+            nodeNum: number,
+            since: Date
+        ): { gatewayId: string; lastAt: Date; hops: number | null }[] {
+            const latest = db
+                .select({ gatewayId: packetsSeen.gatewayId, lastAt: max(packetsSeen.receivedAt) })
+                .from(packetsSeen)
+                .where(
+                    and(eq(packetsSeen.fromNodeNum, nodeNum), gte(packetsSeen.receivedAt, since))
+                )
+                .groupBy(packetsSeen.gatewayId)
+                .all()
+            return latest.flatMap(({ gatewayId, lastAt }) => {
+                if (lastAt === null) return []
+                const newest = db
+                    .select({ hops: packetsSeen.hops })
+                    .from(packetsSeen)
+                    .where(
+                        and(
+                            eq(packetsSeen.fromNodeNum, nodeNum),
+                            eq(packetsSeen.gatewayId, gatewayId)
+                        )
+                    )
+                    .orderBy(desc(packetsSeen.receivedAt))
+                    .limit(1)
+                    .get()
+                return [{ gatewayId, lastAt, hops: newest?.hops ?? null }]
+            })
+        },
+
+        /** Who heard whom, involving this node, since `since`, newest first. */
+        linksOf(nodeId: string, since: Date) {
+            const involves = or(
+                eq(linkObservations.fromNodeId, nodeId),
+                eq(linkObservations.toNodeId, nodeId)
+            )
+            return db
+                .select()
+                .from(linkObservations)
+                .where(and(gte(linkObservations.observedAt, since), involves))
+                .orderBy(desc(linkObservations.observedAt))
+                .all()
         },
 
         /** Nodes registered as gateways with a Notecard, enabled or not. */

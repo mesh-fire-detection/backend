@@ -33,6 +33,8 @@ describe('decodeEnvelope', () => {
                 gatewayNodeNum: GATEWAY_NODE,
                 fromNodeNum: SENSOR_NODE,
                 packetId: 0x12_34_56_78,
+                // The fixture is sent with hopStart 3 and arrives with hopLimit 1.
+                hops: 2,
                 direct: null,
                 payload: {
                     kind: 'telemetry',

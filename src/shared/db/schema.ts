@@ -237,6 +237,8 @@ export const packetsSeen = sqliteTable(
         sourceHash: text(),
         /** Which ingest path delivered it. Older rows were filled in by migration 0014. */
         via: text({ enum: ['mqtt', 'notehub'] }),
+        /** Hops it took to the gateway; null for older rows and older firmware. */
+        hops: integer(),
     },
     (t) => [
         index('packets_seen_key_idx').on(t.fromNodeNum, t.packetId, t.receivedAt),
