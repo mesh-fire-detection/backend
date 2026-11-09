@@ -17,6 +17,15 @@ Notable changes to the backend, by release. How releases are cut is in
 
 - `createAdmin` no longer writes the new admin's email address to the log.
 
+## 0.2.1 — 2026-11-08
+
+### Changed
+
+- Dependencies updated within their major versions (#38), including
+  better-auth 1.7.18, drizzle-orm 0.45.4, hono 4.13.17 and zod 4.6.7.
+  TypeScript 7, `@types/node` 26 and eslint-plugin-unicorn 79 are held,
+  with reasons in #47. No migrations.
+
 ## 0.2.0 — 2026-11-08
 
 The first tagged release. Until now every merge to `main` deployed, so most of

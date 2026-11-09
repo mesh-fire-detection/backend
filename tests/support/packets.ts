@@ -117,3 +117,4 @@ export function nodeInfo(longName: string): Uint8Array {
 }
 
 export const PortNum = Portnums.PortNum
+export type PortNum = Portnums.PortNum
