@@ -5,6 +5,18 @@ Notable changes to the backend, by release. How releases are cut is in
 
 ## Unreleased
 
+### Added
+
+- An event log (#36): a short, structured record of the system's health,
+  read by admins at `GET /v1/events`. Rejected packets and failures are
+  counted rather than repeated, silent gateways are noticed, and events are
+  kept for 90 days. **Migration 0013** adds the `events` table and indexes
+  on when each gateway last delivered.
+
+### Changed
+
+- `createAdmin` no longer writes the new admin's email address to the log.
+
 ## 0.2.1 — 2026-11-08
 
 ### Changed

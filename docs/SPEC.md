@@ -47,7 +47,7 @@ Node types, from the site: `base`, `cellular` (gateway with LTE backhaul),
 | Hosting             | One Hetzner VPS (~$5/month). GitHub is not the live backend.                                                         |
 | Database            | SQLite, continuously backed up off-server                                                                            |
 | Ingest              | Meshtastic MQTT uplink; opt-in authenticated Notehub HTTPS adapter for Blues gateways (see Ingest)                   |
-| Retention           | Keep all data indefinitely. Nothing is deleted automatically.                                                        |
+| Retention           | Keep all data indefinitely. Nothing is deleted automatically, except event log entries after 90 days (Event log).    |
 | Accounts            | A code emailed to a member; two roles, `admin` and `user`. Members join by invitation, or with a node they connected |
 | Map feed            | `/api/network.json` is public and read-only                                                                          |
 | Sensor metrics      | Generic: stored under the name the sensor reports; no fixed list                                                     |
@@ -427,6 +427,44 @@ when, and an optional note.
 
 Notifications are future work, but the data model includes a notification
 channel table so adding them later needs no restructuring.
+
+## Event log
+
+A short, structured record of the system's health (#36), for admins and,
+later, an alerting agent that tells them when something needs attention. It is
+not how users hear about fires: fire-rule alerts reach the people on a node by
+a separate, future notification feature.
+
+Two logs, each for one job. The **process log** (journald on the server) keeps
+every occurrence in detail, stack traces included, and is read over SSH to find
+out why something happened. The **event log** says that it happened: a few
+events, each a fixed type, a severity, the gateway, node or user it is about,
+how many occurrences it stands for, and a few facts.
+
+**Recorded:** the server starting (with its version) and stopping; the MQTT
+broker disconnecting and reconnecting; rejected and undecodable packets,
+counted per gateway and reason; a gateway that delivers nothing for as long as
+a node takes to go offline, and its return; nodes going offline or low on
+battery, and recovering; Notehub deliveries refused or not stored; failed jobs,
+alert evaluation, email, and requests, by route; and an audit trail of people
+joining and leaving, invites, role changes, disabling, and nodes and gateways
+registered.
+
+**Never recorded:** secrets of any kind; email addresses, names, IP addresses
+or exact positions (IDs instead); readings or packet contents; anything that
+happens all the time, such as accepted packets and duplicates; and any text a
+stranger controls, such as node names or MQTT topics. Only codes and IDs are
+written, because an AI agent will read this and free text is where an
+injected instruction would hide.
+
+Things that repeat are counted and written as one event per kind every five
+minutes, so a misconfigured gateway sending thousands of packets is one row,
+not thousands.
+
+**Events are kept for 90 days** (decided November 8, 2026), then deleted by the
+scheduled job: the one exception to keeping everything, made because the
+droplet's disk is small and an old health event has no use. At a few hundred
+events a day that is about 10 MB.
 
 ## Website contract
 

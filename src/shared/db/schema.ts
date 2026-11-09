@@ -239,6 +239,8 @@ export const packetsSeen = sqliteTable(
     (t) => [
         index('packets_seen_key_idx').on(t.fromNodeNum, t.packetId, t.receivedAt),
         index('packets_seen_source_hash_idx').on(t.sourceHash),
+        // When each gateway last delivered, for the event log's silent-gateway check.
+        index('packets_seen_gateway_idx').on(t.gatewayId, t.receivedAt),
     ]
 )
 
@@ -253,7 +255,10 @@ export const notehubEvents = sqliteTable(
         capturedAt: timestamp().notNull(),
         receivedAt: timestamp().notNull(),
     },
-    (t) => [index('notehub_events_received_at_idx').on(t.receivedAt)]
+    (t) => [
+        index('notehub_events_received_at_idx').on(t.receivedAt),
+        index('notehub_events_gateway_idx').on(t.gatewayId, t.receivedAt),
+    ]
 )
 
 export const notehubSamples = sqliteTable('notehub_samples', {
@@ -420,4 +425,28 @@ export const notificationChannels = sqliteTable(
     (t) => [
         uniqueIndex('notification_channels_user_kind_target_idx').on(t.userId, t.kind, t.target),
     ]
+)
+
+// ── Monitoring ──────────────────────────────────────────────────────────────
+
+/**
+ * The event log (#36): a few structured facts about the system's health, for
+ * admins and the alerting agent. Codes and IDs only, never free text. The
+ * detail stays in the process log. Unlike everything else here, rows are
+ * deleted after 90 days (docs/SPEC.md, Event log).
+ */
+export const events = sqliteTable(
+    'events',
+    {
+        id: integer().primaryKey({ autoIncrement: true }),
+        at: timestamp().notNull(),
+        severity: text({ enum: ['info', 'warn', 'error'] }).notNull(),
+        type: text().notNull(),
+        subjectKind: text({ enum: ['gateway', 'node', 'user'] }),
+        subjectId: text(),
+        /** How many occurrences this row stands for; counted events cover a window. */
+        count: integer().notNull().default(1),
+        details: text({ mode: 'json' }).$type<Record<string, string | number | boolean | null>>(),
+    },
+    (t) => [index('events_at_idx').on(t.at)]
 )

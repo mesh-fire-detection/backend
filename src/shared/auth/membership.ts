@@ -35,7 +35,16 @@ export function isMember(status: unknown, banned: boolean | null | undefined): b
  * address that is eligible to join (backend#9): one an admin invited, or one
  * that asked to join with nodes its browser connected.
  */
-export function createMembership({ db, clock }: { readonly db: Db; readonly clock: Clock }) {
+export function createMembership({
+    db,
+    clock,
+    onJoined,
+}: {
+    readonly db: Db
+    readonly clock: Clock
+    /** Told each time someone becomes a member, and how. */
+    readonly onJoined: (userId: string, via: 'invite' | 'node') => void
+}) {
     const findUser = (address: string) =>
         db
             .select({
@@ -147,6 +156,7 @@ export function createMembership({ db, clock }: { readonly db: Db; readonly cloc
                         .run()
                 }
                 enroll(userId, now, 'join')
+                onJoined(userId, invite === undefined ? 'node' : 'invite')
                 return true
             })
         },

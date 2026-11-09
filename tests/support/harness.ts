@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { createApp } from '#src/app/server'
-import { createServices, type AppConfig } from '#src/app/services'
+import { createEvents, createServices, eventHooks, type AppConfig } from '#src/app/services'
 import { type MqttState } from '#src/health/schema'
 import { type Role } from '#src/shared/auth/access'
 import { createAuth } from '#src/shared/auth/auth'
@@ -67,13 +67,20 @@ export function createHarness({
     })
 
     const db = openDatabase(databasePath)
+    const events = createEvents({
+        db,
+        clock,
+        logger,
+        silentAfterMin: TEST_CONFIG.statusOfflineMin,
+    })
     const fakeEmail = createFakeEmail()
     const emailService = createEmailService({
         sender: fakeEmail.sender,
         configured: emailConfigured,
         logger,
+        onFailure: eventHooks(events).onEmailFailure,
     })
-    const membership = createMembership({ db, clock })
+    const membership = createMembership({ db, clock, onJoined: eventHooks(events).onJoined })
     const auth = createAuth(db, {
         secret: 'test-secret-that-is-at-least-32-characters',
         baseUrl: 'http://localhost:3000',
@@ -91,6 +98,7 @@ export function createHarness({
         config: { ...TEST_CONFIG, notehubChannelKey },
         mqttState: () => mqttState,
         email: emailService,
+        events,
     })
     const app = createApp({
         logger,

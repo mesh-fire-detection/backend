@@ -92,6 +92,13 @@
       "when": 1794083694368,
       "tag": "0012_deleted_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1794162086686,
+      "tag": "0013_event_log",
+      "breakpoints": true
     }
   ]
 }

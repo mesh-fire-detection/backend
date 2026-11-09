@@ -23,7 +23,12 @@ describe('what the logs may contain', () => {
     it('records a send without the recipient or the code', async () => {
         const { logger, lines } = capturingLogger()
         const email = createFakeEmail()
-        const service = createEmailService({ sender: email.sender, configured: true, logger })
+        const service = createEmailService({
+            sender: email.sender,
+            configured: true,
+            logger,
+            onFailure: () => {},
+        })
 
         await service.send(signInCode(ADDRESS, CODE, 10))
 
@@ -37,7 +42,12 @@ describe('what the logs may contain', () => {
         const { logger, lines } = capturingLogger()
         const email = createFakeEmail()
         email.willReturn({ ok: false, failure: { kind: 'rejected', status: 429 } })
-        const service = createEmailService({ sender: email.sender, configured: true, logger })
+        const service = createEmailService({
+            sender: email.sender,
+            configured: true,
+            logger,
+            onFailure: () => {},
+        })
 
         await service.send(signInCode(ADDRESS, CODE, 10))
 

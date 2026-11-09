@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 
+import { type EventLog } from '#src/health/events/service'
 import { type GatewayRepo, type GatewayRow } from '#src/mesh/gateways/repo'
 import { type Gateway, type RegisterGateway, type UpdateGateway } from '#src/mesh/gateways/schema'
 import { type NodeRepo } from '#src/mesh/nodes/repo'
@@ -22,8 +23,9 @@ export function createGatewayService(deps: {
     readonly repo: GatewayRepo
     readonly nodeRepo: NodeRepo
     readonly clock: Clock
+    readonly events: EventLog
 }) {
-    const { repo, nodeRepo, clock } = deps
+    const { repo, nodeRepo, clock, events } = deps
 
     const assertUsernameFree = (mqttUsername: string, exceptNodeId?: string): void => {
         const holder = repo.findByMqttUsername(mqttUsername)
@@ -66,6 +68,7 @@ export function createGatewayService(deps: {
             }
 
             const now = clock()
+            events.record('gateway.registered', { subject: { kind: 'gateway', id: input.nodeId } })
             return toGateway(
                 repo.insert({
                     nodeId: input.nodeId,

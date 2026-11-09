@@ -22,6 +22,8 @@ export type EmailServiceDeps = {
      */
     readonly configured: boolean
     readonly logger: Logger
+    /** Told the template of every message that could not be sent. */
+    readonly onFailure: (template: string) => void
 }
 
 /**
@@ -40,7 +42,12 @@ async function sendOnceWithRetry(sender: EmailSender, message: EmailMessage): Pr
  * reports. A caller composes a message and asks for it to be sent; providers,
  * retries and failure counting live here.
  */
-export function createEmailService({ sender, configured, logger: parent }: EmailServiceDeps) {
+export function createEmailService({
+    sender,
+    configured,
+    logger: parent,
+    onFailure,
+}: EmailServiceDeps) {
     const logger = parent.child({ component: 'email' })
     let consecutiveFailures = 0
 
@@ -66,6 +73,7 @@ export function createEmailService({ sender, configured, logger: parent }: Email
                 },
                 'send failed'
             )
+            onFailure(message.template)
             return result
         },
 

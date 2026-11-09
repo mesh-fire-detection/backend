@@ -37,7 +37,8 @@ async function main(): Promise<void> {
     })
     try {
         const user = await services.users.createAdmin(values.email, name.data, password.data)
-        logger.warn({ id: user.id, email: user.email }, 'admin created')
+        // The id only: the log keeps no addresses (#36).
+        logger.warn({ id: user.id }, 'admin created')
     } finally {
         closeDatabase(db)
     }
