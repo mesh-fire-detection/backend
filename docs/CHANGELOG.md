@@ -5,6 +5,13 @@ Notable changes to the backend, by release. How releases are cut is in
 
 ## Unreleased
 
+## 0.3.0 — 2026-11-09
+
+Gateways and the paths readings take. **Four migrations, 0013–0016:** new
+tables, columns and indexes, and 0014 also labels existing packets. They run
+on deploy after `release.sh` takes its pre-release copy. Rolling back to
+0.2.1 by redeploying is not safe across them; restore that copy instead.
+
 ### Added
 
 - An event log (#36): a short, structured record of the system's health,
