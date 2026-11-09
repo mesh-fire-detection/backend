@@ -79,6 +79,18 @@ export const AddNodesSchema = z
     .strict()
 
 export const NodeStatusSchema = z.enum(['online', 'degraded', 'offline'])
+
+/** What a node does, from what it has shown (#51). `base` only relays and never combines. */
+const NodeRoleSchema = z.enum(['base', 'gateway', 'sensor', 'vision'])
+export type NodeRole = z.infer<typeof NodeRoleSchema>
+
+/** One way a node's data reaches the backend. `network` is null when it isn't known. */
+const NodeConnectionSchema = z.object({
+    via: z.enum(['mqtt', 'notecard', 'browser']),
+    network: z.enum(['wifi', 'cellular', 'satellite']).nullable(),
+    lastUsedAt: IsoTimestampSchema.nullable(),
+})
+export type NodeConnection = z.infer<typeof NodeConnectionSchema>
 export type NodeStatus = z.infer<typeof NodeStatusSchema>
 
 /** Display names only: never an email address or account ID (#15 Q10). */
@@ -122,6 +134,9 @@ export const NodeSchema = z.object({
     meshId: z.string(),
     name: z.string(),
     type: NodeTypeSchema.nullable(),
+    roles: z.array(NodeRoleSchema),
+    /** Browser connections only for the node's people and admins. */
+    connections: z.array(NodeConnectionSchema),
     status: NodeStatusSchema,
     position: PositionSchema.nullable(),
     approximate: z.boolean(),

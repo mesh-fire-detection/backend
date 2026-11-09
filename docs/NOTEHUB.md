@@ -48,7 +48,9 @@ key can still permit sender impersonation, as described in SPEC.
    procedure. In Notehub, create a General HTTP/HTTPS route to
    `https://api.meshfiredetection.org/v1/ingest/notehub`. Route only `mesh.qos`
    notes from this gateway, using a fleet restricted to its Notecard. Keep the
-   full event JSON with **No Transformation**. Do not use Body Only, Payload
+   full event JSON with **No Transformation**, which also carries Notehub's
+   `transport`, the network the Notecard used. The backend keeps it per event to
+   show cellular, Wi-Fi or satellite on the gateway's connections. Do not use Body Only, Payload
    Only, or a transform that replaces the cloud device/event identity.
 6. Store the credential as a Notehub project Secret and set the route header:
 

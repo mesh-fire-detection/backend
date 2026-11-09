@@ -12,6 +12,8 @@ const EventSchema = z.object({
     file: z.literal('mesh.qos'),
     when: z.number().positive().max(253_402_300_799),
     body: z.object({ version: z.literal(1), envelope: EnvelopeSchema }).strict(),
+    /** Notehub's metadata on how the Notecard connected; kept, never trusted for identity. */
+    transport: z.string().max(80).optional(),
 })
 
 export const NotehubRequestSchema = z

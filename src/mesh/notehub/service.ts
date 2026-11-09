@@ -191,6 +191,7 @@ export function createNotehubService(deps: {
                             contentHash,
                             capturedAt,
                             receivedAt,
+                            transport: event.transport ?? null,
                         })
                     }
                     ingest.gatewayDelivered(gatewayId, receivedAt)

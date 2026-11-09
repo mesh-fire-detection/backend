@@ -1,7 +1,7 @@
-import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm'
+import { and, asc, eq, exists, gte, inArray, isNotNull, like, or, sql } from 'drizzle-orm'
 
 import { type Db } from '#src/shared/db/connection'
-import { gateways, nodeMembers, nodes, users } from '#src/shared/db/schema'
+import { gateways, nodeMembers, nodes, readings, users } from '#src/shared/db/schema'
 
 export type NodeRow = typeof nodes.$inferSelect
 type NewNodeRow = typeof nodes.$inferInsert
@@ -56,6 +56,29 @@ export function createNodeRepo(db: Db) {
 
         update(id: string, patch: NodeRowPatch): NodeRow | undefined {
             return db.update(nodes).set(patch).where(eq(nodes.id, id)).returning().get()
+        },
+
+        /**
+         * Nodes with particle or environment readings recorded since `since`.
+         * One indexed range lookup per node, so it stays cheap as readings grow.
+         */
+        sensorNodeIdsSince(since: Date): Set<string> {
+            const sensorMetric = or(
+                like(readings.metric, 'airQualityMetrics.%'),
+                like(readings.metric, 'environmentMetrics.%')
+            )
+            const sensorReading = db
+                .select({ one: sql`1` })
+                .from(readings)
+                .where(
+                    and(
+                        eq(readings.nodeId, nodes.id),
+                        gte(readings.recordedAt, since),
+                        sensorMetric
+                    )
+                )
+            const rows = db.select({ id: nodes.id }).from(nodes).where(exists(sensorReading)).all()
+            return new Set(rows.map((row) => row.id))
         },
 
         /** Nodes registered as gateways with a Notecard, enabled or not. */

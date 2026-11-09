@@ -344,7 +344,7 @@ single resources return `{ <item>: {...} }`.
 | DELETE        | `/v1/me/sessions/:id`                      | Ends one of your sessions; 404 if it is not yours                                                                                                              |
 | GET           | `/v1/me/sign-in-methods`                   | `{ methods: [{ kind, removable }] }`, kind `code` or `google`; the emailed code is always there and never removable                                            |
 | DELETE        | `/v1/me/sign-in-methods/google`            | Unlinks Google; 404 if it was not linked. Linking is Better Auth's `POST /v1/auth/link-social`, same address only                                              |
-| GET           | `/v1/nodes`                                | Every visible node, each with `mine`; `details` only on your own                                                                                               |
+| GET           | `/v1/nodes`                                | Every visible node, each with `mine`, `roles` and `connections`; `details` only on your own                                                                    |
 | GET, PATCH    | `/v1/nodes/:id`                            | View; edit if you are on it (mesh ID and enabling are admin-only; firmware is not editable)                                                                    |
 | GET           | `/v1/gateways/status`                      | Each gateway's paths (MQTT, Notecard), when each last delivered, refusals in the last 24 hours, and the MQTT broker's state; disabled gateways for admins only |
 | GET, POST     | `/v1/me/nodes`                             | Nodes you are on; `{ nodes: [{ nodeNum, name?, hardware?, firmware?, hardwareId?, type? }] }` registers or joins each                                          |
@@ -368,6 +368,31 @@ Rate limits: 600 requests per 15 minutes per client on `/v1/*`, 120 per minute
 on the map feed, 10 per 15 minutes on joining, subscribing, and on code
 requests and verification, plus Better Auth's
 sign-in limiter.
+
+## Node roles and connections (#51)
+
+A node's stored `type` is what its people chose, usually when it was first
+registered. Boards gain and lose parts, so `/v1/nodes` also returns what the
+node has **shown** in the last 7 days, worked out when it is read
+(`src/mesh/nodes/roles.ts`):
+
+| Role      | When                                                                 |
+| --------- | -------------------------------------------------------------------- |
+| `gateway` | Registered as a gateway                                              |
+| `sensor`  | Particle or environment readings recorded in the window              |
+| `vision`  | Chosen by its people; there is no camera data path yet               |
+| `base`    | Heard in the window with none of the above: a relay. Never combined. |
+
+A node not heard from in the window keeps the roles its people chose
+(`cellular` counts as `gateway`).
+
+`connections` lists how its data reaches the backend, the most recently used
+first: `mqtt` (Meshtastic's own internet, shown as Wi-Fi), `notecard` (with the
+network from Notehub's `transport` when an event carried one: cellular, Wi-Fi or
+satellite), and `browser` (USB or Bluetooth from `/connect`, shown only to the
+node's people and admins). A gateway's links stay while it is registered; a
+browser connection lasts for the window. `type` stays for the website until it
+reads `roles`.
 
 ## Network feed assembly
 

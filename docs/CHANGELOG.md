@@ -18,6 +18,11 @@ Notable changes to the backend, by release. How releases are cut is in
   when each last delivered, refusals in the last 24 hours, and the broker's
   state. **Migration 0014** records which path delivered each packet and labels
   earlier ones exactly.
+- `roles` and `connections` on `/v1/nodes` (#51): what a node does, from what it
+  has shown in the last 7 days (`base`, `gateway`, `sensor`, `vision`), and how
+  its data reaches the backend (MQTT, Notecard with its network, browser).
+  **Migration 0015** keeps Notehub's `transport` per event. `type` is unchanged
+  for now.
 
 ### Changed
 

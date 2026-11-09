@@ -1,0 +1,1 @@
+ALTER TABLE `notehub_events` ADD `transport` text;

@@ -113,6 +113,7 @@ export function createServices(deps: ServiceDeps) {
         batteries: () => networkRepo.latestBatteryByNode(),
         thresholds: statusThresholds,
         events,
+        gatewayLinks: () => gatewayRepo.links(),
     })
     const alerts = createAlertService({ repo: alertRepo, clock, transact })
     const evaluation = createEvaluationService({

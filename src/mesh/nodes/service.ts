@@ -4,13 +4,20 @@ import { nodeStatus, type StatusThresholds } from '#src/mesh/network/service'
 import { shownLocation } from '#src/mesh/nodes/position'
 import { type NodeRepo, type NodeRow, type NodeRowPatch } from '#src/mesh/nodes/repo'
 import {
+    connectionsOf,
+    type GatewayLinks,
+    OBSERVED_WINDOW_MS,
+    type Observed,
+    rolesOf,
+    shownType,
+} from '#src/mesh/nodes/roles'
+import {
     ADMIN_FIELDS,
     type Node,
     type RegisterNode,
     type ReportedNode,
     type UpdateNode,
 } from '#src/mesh/nodes/schema'
-import { shownType } from '#src/mesh/nodes/type'
 import { type Viewer } from '#src/shared/auth/access'
 import { DomainError, notFound } from '#src/shared/errors'
 import { type Clock, MS_PER_MINUTE } from '#src/shared/time'
@@ -30,7 +37,8 @@ function toNode(
     owners: readonly Owner[],
     batteryPct: number | null,
     now: Date,
-    thresholds: StatusThresholds
+    thresholds: StatusThresholds,
+    observed: Observed
 ): Node {
     const minutesSinceHeard =
         row.lastHeardAt === null
@@ -44,6 +52,10 @@ function toNode(
         meshId: formatMeshId(row.nodeNum),
         name: row.name,
         type: row.type,
+        roles: rolesOf(row, observed),
+        connections: connectionsOf(row, observed).filter(
+            (connection) => connection.via !== 'browser' || standing.canEdit
+        ),
         status: nodeStatus(minutesSinceHeard, batteryPct, thresholds),
         position: shown.position,
         approximate: shown.approximate,
@@ -107,8 +119,10 @@ export function createNodeService(deps: {
     readonly events: EventLog
     readonly batteries: () => ReadonlyMap<string, number>
     readonly thresholds: StatusThresholds
+    /** Every registered gateway's paths and deliveries. */
+    readonly gatewayLinks: () => readonly GatewayLinks[]
 }) {
-    const { repo, clock, transact, batteries, thresholds, events } = deps
+    const { repo, clock, transact, batteries, thresholds, events, gatewayLinks } = deps
 
     const assertNodeNumFree = (nodeNum: number, exceptId?: string): void => {
         const holder = repo.findByNodeNum(nodeNum)
@@ -124,8 +138,17 @@ export function createNodeService(deps: {
     const viewsFor = (rows: readonly NodeRow[], viewer: Viewer): Node[] => {
         const mine = repo.memberNodeIds(viewer.id)
         const levels = batteries()
-        const notecardGateways = repo.notecardGatewayIds()
         const now = clock()
+        const links = gatewayLinks()
+        const since = new Date(now.getTime() - OBSERVED_WINDOW_MS)
+        const observed: Observed = {
+            sensors: repo.sensorNodeIdsSince(since),
+            gateways: new Map(links.map((link) => [link.nodeId, link])),
+            since,
+        }
+        const notecardGateways = new Set(
+            links.filter((link) => link.notecard).map((link) => link.nodeId)
+        )
         const canEdit = (row: NodeRow) => viewer.role === 'admin' || mine.has(row.id)
         const owners = new Map<string, Owner[]>()
         const editable = rows.filter((row) => canEdit(row)).map((row) => row.id)
@@ -145,7 +168,8 @@ export function createNodeService(deps: {
                 owners.get(row.id) ?? [],
                 levels.get(row.id) ?? null,
                 now,
-                thresholds
+                thresholds,
+                observed
             )
         )
     }
