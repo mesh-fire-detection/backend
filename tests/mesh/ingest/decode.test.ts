@@ -82,7 +82,7 @@ describe('decodeEnvelope', () => {
     })
 
     it('decodes NeighborInfo, Position and NodeInfo', () => {
-        const decode = (portnum: number, payload: Uint8Array) => {
+        const decode = (portnum: PortNum, payload: Uint8Array) => {
             const result = decodeEnvelope(envelopeBytes({ ...base, portnum, payload }), CHANNEL_KEY)
             return result.ok ? result.packet.payload : result
         }

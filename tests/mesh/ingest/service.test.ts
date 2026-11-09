@@ -19,7 +19,7 @@ import { GATEWAY_NODE, OTHER_SENSOR_NODE, SENSOR_NODE, seedMesh, ADMIN } from '#
 let nextId = 1
 
 function packet(options: {
-    portnum: number
+    portnum: PortNum
     payload: Uint8Array
     from?: number
     gateway?: number
