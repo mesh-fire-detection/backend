@@ -5,6 +5,11 @@ Notable changes to the backend, by release. How releases are cut is in
 
 ## Unreleased
 
+## 0.3.1 — 2026-11-17
+
+Fixes for the field test. No migrations; rolling back to 0.3.0 by redeploying
+is safe.
+
 ### Fixed
 
 - Notehub readings are timed by when the gateway heard them, its `rx_time`,
