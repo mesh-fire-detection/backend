@@ -5,6 +5,15 @@ Notable changes to the backend, by release. How releases are cut is in
 
 ## Unreleased
 
+### Fixed
+
+- Notehub readings are timed by when the gateway heard them, its `rx_time`,
+  falling back to the Notecard's capture time when the gateway had no clock,
+  and never later than the server received them. The sensor's own clock no
+  longer decides anything: a node without GPS often has none, and its readings
+  were stored in 1970 or refused. It is still kept as `measuredAt`. A late or
+  out-of-order packet now moves last-heard forward too. No migration.
+
 ## 0.3.0 — 2026-11-09
 
 Gateways and the paths readings take. **Four migrations, 0013–0016:** new

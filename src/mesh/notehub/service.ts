@@ -17,6 +17,25 @@ import { type Clock } from '#src/shared/time'
 
 const LIVE_WINDOW_MS = 5 * 60_000
 
+/**
+ * When the gateway heard a packet. Three clocks reach us and only two can be
+ * trusted for this: the gateway's own (its `rx_time`, set when it heard the
+ * packet) and the Notecard's (`capturedAt`, from the cell network, when the
+ * gateway handed the packet over). The sensor's clock is often unset or wrong
+ * on a node without GPS; it stays on the reading as `measuredAt` and decides
+ * nothing here. Prefer the gateway's time, since packets can wait in its queue,
+ * unless it claims to have heard the packet after it was handed over. Never
+ * later than the server received it, so last-heard cannot move into the future.
+ */
+function heardAt(heardTime: number | undefined, capturedAt: Date, receivedAt: Date): Date {
+    const gateway = heardTime === undefined ? undefined : heardTime * 1000
+    const at =
+        gateway !== undefined && gateway <= capturedAt.getTime() + LIVE_WINDOW_MS
+            ? gateway
+            : capturedAt.getTime()
+    return new Date(Math.min(at, receivedAt.getTime()))
+}
+
 export function createNotehubService(deps: {
     readonly repo: NotehubRepo
     readonly gatewayRepo: GatewayRepo
@@ -115,16 +134,7 @@ export function createNotehubService(deps: {
                             )
                         }
                         const sourceTime = packet.sourceTime ?? 0
-                        const recordedAt = sourceTime > 0 ? new Date(sourceTime * 1000) : capturedAt
-                        if (
-                            recordedAt.getTime() > capturedAt.getTime() + LIVE_WINDOW_MS ||
-                            recordedAt.getTime() > receivedAt.getTime() + LIVE_WINDOW_MS
-                        ) {
-                            throw new DomainError(
-                                'bad_request',
-                                'Sensor time is after event capture'
-                            )
-                        }
+                        const recordedAt = heardAt(packet.heardTime, capturedAt, receivedAt)
                         const contentHash = createHash('sha256')
                             .update(JSON.stringify([event.device, event.when, event.body]))
                             .digest('hex')
@@ -161,8 +171,6 @@ export function createNotehubService(deps: {
                         const alreadyStored =
                             sourceHash !== undefined && repo.hasSourceHash(sourceHash)
                         const liveEligible =
-                            sourceTime > 0 &&
-                            recordedAt.getTime() <= receivedAt.getTime() &&
                             receivedAt.getTime() - recordedAt.getTime() <= LIVE_WINDOW_MS &&
                             (sender.lastHeardAt === null || recordedAt >= sender.lastHeardAt)
                         const stored = alreadyStored

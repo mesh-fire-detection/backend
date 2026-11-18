@@ -83,6 +83,7 @@ export function decodeEnvelope(bytes: Uint8Array, channelKey: Buffer): DecodeRes
             data.portnum === Portnums.PortNum.TELEMETRY_APP
                 ? tryParse(() => fromBinary(Telemetry.TelemetrySchema, data.payload).time)
                 : undefined,
+        heardTime: packet.rxTime !== undefined && packet.rxTime > 0 ? packet.rxTime : undefined,
         gatewayNodeNum,
         fromNodeNum: packet.from,
         packetId: packet.id,

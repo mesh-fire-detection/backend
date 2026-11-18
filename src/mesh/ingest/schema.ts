@@ -54,6 +54,11 @@ export const MeshPacketSchema = z.object({
         .regex(/^[\da-f]{64}$/)
         .optional(),
     sourceTime: z.number().int().min(0).optional(),
+    /**
+     * When the gateway heard the packet, by the gateway's clock (Meshtastic
+     * `rx_time`). Absent when the gateway did not know the time.
+     */
+    heardTime: z.number().int().min(1).optional(),
     gatewayNodeNum: NodeNumSchema,
     fromNodeNum: NodeNumSchema,
     packetId: z.number().int().min(1).max(0xff_ff_ff_ff),
