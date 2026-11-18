@@ -419,8 +419,9 @@ reads `roles`.
       alert for this node opened at least `cooldownS` ago → open an alert.
 - **Every 5 minutes (job, and once at startup):** open `offline` alerts for
   enabled nodes heard before but not within `STATUS_OFFLINE_MIN`; resolve
-  them when heard again. Open `low_battery` alerts when the latest battery is
-  below `LOW_BATTERY_PCT`; resolve when it recovers. Resolve system alerts for
+  them when heard again. Open `low_battery` alerts when a node's power says its
+  battery is low (below `LOW_BATTERY_PCT` and not plugged in); resolve when it
+  recovers. Resolve system alerts for
   disabled nodes.
 - All status changes write an `alert_events` row.
 
@@ -471,6 +472,6 @@ See `DEPLOYMENT.md` for the runbook.
 | `AUTH_URL`                                   | Public URL of the API                                                                       |
 | `CORS_ORIGIN`                                | The website's origin                                                                        |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`   | Google sign-in's OAuth client; set both or neither, unset turns Google off                  |
-| `STATUS_DEGRADED_MIN`, `STATUS_OFFLINE_MIN`  | Node status thresholds                                                                      |
-| `LOW_BATTERY_PCT`                            | Degraded status and low battery alerts                                                      |
+| `STATUS_DEGRADED_MIN`, `STATUS_OFFLINE_MIN`  | Node status thresholds: late, then offline                                                  |
+| `LOW_BATTERY_PCT`                            | A low battery in a node's power, and low battery alerts                                     |
 | `LINK_WINDOW_MIN`                            | How old a link observation may be to appear on the map                                      |

@@ -68,7 +68,7 @@ describe('decodeEnvelope', () => {
         })
     })
 
-    it('maps device metrics and caps the external-power battery value at 100', () => {
+    it('maps device metrics and keeps 101, the firmware saying it is plugged in', () => {
         const bytes = envelopeBytes({
             ...base,
             portnum: PortNum.TELEMETRY_APP,
@@ -79,7 +79,7 @@ describe('decodeEnvelope', () => {
 
         expect(result.ok && result.packet.payload).toMatchObject({
             kind: 'telemetry',
-            deviceMetrics: { batteryPct: 100, voltage: 4.2, uptimeS: 3600 },
+            deviceMetrics: { batteryPct: 101, voltage: 4.2, uptimeS: 3600 },
         })
     })
 

@@ -79,6 +79,16 @@ describe('a node’s path to the server', () => {
         expect(h.services.nodes.get('sen-01', ADMIN).connections).toEqual([
             { via: 'mesh', network: null, lastUsedAt: at, gatewayId: 'cel-01' },
         ])
+        // Heard through the gateway; the gateway itself reached the server over Wi-Fi.
+        expect(h.services.nodes.get('sen-01', ADMIN)).toMatchObject({
+            status: 'online',
+            heardVia: { via: 'gateway', gateway: { id: 'cel-01', name: 'Ridge gateway' } },
+        })
+        expect(h.services.nodes.get('cel-01', ADMIN).heardVia).toEqual({
+            via: 'mqtt',
+            gateway: null,
+            network: 'wifi',
+        })
     })
 
     it('gives the gateway’s signal when it heard the node directly', async () => {

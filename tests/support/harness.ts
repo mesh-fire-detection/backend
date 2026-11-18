@@ -18,7 +18,7 @@ export const START = new Date('2026-06-01T12:00:00.000Z')
 export const GOOGLE_TEST_CLIENT = { clientId: 'test-client-id', clientSecret: 'test-client-secret' }
 
 export const TEST_CONFIG: AppConfig = {
-    statusDegradedMin: 30,
+    statusLateMin: 30,
     statusOfflineMin: 120,
     lowBatteryPct: 20,
     linkWindowMin: 1440,

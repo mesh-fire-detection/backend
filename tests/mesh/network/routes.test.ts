@@ -67,7 +67,7 @@ describe('GET /api/network.json', () => {
 
         const node = h.services.network.get().nodes.find((item) => item.id === 'sen-01')
 
-        expect(node).toMatchObject({ status: 'degraded', batteryPct: 72, lastHeartbeatMin: 45 })
+        expect(node).toMatchObject({ status: 'late', batteryPct: 72, lastHeartbeatMin: 45 })
     })
 
     it('caches the feed for 30 seconds', () => {
@@ -103,18 +103,17 @@ describe('GET /api/network.json', () => {
 })
 
 describe('nodeStatus', () => {
-    const thresholds = { degradedMin: 30, offlineMin: 120, lowBatteryPct: 20 }
+    const thresholds = { lateMin: 30, offlineMin: 120 }
 
     it.each([
-        [null, 90, 'offline'],
-        [0, null, 'online'],
-        [29, 50, 'online'],
-        [30, 50, 'degraded'],
-        [5, 19, 'degraded'],
-        [119, 90, 'degraded'],
-        [120, 90, 'offline'],
-    ] as const)('heard %s min ago with battery %s → %s', (minutes, battery, expected) => {
-        expect(nodeStatus(minutes, battery, thresholds)).toBe(expected)
+        [null, 'offline'],
+        [0, 'online'],
+        [29, 'online'],
+        [30, 'late'],
+        [119, 'late'],
+        [120, 'offline'],
+    ] as const)('heard %s min ago → %s', (minutes, expected) => {
+        expect(nodeStatus(minutes, thresholds)).toBe(expected)
     })
 })
 

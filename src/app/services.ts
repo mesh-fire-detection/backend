@@ -31,7 +31,8 @@ import { createUserRepo } from '#src/users/repo'
 import { createUserService } from '#src/users/service'
 
 export type AppConfig = {
-    readonly statusDegradedMin: number
+    /** From `STATUS_DEGRADED_MIN`, kept under its old name so deployed settings still apply. */
+    readonly statusLateMin: number
     readonly statusOfflineMin: number
     readonly lowBatteryPct: number
     readonly notehubChannelKey?: Buffer | undefined
@@ -95,7 +96,7 @@ export function createServices(deps: ServiceDeps) {
     const { db, auth, clock, logger, config, events } = deps
     const transact = <T>(fn: () => T): T => transaction(db, fn)
     const statusThresholds = {
-        degradedMin: config.statusDegradedMin,
+        lateMin: config.statusLateMin,
         offlineMin: config.statusOfflineMin,
         lowBatteryPct: config.lowBatteryPct,
     }
@@ -110,7 +111,7 @@ export function createServices(deps: ServiceDeps) {
         repo: nodeRepo,
         clock,
         transact,
-        batteries: () => networkRepo.latestBatteryByNode(),
+        power: (since: Date) => networkRepo.powerInputs(since),
         thresholds: statusThresholds,
         events,
         gatewayLinks: () => gatewayRepo.links(),

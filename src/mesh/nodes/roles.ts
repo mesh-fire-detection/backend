@@ -102,10 +102,12 @@ const iso = (at: Date | null): string | null => at?.toISOString() ?? null
  */
 export function connectionsOf(row: NodeRow, observed: Observed): NodeConnection[] {
     const links = observed.gateways.get(row.id)
+    // The later of a browser connecting and a browser passing on a reading.
+    const browserLatest = [row.settingsReportedAt, row.browserHeardAt]
+        .filter((at) => at !== null)
+        .toSorted((a, b) => b.getTime() - a.getTime())[0]
     const browserAt =
-        row.settingsReportedAt !== null && row.settingsReportedAt >= observed.since
-            ? row.settingsReportedAt
-            : null
+        browserLatest !== undefined && browserLatest >= observed.since ? browserLatest : null
     const mesh = observed.meshDeliveries.get(row.id) ?? []
     const connections: NodeConnection[] = [
         ...mesh.map((delivery) => ({

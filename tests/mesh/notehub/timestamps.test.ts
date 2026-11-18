@@ -45,7 +45,7 @@ describe('Notehub time and live alerts', () => {
         })
         expect(h.services.network.get().nodes.find((node) => node.id === 'sen-01')).toMatchObject({
             batteryPct: null,
-            status: 'degraded',
+            status: 'late',
         })
         expect(h.services.readings.readings('sen-01', {}, ADMIN).readings[0]?.recordedAt).toBe(
             new Date(captured * 1000).toISOString()

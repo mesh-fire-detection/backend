@@ -248,6 +248,16 @@ describe('system alert sweep', () => {
         ])
     })
 
+    it('does not call a battery low while the node is plugged in', async () => {
+        const s = await setup()
+        heard(s, 'sen-02')
+        s.h.services.nodes.update('sen-02', { powerSource: 'mains' }, ADMIN)
+
+        battery(s, 'sen-02', 5)
+        sweep(s)
+        expect(alertsOf(s)).toHaveLength(0)
+    })
+
     it('resolves system alerts for nodes that get disabled', async () => {
         const s = await setup()
         heard(s, 'sen-01')

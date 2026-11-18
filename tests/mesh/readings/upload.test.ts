@@ -7,7 +7,7 @@ import {
     UploadResponseSchema,
 } from '#src/mesh/readings/schema'
 import { createHarness, START } from '#tests/support/harness'
-import { seedMesh } from '#tests/support/seed'
+import { SENSOR_NODE, seedMesh } from '#tests/support/seed'
 
 const HOUR = 3_600_000
 const TEMPERATURE = 'environmentMetrics.temperature'
@@ -69,6 +69,38 @@ describe('POST /v1/nodes/:id/upload', () => {
                 uploaded_by_id: member.id,
             },
         ])
+    })
+
+    it('counts what a browser passed on as hearing the node, by the browser', async () => {
+        const { h, member, upload } = await setup()
+        const at = hoursAgo(0.5)
+        // Heard through the gateway an hour before the browser passed something on.
+        h.db.$client
+            .prepare(
+                'INSERT INTO packets_seen (from_node_num, packet_id, gateway_id, received_at, via) VALUES (?, 1, ?, ?, ?)'
+            )
+            .run(SENSOR_NODE, 'cel-01', Date.parse(hoursAgo(1.5)), 'mqtt')
+
+        const response = await upload({ readings: [{ metric: TEMPERATURE, value: 21, at }] })
+        expect(response.status).toBe(200)
+
+        const node = await h.request('/v1/nodes/sen-01', { cookie: member.cookie })
+        const { node: view } = (await node.json()) as {
+            node: { lastHeardAt: string; status: string; heardVia: { via: string } | null }
+        }
+        expect(view).toMatchObject({
+            lastHeardAt: at,
+            status: 'late',
+            heardVia: { via: 'browser' },
+        })
+        // Someone not on the node is told it was heard, not that a browser is with it,
+        // and not the older gateway path either, as if that were the latest.
+        const other = await h.signInAs('user')
+        const seen = await h.request('/v1/nodes/sen-01', { cookie: other.cookie })
+        const { node: theirs } = (await seen.json()) as {
+            node: { heardVia: unknown; status: string }
+        }
+        expect(theirs).toMatchObject({ status: 'late', heardVia: null })
     })
 
     it('shows uploaded readings in the node’s history', async () => {
@@ -173,15 +205,14 @@ describe('POST /v1/nodes/:id/upload', () => {
         })
     })
 
-    it('never opens an alert or marks the node as heard', async () => {
+    it('never opens an alert, though it counts as hearing the node', async () => {
         const { h, upload } = await setup()
         const heard = () =>
             h.db.$client.prepare("SELECT last_heard_at FROM nodes WHERE id = 'sen-01'").get()
-        const before = heard()
 
         await upload({ readings: [{ metric: TEMPERATURE, value: 999, at: hoursAgo(1) }] })
 
-        expect(heard()).toEqual(before)
+        expect(heard()).toEqual({ last_heard_at: Date.parse(hoursAgo(1)) })
         expect(h.db.$client.prepare('SELECT count(*) AS count FROM alerts').get()).toEqual({
             count: 0,
         })

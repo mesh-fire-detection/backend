@@ -22,6 +22,10 @@ const HardwareIdSchema = z
     .toLowerCase()
     .regex(/^(?:[\da-f]{2}){4,32}$/, 'hex, as the node reports it')
 
+/** What powers a node, as its people say. `mains` means always plugged in. */
+const PowerSourceSchema = z.enum(['battery', 'solar', 'mains'])
+export type PowerSource = z.infer<typeof PowerSourceSchema>
+
 /** What the people on a node may change. Everything but the name may be cleared. */
 const EditableFieldsSchema = z.object({
     name: z.string().trim().min(1).max(80),
@@ -32,6 +36,7 @@ const EditableFieldsSchema = z.object({
     antennaHeightM: z.number().min(0).max(500).nullable(),
     deployedOn: z.iso.date().nullable(),
     note: z.string().trim().max(500).nullable(),
+    powerSource: PowerSourceSchema.nullable(),
 })
 
 /** Only an admin changes these: the mesh ID decides whose packets are accepted. */
@@ -78,7 +83,36 @@ export const AddNodesSchema = z
     .object({ nodes: z.array(ReportedNodeSchema).min(1).max(50) })
     .strict()
 
-export const NodeStatusSchema = z.enum(['online', 'degraded', 'offline'])
+/** Whether the node is reaching the server: by when it was last heard, by any path. */
+export const NodeStatusSchema = z.enum(['online', 'late', 'offline'])
+
+/**
+ * What powers a node. Plugged in and a battery level can both be true. A
+ * battery is `low` only when nothing else powers the node, and `none` when the
+ * voltage says there is none. `charging` is a rising voltage on a node that did
+ * not say it is plugged in: USB or solar.
+ */
+const PowerSchema = z.object({
+    pluggedIn: z.boolean(),
+    charging: z.boolean(),
+    batteryPct: z.number().nullable(),
+    battery: z.enum(['ok', 'low', 'none', 'unknown']),
+    at: IsoTimestampSchema.nullable(),
+})
+export type Power = z.infer<typeof PowerSchema>
+
+const NodeRefSchema = z.object({ id: NodeIdSchema, name: z.string() })
+
+/**
+ * The path the node was last heard by. `browser` only for its people and
+ * admins; anyone else sees the latest other path. `gateway` names the node a
+ * mesh packet came through; `mqtt` and `notecard` are a gateway's own link.
+ */
+const HeardViaSchema = z.object({
+    via: z.enum(['browser', 'gateway', 'mqtt', 'notecard']),
+    gateway: NodeRefSchema.nullable(),
+    network: z.enum(['wifi', 'cellular', 'satellite']).nullable(),
+})
 
 /** What a node does, from what it has shown (#51). `base` only relays and never combines. */
 const NodeRoleSchema = z.enum(['base', 'gateway', 'sensor', 'vision'])
@@ -113,6 +147,7 @@ const NodeDetailsSchema = z.object({
     shortName: z.string().nullable(),
     settings: z.record(z.string(), z.string()).nullable(),
     settingsReportedAt: IsoTimestampSchema.nullable(),
+    powerSource: PowerSourceSchema.nullable(),
     owners: z.array(NodeOwnerSchema),
     reported: z
         .object({
@@ -140,12 +175,15 @@ export const NodeSchema = z.object({
     /** Browser connections only for the node's people and admins. */
     connections: z.array(NodeConnectionSchema),
     status: NodeStatusSchema,
+    heardVia: HeardViaSchema.nullable(),
+    power: PowerSchema.nullable(),
     position: PositionSchema.nullable(),
     approximate: z.boolean(),
     elevationM: z.number().nullable(),
     antennaHeightM: z.number().nullable(),
     firmware: z.string().nullable(),
     deployedOn: z.string().nullable(),
+    /** The same as `power.batteryPct`, kept for older clients. */
     batteryPct: z.number().nullable(),
     lastHeardAt: IsoTimestampSchema.nullable(),
     enabled: z.boolean(),
@@ -159,8 +197,6 @@ const SignalSchema = z.object({
     rssi: z.number().nullable(),
     at: IsoTimestampSchema,
 })
-
-const NodeRefSchema = z.object({ id: NodeIdSchema, name: z.string() })
 
 /**
  * How one node's packets reach the server, and the nodes around it, from the

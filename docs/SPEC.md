@@ -387,11 +387,30 @@ message body.
 
 ## Node status
 
-Derived at read time from the last packet received, never stored:
+Derived at read time from when the node was last heard, by any path: a mesh
+packet through a gateway, a gateway's own link, or a browser passing on its
+readings from `/connect`. Never stored, and about connection only:
 
 - `online`: heard within 30 minutes.
-- `degraded`: heard within 2 hours, or battery below 20%.
+- `late`: heard within 2 hours.
 - `offline`: not heard for 2 hours or more, or never heard.
+
+`heardVia` names the path it was last heard by. A browser is shown only to the
+node's people and admins, since it says someone is with the node.
+
+## Node power
+
+Power is its own field, separate from status. Plugged in and a battery level
+can both be true:
+
+- **Plugged in** when the firmware reports 101 (it found no battery, or USB is
+  holding the battery above 4.2 V), or the node's people set its power source
+  to `mains`. Some boards cannot see USB at all; a worn-out battery on USB never
+  reaches 4.2 V, so only the setting can say so.
+- **Battery** `ok`, `low` (below `LOW_BATTERY_PCT` and not plugged in), `none`
+  (under 2.6 V) or `unknown`. On 101 the percentage is estimated from voltage.
+- **Charging** when not plugged in and the voltage rose 0.03 V or more over at
+  least half an hour: USB the board cannot see, or solar.
 
 Thresholds live in config. **Open:** confirm these values against the real
 reporting interval.

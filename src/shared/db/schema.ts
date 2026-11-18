@@ -180,6 +180,16 @@ export const nodes = sqliteTable('nodes', {
     shortName: text(),
     settings: text({ mode: 'json' }).$type<Record<string, string>>(),
     settingsReportedAt: timestamp(),
+    /**
+     * When a browser last passed on something from the node: a reading it
+     * uploaded or a connection. Hearing a node this way counts as hearing it.
+     */
+    browserHeardAt: timestamp(),
+    /**
+     * What its people say powers the node. `mains` means always plugged in,
+     * whatever the battery reads: some boards cannot tell USB is connected.
+     */
+    powerSource: text({ enum: ['battery', 'solar', 'mains'] }),
     reportedName: text(),
     reportedLongitude: real(),
     reportedLatitude: real(),

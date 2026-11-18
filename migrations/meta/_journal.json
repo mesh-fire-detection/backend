@@ -120,6 +120,13 @@
       "when": 1794252220293,
       "tag": "0016_packet_hops",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1795038433067,
+      "tag": "0017_node_power",
+      "breakpoints": true
     }
   ]
 }

@@ -1,3 +1,4 @@
+import { CHARGING_WINDOW_MS, powerOf } from '#src/mesh/network/power'
 import { type LinkObservationRow, type NetworkRepo } from '#src/mesh/network/repo'
 import { type MeshLink, type MeshNode, type Network } from '#src/mesh/network/schema'
 import { shownLocation } from '#src/mesh/nodes/position'
@@ -7,7 +8,8 @@ import { type NodeStatus } from '#src/mesh/nodes/schema'
 import { type Clock, MS_PER_MINUTE, MS_PER_SECOND } from '#src/shared/time'
 
 export type StatusThresholds = {
-    readonly degradedMin: number
+    /** Minutes without a packet before a node is late. */
+    readonly lateMin: number
     readonly offlineMin: number
     readonly lowBatteryPct: number
 }
@@ -15,15 +17,17 @@ export type StatusThresholds = {
 const CACHE_TTL_MS = 30 * MS_PER_SECOND
 const EARTH_RADIUS_KM = 6371
 
-/** Derived at read time, never stored. */
+/**
+ * Derived at read time, never stored. Only about whether the node is reaching
+ * the server: power is its own field, so a node on USB with a worn-out battery
+ * is not marked down for it.
+ */
 export function nodeStatus(
     minutesSinceHeard: number | null,
-    batteryPct: number | null,
-    thresholds: StatusThresholds
+    thresholds: Pick<StatusThresholds, 'lateMin' | 'offlineMin'>
 ): NodeStatus {
     if (minutesSinceHeard === null || minutesSinceHeard >= thresholds.offlineMin) return 'offline'
-    const lowBattery = batteryPct !== null && batteryPct < thresholds.lowBatteryPct
-    return lowBattery || minutesSinceHeard >= thresholds.degradedMin ? 'degraded' : 'online'
+    return minutesSinceHeard >= thresholds.lateMin ? 'late' : 'online'
 }
 
 /** Great-circle distance between `[longitude, latitude]` points. */
@@ -89,7 +93,7 @@ function toMeshNode(
         id: node.id,
         name: node.name,
         type: node.type,
-        status: nodeStatus(minutesSinceHeard, batteryPct, thresholds),
+        status: nodeStatus(minutesSinceHeard, thresholds),
         position: node.position,
         elevationM: node.elevationM,
         antennaHeightM: node.antennaHeightM,
@@ -152,13 +156,19 @@ export function createNetworkService(deps: {
         const nodes = nodeRepo
             .listEnabled()
             .flatMap((node) => mappable({ ...node, type: shownType(node, notecardGateways) }) ?? [])
-        const batteries = repo.latestBatteryByNode()
+        const power = repo.powerInputs(new Date(now.getTime() - CHARGING_WINDOW_MS))
         const nodesById = new Map(nodes.map((node) => [node.id, node]))
         const since = new Date(now.getTime() - linkWindowMin * MS_PER_MINUTE)
 
         return {
             nodes: nodes.map((node) =>
-                toMeshNode(node, batteries.get(node.id) ?? null, now, thresholds)
+                toMeshNode(
+                    node,
+                    powerOf(power.get(node.id), node.powerSource, thresholds.lowBatteryPct)
+                        ?.batteryPct ?? null,
+                    now,
+                    thresholds
+                )
             ),
             links: toMeshLinks(repo.linkObservationsSince(since), nodesById),
         }
