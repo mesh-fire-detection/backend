@@ -160,19 +160,19 @@ export function createIngestService(deps: IngestDeps) {
         const recordedAt = options?.recordedAt ?? receivedAt
         const liveEligible = options?.liveEligible ?? true
         const stored = storePayload(node, packet.payload, recordedAt, liveEligible, source)
-        if (liveEligible) {
-            if (packet.direct !== null) {
-                repo.insertLinkObservations([
-                    {
-                        fromNodeId: node.id,
-                        toNodeId: gatewayNode.id,
-                        observedAt: recordedAt,
-                        ...packet.direct,
-                    },
-                ])
-            }
-            repo.markHeard(node.id, recordedAt)
+        if (liveEligible && packet.direct !== null) {
+            repo.insertLinkObservations([
+                {
+                    fromNodeId: node.id,
+                    toNodeId: gatewayNode.id,
+                    observedAt: recordedAt,
+                    ...packet.direct,
+                },
+            ])
         }
+        // A late or out-of-order packet still proves the node was alive when it
+        // was heard; markHeard only ever moves forward.
+        repo.markHeard(node.id, recordedAt)
         return {
             outcome: { accepted: true, nodeId: node.id, readingCount: stored.length },
             readings: liveEligible ? stored : [],

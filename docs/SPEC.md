@@ -103,22 +103,27 @@ The following decisions were approved on October 23, 2026:
 - Keep the original channel encryption and existing telemetry metric names.
   Accept telemetry only in this first adapter. MQTT behavior for other packet
   types remains unchanged.
-- Store sensor telemetry time as the reading's `recordedAt`, Notehub capture
-  time and backend receipt time in the delivery record. Missing sensor time
-  falls back to Notehub capture time and is always history-only. Reject capture
-  or sensor times more than five minutes into the future, or sensor time more
-  than five minutes after Notehub capture.
+- Keep each clock apart. A reading's `recordedAt` is when the gateway heard the
+  packet: the gateway's own `rx_time`, or Notehub capture time when the gateway
+  had no clock or its time is more than five minutes after capture, and never
+  later than backend receipt. The sensor's own clock is kept only as
+  `measuredAt`; it is often unset or wrong on a node without GPS, so it decides
+  neither status nor liveness, and a wrong one is not a reason to reject.
+  Notehub capture time and backend receipt time stay in the delivery record.
+  Reject capture times more than five minutes into the future. (Changed on
+  November 9, 2026: `recordedAt` was the sensor's time, and a node without one
+  was never marked heard.)
 - A browser's copy of what it saw on `/connect` (`POST /v1/nodes/:id/upload`, for
   a node's people and admins) is stored with `source = browser`, never live: no
   alerts, and the node is not marked as heard. A reading the server already holds
   is skipped: the same sensor time, or the same value within two minutes, which is
   how one packet heard by a gateway too looks when the node's clock is unset. Times
   in the future or over a year old are skipped too. Each row records who sent it.
-- Readings older than five minutes at receipt, future readings, and readings
-  older than the sender's last-heard time are history-only. They cannot change
-  last-heard, the live battery value, or live alerts, including later rule
-  duration calculations. Recent readings with a sensor clock use sensor time
-  for last-heard; last-heard never moves backward.
+- Readings heard more than five minutes before receipt, and readings older than
+  the sender's last-heard time, are history-only. They cannot change the live
+  battery value or live alerts, including later rule duration calculations.
+  Every accepted packet moves last-heard to when it was heard, if that is
+  later; last-heard never moves backward.
 - Accept one event or an atomic batch of up to 16, with a 64 KiB request limit
   and at most 4096 decoded bytes per envelope. A 200 response follows commit
   and reports inserted packets and duplicates. Invalid batches write nothing.

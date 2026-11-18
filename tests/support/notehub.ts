@@ -29,6 +29,8 @@ export function notehubEvent(
         encrypt?: boolean
         key?: Buffer
         sourceTime?: number
+        /** When the gateway heard it, by its clock; absent as when its clock is unset. */
+        heardTime?: number
     } = {}
 ) {
     const at = options.at ?? Math.floor(h.clock().getTime() / 1000)
@@ -61,6 +63,7 @@ export function notehubEvent(
         id: options.id ?? 1,
         portnum: PortNum.TELEMETRY_APP,
         payload,
+        ...(options.heardTime !== undefined && { rxTime: options.heardTime }),
         ...(options.encrypt !== undefined && { encrypt: options.encrypt }),
         ...(options.key !== undefined && { key: options.key }),
     })

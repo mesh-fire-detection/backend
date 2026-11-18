@@ -50,8 +50,9 @@ and decodes telemetry with the same decoder as MQTT.
 One outer SQLite transaction covers each batch: authorization, duplicate checks,
 shared ingest storage, and durable Notehub receipts. Shared ingest separates
 storage from evaluation so alerts run only after the outer commit. Notehub uses
-the sensor timestamp (or Notehub capture time for clockless history); MQTT keeps
-server receipt-time semantics. History-only readings and device metrics carry
+the time the gateway heard the packet (its `rx_time`, else Notehub capture
+time); the sensor's clock goes only into `measuredAt`. MQTT keeps server
+receipt-time semantics. History-only readings and device metrics carry
 `liveEligible = false`; live battery lookup and rule duration queries exclude
 them. Last-heard updates are monotonic.
 
@@ -265,7 +266,7 @@ Indexed on (`fromNodeNum`, `packetId`, `receivedAt`); not unique (see ingest).
 | `measuredAt`           | The sensor's own clock, when it has one; matches a reading across sources |
 | `source`               | `mqtt`, `notehub` or `browser`; null for rows from before it was kept     |
 | `uploadedById`         | Who sent a browser's copy                                                 |
-| `liveEligible`         | False for delayed, out-of-order, future, or clockless Notehub history     |
+| `liveEligible`         | False for delayed or out-of-order Notehub history                         |
 
 **link_observations**: `fromNodeId`, `toNodeId`, `observedAt`, `snr`,
 `rssi` (nullable). The feed uses the newest observation per unordered pair,

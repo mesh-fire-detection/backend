@@ -17,6 +17,8 @@ type EnvelopeOptions = {
     readonly hopLimit?: number
     readonly rxSnr?: number
     readonly rxRssi?: number
+    /** The gateway's clock when it heard the packet; 0 when it had none. */
+    readonly rxTime?: number
     readonly encrypt?: boolean
     readonly key?: Buffer
 }
@@ -35,6 +37,7 @@ export function envelopeBytes(options: EnvelopeOptions): Uint8Array {
         hopLimit: options.hopLimit ?? 1,
         rxSnr: options.rxSnr ?? 0,
         rxRssi: options.rxRssi ?? 0,
+        rxTime: options.rxTime ?? 0,
         payloadVariant:
             options.encrypt === false
                 ? {

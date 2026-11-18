@@ -144,17 +144,27 @@ accepted last-heard time are history-only.
 
 ## Timestamps, history, and alerts
 
-- `readings.recordedAt` uses the original sensor Telemetry `time`, in UTC.
-  `notehub_events` separately retains Notehub capture and backend receipt times.
-- If the sensor timestamp is zero/missing, use Notehub capture time for history
-  and exclude the reading from all live behavior. Clock quality is not proven
-  by a nonzero timestamp; verify real node clocks during provisioning.
-- Readings more than five minutes old on arrival, earlier than the sender's
-  last-heard time, or slightly in the future are history-only. They are available
-  through existing readings/metrics history APIs but do not change last-heard,
-  map battery state, or live alerts. Future capture/sensor timestamps more than
-  five minutes ahead are rejected, as are sensor times more than five minutes
-  after Notehub capture. Last-heard never moves backward.
+Four clocks touch a packet, and each is kept for what it can prove:
+
+| Time                            | Clock                       | Kept as                            |
+| ------------------------------- | --------------------------- | ---------------------------------- |
+| When the sensor measured        | The sensor node's           | `readings.measuredAt`              |
+| When the gateway heard it       | The gateway's (`rx_time`)   | `readings.recordedAt`, last-heard  |
+| When the Notecard captured it   | The Notecard's (cell time)  | `notehub_events.capturedAt`        |
+| When the backend received it    | The server's                | `notehub_events`, `packets_seen`   |
+
+- `recordedAt` is the gateway's `rx_time`. If the gateway had no clock (0), or
+  its time is more than five minutes after Notehub capture, capture time is used
+  instead. It is never later than backend receipt.
+- The sensor's clock decides nothing. A node without GPS often has none, or a
+  wrong one; it is kept as `measuredAt` to match the same reading across
+  sources, and is never a reason to reject a delivery.
+- Readings heard more than five minutes before receipt, or earlier than the
+  sender's last-heard time, are history-only. They are available through the
+  readings/metrics history APIs but do not change map battery state or live
+  alerts. Every accepted packet moves last-heard to when it was heard, if that
+  is later; last-heard never moves backward. Capture times more than five
+  minutes in the future are rejected.
 - Archived readings do not extend or break a later live rule's duration streak.
   Recent eligible telemetry uses the existing alert evaluator after commit.
   MQTT continues to use backend receipt time.
