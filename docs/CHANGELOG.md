@@ -13,6 +13,14 @@ Notable changes to the backend, by release. How releases are cut is in
   longer decides anything: a node without GPS often has none, and its readings
   were stored in 1970 or refused. It is still kept as `measuredAt`. A late or
   out-of-order packet now moves last-heard forward too. No migration.
+- A node's path times each route by that node's own packets, per gateway and
+  per way in (MQTT or Notehub), instead of by whatever else the gateway
+  forwarded. A route the node never took is left out. No migration.
+
+### Changed
+
+- A node's path, and the nodes around it, look back 30 days instead of 7.
+  Roles and connections on `/v1/nodes` stay at 7.
 
 ## 0.3.0 — 2026-11-09
 

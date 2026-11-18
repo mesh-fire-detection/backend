@@ -164,7 +164,7 @@ const NodeRefSchema = z.object({ id: NodeIdSchema, name: z.string() })
 
 /**
  * How one node's packets reach the server, and the nodes around it, from the
- * last 7 days. The mesh does not record which relays a packet passed through,
+ * last 30 days. The mesh does not record which relays a packet passed through,
  * only how many hops it took.
  */
 const HopsSchema = z.number().int().min(0).nullable()
@@ -177,7 +177,11 @@ const DeliverySchema = z.object({
     lastAt: IsoTimestampSchema,
     /** The gateway's reading of this node, when it heard it directly. */
     signal: SignalSchema.nullable(),
-    /** How the gateway reaches the server. */
+    /**
+     * How this node's packets went on from the gateway to the server, each timed
+     * by this node's latest packet that way. A gateway's own delivery lists
+     * every link it has, timed by anything it delivered.
+     */
     connections: z.array(NodeConnectionSchema),
 })
 
