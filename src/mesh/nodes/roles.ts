@@ -8,6 +8,12 @@ import { MS_PER_MINUTE } from '#src/shared/time'
  */
 export const OBSERVED_WINDOW_MS = 7 * 24 * 60 * MS_PER_MINUTE
 
+/**
+ * How far back a node's path looks. Longer than roles, so a route a node uses
+ * rarely, such as a gateway's Wi-Fi when it is mostly on cellular, still shows.
+ */
+export const PATH_WINDOW_MS = 30 * 24 * 60 * MS_PER_MINUTE
+
 /** A registered gateway's paths and when each last delivered, as the gateway repo reads them. */
 export type GatewayLinks = {
     readonly nodeId: string

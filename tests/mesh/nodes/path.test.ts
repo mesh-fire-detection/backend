@@ -4,6 +4,7 @@ import { decodeEnvelope } from '#src/mesh/ingest/decode'
 import { NodePathSchema } from '#src/mesh/nodes/schema'
 import { MS_PER_MINUTE } from '#src/shared/time'
 import { createHarness, type Harness } from '#tests/support/harness'
+import { deliver, notehubEvent, notehubHarness } from '#tests/support/notehub'
 import {
     CHANNEL_KEY,
     deviceTelemetry,
@@ -125,7 +126,43 @@ describe('a node’s path to the server', () => {
         ])
     })
 
-    it('lists the nodes around it, strongest first, in both directions, for the window', async () => {
+    it('times each route by this node’s packets, not by what else the gateway forwarded', async () => {
+        const h = notehubHarness()
+        const member = await h.signInAs('user')
+
+        send(h, SENSOR_NODE)
+        const overWifi = h.clock().toISOString()
+        h.advance(2 * DAY)
+        send(h, OTHER_SENSOR_NODE)
+        const delivered9001 = await deliver(h, notehubEvent(h, { id: 9001 }))
+        expect(delivered9001.status).toBe(200)
+        const overCell = h.clock().toISOString()
+
+        const { deliveries } = await pathOf(h, 'sen-01', member.cookie)
+        expect(deliveries).toHaveLength(1)
+        expect(deliveries[0]?.lastAt).toBe(overCell)
+        expect(deliveries[0]?.connections).toEqual([
+            { via: 'notecard', network: null, lastUsedAt: overCell },
+            { via: 'mqtt', network: 'wifi', lastUsedAt: overWifi },
+        ])
+    })
+
+    it('leaves out a gateway link this node’s packets never took', async () => {
+        const h = notehubHarness()
+        const member = await h.signInAs('user')
+
+        send(h, OTHER_SENSOR_NODE)
+        const delivered9002 = await deliver(h, notehubEvent(h, { id: 9002 }))
+        expect(delivered9002.status).toBe(200)
+        const at = h.clock().toISOString()
+
+        const { deliveries } = await pathOf(h, 'sen-01', member.cookie)
+        expect(deliveries[0]?.connections).toEqual([
+            { via: 'notecard', network: null, lastUsedAt: at },
+        ])
+    })
+
+    it('lists the routes and the nodes around it, strongest first, for 30 days', async () => {
         const h = createHarness()
         seedMesh(h)
         const member = await h.signInAs('user')
@@ -157,9 +194,16 @@ describe('a node’s path to the server', () => {
             },
         ])
 
+        // Past the 7-day roles window, still inside the path's 30 days.
         h.advance(8 * DAY)
+        const week = await pathOf(h, 'sen-01', member.cookie)
+        expect(week.nearby).toHaveLength(1)
+        expect(week.deliveries).toHaveLength(1)
+
+        h.advance(23 * DAY)
         const later = await pathOf(h, 'sen-01', member.cookie)
         expect(later.nearby).toEqual([])
+        expect(later.deliveries).toEqual([])
     })
 
     it('leaves out a disabled gateway for members, and needs a visible node', async () => {

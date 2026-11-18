@@ -8,12 +8,14 @@ import {
     type GatewayLinks,
     OBSERVED_WINDOW_MS,
     type Observed,
+    PATH_WINDOW_MS,
     rolesOf,
     shownType,
 } from '#src/mesh/nodes/roles'
 import {
     ADMIN_FIELDS,
     type Node,
+    type NodeConnection,
     type NodePath,
     type RegisterNode,
     type ReportedNode,
@@ -274,7 +276,7 @@ export function createNodeService(deps: {
         path(id: string, viewer: Viewer): NodePath {
             const row = visibleRow(id, viewer)
             const now = clock()
-            const since = new Date(now.getTime() - OBSERVED_WINDOW_MS)
+            const since = new Date(now.getTime() - PATH_WINDOW_MS)
             const observed = observe(gatewayLinks(), since)
             const shown = (nodeId: string): NodeRow | undefined => {
                 const other = repo.findById(nodeId)
@@ -299,13 +301,28 @@ export function createNodeService(deps: {
                     const direct = links.find(
                         (link) => link.fromNodeId === row.id && link.toNodeId === gateway.id
                     )
+                    // Only the ways this node's packets left the gateway, timed by
+                    // them, not by whatever else the gateway forwarded.
+                    const linksOut = serverLinks(gateway)
+                    const connections = delivery.vias
+                        .map(({ via, lastAt }) => {
+                            const kind: NodeConnection['via'] =
+                                via === 'notehub' ? 'notecard' : 'mqtt'
+                            const known = linksOut.find((link) => link.via === kind)
+                            return {
+                                via: kind,
+                                network: known?.network ?? (kind === 'mqtt' ? 'wifi' : null),
+                                lastUsedAt: lastAt.toISOString(),
+                            }
+                        })
+                        .toSorted((a, b) => b.lastUsedAt.localeCompare(a.lastUsedAt))
                     return [
                         {
                             gateway: { id: gateway.id, name: gateway.name },
                             hops: delivery.hops,
                             lastAt: delivery.lastAt.toISOString(),
                             signal: signal(direct),
-                            connections: serverLinks(gateway),
+                            connections,
                         },
                     ]
                 })

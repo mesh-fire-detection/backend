@@ -132,21 +132,43 @@ export function createNodeRepo(db: Db) {
             )
         },
 
-        /** The gateways that delivered one node's packets since `since`, with hops on the latest. */
+        /**
+         * The gateways that delivered one node's packets since `since`, each with
+         * when this node's packets last left it by each ingest path, and the hops
+         * on its latest packet.
+         */
         deliveriesOf(
             nodeNum: number,
             since: Date
-        ): { gatewayId: string; lastAt: Date; hops: number | null }[] {
-            const latest = db
-                .select({ gatewayId: packetsSeen.gatewayId, lastAt: max(packetsSeen.receivedAt) })
+        ): {
+            gatewayId: string
+            lastAt: Date
+            hops: number | null
+            vias: { via: 'mqtt' | 'notehub'; lastAt: Date }[]
+        }[] {
+            const byVia = db
+                .select({
+                    gatewayId: packetsSeen.gatewayId,
+                    via: packetsSeen.via,
+                    lastAt: max(packetsSeen.receivedAt),
+                })
                 .from(packetsSeen)
                 .where(
                     and(eq(packetsSeen.fromNodeNum, nodeNum), gte(packetsSeen.receivedAt, since))
                 )
-                .groupBy(packetsSeen.gatewayId)
+                .groupBy(packetsSeen.gatewayId, packetsSeen.via)
                 .all()
-            return latest.flatMap(({ gatewayId, lastAt }) => {
-                if (lastAt === null) return []
+            const perGateway = new Map<string, typeof byVia>()
+            for (const row of byVia) {
+                perGateway.set(row.gatewayId, [...(perGateway.get(row.gatewayId) ?? []), row])
+            }
+            return [...perGateway].flatMap(([gatewayId, rows]) => {
+                const times = rows.flatMap((row) => (row.lastAt === null ? [] : [row.lastAt]))
+                if (times.length === 0) return []
+                const lastAt = new Date(Math.max(...times.map((at) => at.getTime())))
+                const vias = rows.flatMap(({ via, lastAt: at }) =>
+                    via === null || at === null ? [] : [{ via, lastAt: at }]
+                )
                 const newest = db
                     .select({ hops: packetsSeen.hops })
                     .from(packetsSeen)
@@ -159,7 +181,7 @@ export function createNodeRepo(db: Db) {
                     .orderBy(desc(packetsSeen.receivedAt))
                     .limit(1)
                     .get()
-                return [{ gatewayId, lastAt, hops: newest?.hops ?? null }]
+                return [{ gatewayId, lastAt, hops: newest?.hops ?? null, vias }]
             })
         },
 
