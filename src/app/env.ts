@@ -61,17 +61,22 @@ const EnvSchema = z
         GOOGLE_CLIENT_ID: optionalText,
         GOOGLE_CLIENT_SECRET: optionalText,
 
-        STATUS_DEGRADED_MIN: minutes(30),
-        STATUS_OFFLINE_MIN: minutes(120),
+        /*
+         * Sized for nodes reporting every 30 minutes: late after two and a half
+         * reports' time, offline after six, so one slow packet does not make a
+         * healthy node late.
+         */
+        STATUS_LATE_MIN: minutes(75),
+        STATUS_OFFLINE_MIN: minutes(180),
         LOW_BATTERY_PCT: z.coerce.number().min(0).max(100).default(20),
         LINK_WINDOW_MIN: minutes(1440),
     })
     .superRefine((env, ctx) => {
-        if (env.STATUS_OFFLINE_MIN <= env.STATUS_DEGRADED_MIN) {
+        if (env.STATUS_OFFLINE_MIN <= env.STATUS_LATE_MIN) {
             ctx.addIssue({
                 code: 'custom',
                 path: ['STATUS_OFFLINE_MIN'],
-                message: 'must be greater than STATUS_DEGRADED_MIN',
+                message: 'must be greater than STATUS_LATE_MIN',
             })
         }
         if (env.RESEND_API_KEY !== undefined && env.EMAIL_FROM === undefined) {

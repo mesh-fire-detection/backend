@@ -119,6 +119,21 @@ const NodeRoleSchema = z.enum(['base', 'gateway', 'sensor', 'vision'])
 export type NodeRole = z.infer<typeof NodeRoleSchema>
 
 /** One way a node's data reaches the backend. `network` is null when it isn't known. */
+/**
+ * When the node is expected to be heard, and so when it becomes late and
+ * offline. The interval is from its settings (`configured`), from how often it
+ * actually reports (`observed`), or the server's default; the delay is how late
+ * its path usually runs, such as a Notecard's cellular queue.
+ */
+const NodeExpectedSchema = z.object({
+    intervalMin: z.number().positive(),
+    source: z.enum(['configured', 'observed', 'default']),
+    delayMin: z.number().min(0),
+    lateMin: z.number().int().positive(),
+    offlineMin: z.number().int().positive(),
+})
+export type NodeExpected = z.infer<typeof NodeExpectedSchema>
+
 const NodeConnectionSchema = z.object({
     via: z.enum(['mesh', 'mqtt', 'notecard', 'browser']),
     network: z.enum(['wifi', 'cellular', 'satellite']).nullable(),
@@ -175,6 +190,7 @@ export const NodeSchema = z.object({
     /** Browser connections only for the node's people and admins. */
     connections: z.array(NodeConnectionSchema),
     status: NodeStatusSchema,
+    expected: NodeExpectedSchema,
     heardVia: HeardViaSchema.nullable(),
     power: PowerSchema.nullable(),
     position: PositionSchema.nullable(),

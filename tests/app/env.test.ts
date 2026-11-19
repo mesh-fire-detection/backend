@@ -30,8 +30,8 @@ describe('parseEnv', () => {
             EMAIL_PREVIEW_DIR: 'tmp/mail',
             GOOGLE_CLIENT_ID: undefined,
             GOOGLE_CLIENT_SECRET: undefined,
-            STATUS_DEGRADED_MIN: 30,
-            STATUS_OFFLINE_MIN: 120,
+            STATUS_LATE_MIN: 75,
+            STATUS_OFFLINE_MIN: 180,
             LOW_BATTERY_PCT: 20,
             LINK_WINDOW_MIN: 1440,
         })
@@ -105,7 +105,7 @@ describe('parseEnv', () => {
 
     it('requires the offline threshold to exceed the degraded one', () => {
         expect(() =>
-            parseEnv({ ...REQUIRED, STATUS_DEGRADED_MIN: '60', STATUS_OFFLINE_MIN: '60' })
+            parseEnv({ ...REQUIRED, STATUS_LATE_MIN: '60', STATUS_OFFLINE_MIN: '60' })
         ).toThrow(/STATUS_OFFLINE_MIN/)
     })
 

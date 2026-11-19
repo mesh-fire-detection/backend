@@ -196,6 +196,7 @@ describe('node routes', () => {
             'details',
             'elevationM',
             'enabled',
+            'expected',
             'firmware',
             'heardVia',
             'id',

@@ -9,6 +9,13 @@ import { type NetworkRepo } from '#src/mesh/network/repo'
 import { type NodeRepo } from '#src/mesh/nodes/repo'
 import { MS_PER_MINUTE, MS_PER_SECOND } from '#src/shared/time'
 
+/**
+ * Points above the low line a battery must climb before its alert clears. The
+ * firmware's level moves in steps, so without it a battery sitting at the line
+ * opens and clears an alert on every sweep.
+ */
+const LOW_BATTERY_RECOVERY_PCT = 5
+
 export type SystemThresholds = {
     readonly offlineMin: number
     readonly lowBatteryPct: number
@@ -27,6 +34,8 @@ export function createEvaluationService(deps: {
     readonly transact: <T>(fn: () => T) => T
     readonly events: EventLog
     readonly thresholds: SystemThresholds
+    /** Every node's own offline line, from how often it reports. */
+    readonly expected: () => ReadonlyMap<string, { readonly offlineMin: number }>
 }) {
     const {
         repo,
@@ -94,6 +103,7 @@ export function createEvaluationService(deps: {
                 const nodes = nodeRepo.list()
                 const power = networkRepo.powerInputs(new Date(now.getTime() - CHARGING_WINDOW_MS))
                 const enabled = new Set(nodes.filter((d) => d.enabled).map((d) => d.id))
+                const expectations = deps.expected()
                 const openOffline = new Map(
                     alertRepo.listUnresolvedSystem('offline').map((a) => [a.nodeId, a])
                 )
@@ -112,7 +122,9 @@ export function createEvaluationService(deps: {
                         node.lastHeardAt === null
                             ? null
                             : (now.getTime() - node.lastHeardAt.getTime()) / MS_PER_MINUTE
-                    const offline = silentMin !== null && silentMin >= thresholds.offlineMin
+                    const offlineMin =
+                        expectations.get(node.id)?.offlineMin ?? thresholds.offlineMin
+                    const offline = silentMin !== null && silentMin >= offlineMin
                     const offlineAlert = openOffline.get(node.id)
                     const subject = { kind: 'node', id: node.id } as const
                     if (offline && offlineAlert === undefined) {
@@ -153,7 +165,13 @@ export function createEvaluationService(deps: {
                             triggerValue: battery,
                             at: now,
                         })
-                    } else if (!low && lowAlert !== undefined) {
+                    } else if (
+                        !low &&
+                        lowAlert !== undefined &&
+                        (battery === null ||
+                            nodePower?.pluggedIn === true ||
+                            battery >= thresholds.lowBatteryPct + LOW_BATTERY_RECOVERY_PCT)
+                    ) {
                         events.record('node.battery_ok', { subject })
                         alerts.resolve(lowAlert, now, 'battery recovered')
                     }

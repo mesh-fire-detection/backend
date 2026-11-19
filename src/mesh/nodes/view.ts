@@ -1,9 +1,14 @@
 import { formatMeshId } from '#src/mesh/meshId'
-import { nodeStatus, type StatusThresholds } from '#src/mesh/network/service'
+import { nodeStatus } from '#src/mesh/network/service'
 import { shownLocation } from '#src/mesh/nodes/position'
 import { type NodeRow } from '#src/mesh/nodes/repo'
 import { connectionsOf, type Observed, rolesOf } from '#src/mesh/nodes/roles'
-import { type Node, type NodeConnection, type Power } from '#src/mesh/nodes/schema'
+import {
+    type Node,
+    type NodeConnection,
+    type NodeExpected,
+    type Power,
+} from '#src/mesh/nodes/schema'
 import { MS_PER_MINUTE } from '#src/shared/time'
 
 /** How a caller stands towards one node. */
@@ -52,7 +57,7 @@ export function toNode(
     owners: readonly Owner[],
     power: Power | null,
     now: Date,
-    thresholds: StatusThresholds,
+    expected: NodeExpected,
     observed: Observed,
     nameOf: (id: string) => NodeRef | null
 ): Node {
@@ -73,7 +78,8 @@ export function toNode(
         type: row.type,
         roles: rolesOf(row, observed),
         connections,
-        status: nodeStatus(minutesSinceHeard, thresholds),
+        status: nodeStatus(minutesSinceHeard, expected),
+        expected,
         heardVia: heardVia(all, row.lastHeardAt !== null, standing.canEdit, nameOf),
         power,
         position: shown.position,

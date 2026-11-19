@@ -5,6 +5,32 @@ Notable changes to the backend, by release. How releases are cut is in
 
 ## Unreleased
 
+No migrations.
+
+### Changed
+
+- **Each node has its own late and offline lines**, from when it is expected:
+  its configured interval, or how often it actually reports when that
+  disagrees, plus its cellular gateway's usual delay. Late after 2.5 intervals
+  plus the delay, offline after 6. `/v1/nodes` gives them as `expected`.
+  Offline alerts and the map follow them.
+- Without a known interval, a node is **late** after 75 minutes without a packet and **offline** after
+  180, up from 30 and 120, sized for nodes reporting every 30 minutes so one
+  slow packet does not mark a healthy node. Offline alerts and silent-gateway
+  events follow the new offline time. The setting `STATUS_DEGRADED_MIN` is now
+  `STATUS_LATE_MIN`; production sets neither, so the new defaults apply.
+- A low battery alert clears only once the battery is 5 points above the line,
+  or the node is plugged in, so a level stepping around the line no longer
+  opens and clears alerts in turn.
+
+### Added
+
+- The `Date` header is exposed to the website, which reads the server's clock
+  from it so ages do not depend on the visitor's.
+- `/v1/gateways/status` gives each Notecard path a `delay`: the latest and
+  median seconds from the Notecard capturing a packet to the server receiving
+  it over the last 24 hours, and how many.
+
 ## 0.4.0 — 2026-11-18
 
 **Migration 0017** adds two columns to `nodes`: `browser_heard_at` and

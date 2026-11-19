@@ -82,7 +82,7 @@ function toMeshNode(
     node: MappableNode,
     batteryPct: number | null,
     now: Date,
-    thresholds: StatusThresholds
+    thresholds: Pick<StatusThresholds, 'lateMin' | 'offlineMin'>
 ): MeshNode {
     const minutesSinceHeard =
         node.lastHeardAt === null
@@ -146,9 +146,11 @@ export function createNetworkService(deps: {
     readonly nodeRepo: NodeRepo
     readonly clock: Clock
     readonly thresholds: StatusThresholds
+    /** Every node's own late and offline lines, from how often it reports. */
+    readonly expected: () => ReadonlyMap<string, Pick<StatusThresholds, 'lateMin' | 'offlineMin'>>
     readonly linkWindowMin: number
 }) {
-    const { repo, nodeRepo, clock, thresholds, linkWindowMin } = deps
+    const { repo, nodeRepo, clock, thresholds, expected, linkWindowMin } = deps
     let cached: { readonly network: Network; readonly expiresAt: number } | undefined
 
     const build = (now: Date): Network => {
@@ -159,6 +161,7 @@ export function createNetworkService(deps: {
         const power = repo.powerInputs(new Date(now.getTime() - CHARGING_WINDOW_MS))
         const nodesById = new Map(nodes.map((node) => [node.id, node]))
         const since = new Date(now.getTime() - linkWindowMin * MS_PER_MINUTE)
+        const expectations = expected()
 
         return {
             nodes: nodes.map((node) =>
@@ -167,7 +170,7 @@ export function createNetworkService(deps: {
                     powerOf(power.get(node.id), node.powerSource, thresholds.lowBatteryPct)
                         ?.batteryPct ?? null,
                     now,
-                    thresholds
+                    expectations.get(node.id) ?? thresholds
                 )
             ),
             links: toMeshLinks(repo.linkObservationsSince(since), nodesById),

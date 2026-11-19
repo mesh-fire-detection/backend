@@ -7,6 +7,7 @@ import { asc } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 import { GatewaysStatusSchema } from '#src/mesh/gateways/schema'
+import { delaySummary } from '#src/mesh/gateways/service'
 import { decodeEnvelope } from '#src/mesh/ingest/decode'
 import { openDatabase } from '#src/shared/db/connection'
 import { packetsSeen } from '#src/shared/db/schema'
@@ -84,7 +85,11 @@ describe('GET /v1/gateways/status', () => {
         viaMqtt(h, 1)
         const mqttAt = h.clock().toISOString()
         h.advance(5 * MS_PER_MINUTE)
-        await deliver(h, notehubEvent(h, { id: 2 }))
+        // Captured by the Notecard 90 s before the server received it.
+        await deliver(
+            h,
+            notehubEvent(h, { id: 2, at: Math.floor(h.clock().getTime() / 1000) - 90 })
+        )
         const notehubAt = h.clock().toISOString()
 
         expect(before).toEqual({
@@ -95,8 +100,8 @@ describe('GET /v1/gateways/status', () => {
                     name: 'Ridge gateway',
                     enabled: true,
                     connections: [
-                        { via: 'mqtt', lastDeliveryAt: null },
-                        { via: 'notecard', lastDeliveryAt: null },
+                        { via: 'mqtt', lastDeliveryAt: null, delay: null },
+                        { via: 'notecard', lastDeliveryAt: null, delay: null },
                     ],
                     lastDeliveryAt: null,
                     rejectedLast24h: 0,
@@ -106,8 +111,12 @@ describe('GET /v1/gateways/status', () => {
         const after = await status()
         expect(after.gateways[0]).toMatchObject({
             connections: [
-                { via: 'mqtt', lastDeliveryAt: mqttAt },
-                { via: 'notecard', lastDeliveryAt: notehubAt },
+                { via: 'mqtt', lastDeliveryAt: mqttAt, delay: null },
+                {
+                    via: 'notecard',
+                    lastDeliveryAt: notehubAt,
+                    delay: { latestS: 90, medianS: 90, count: 1 },
+                },
             ],
             lastDeliveryAt: notehubAt,
         })
@@ -194,5 +203,13 @@ describe('migration 0014', () => {
         } finally {
             rmSync(directory, { recursive: true, force: true })
         }
+    })
+})
+
+describe('cellular delay', () => {
+    it('summarises delays given newest first: the latest, the median and how many', () => {
+        expect(delaySummary([])).toBeNull()
+        expect(delaySummary([30, 6, 600])).toEqual({ latestS: 30, medianS: 30, count: 3 })
+        expect(delaySummary([10, 20, 30, 40_000])).toEqual({ latestS: 10, medianS: 25, count: 4 })
     })
 })
