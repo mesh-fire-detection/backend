@@ -391,9 +391,30 @@ Derived at read time from when the node was last heard, by any path: a mesh
 packet through a gateway, a gateway's own link, or a browser passing on its
 readings from `/connect`. Never stored, and about connection only:
 
-- `online`: heard within 30 minutes.
-- `late`: heard within 2 hours.
-- `offline`: not heard for 2 hours or more, or never heard.
+- `online`: heard within its late line.
+- `late`: heard within its offline line.
+- `offline`: not heard since its offline line, or never heard.
+
+Each node has its own lines, from when it is **expected** (`expected` on
+`/v1/nodes`):
+
+- **Interval.** The shortest interval its last reported settings enable
+  (`configured`), or how often it actually reported over the last 24 hours
+  (`observed`: the median gap between reports of each kind, taking the most
+  frequent). When both are known and agree within 50 %, the settings; when they
+  disagree, the reports, since settings are only as fresh as the last time a
+  browser connected. Neither: the server's defaults (`default`).
+- **Delay.** When the node's newest packet came through a Notecard, that
+  gateway's usual cellular delay: the median over 24 hours of deliveries that
+  took under 2 hours (longer is an outage, not the path's pace), from at least
+  3, at most 60 minutes. Wi-Fi delivers on arrival and adds none.
+- **Lines.** Late after 2.5 intervals plus the delay; offline after 6 intervals
+  plus the delay. Defaults are late 75 and offline 180 minutes, plus the delay:
+  a 30-minute interval.
+
+So a node set to report every 5 minutes is late after 13, and one set to every
+2 hours is not late until 5 hours. Offline alerts and the map use the same
+lines.
 
 `heardVia` names the path it was last heard by. A browser is shown only to the
 node's people and admins, since it says someone is with the node.
@@ -412,8 +433,13 @@ can both be true:
 - **Charging** when not plugged in and the voltage rose 0.03 V or more over at
   least half an hour: USB the board cannot see, or solar.
 
-Thresholds live in config. **Open:** confirm these values against the real
-reporting interval.
+Thresholds live in config (`STATUS_LATE_MIN`, `STATUS_OFFLINE_MIN`,
+`LOW_BATTERY_PCT`). A low battery alert clears only once the battery is 5
+points above the line, or the node is plugged in, so a level stepping around
+the line does not open and clear alerts in turn.
+
+Every API response carries the server's clock in its `Date` header, exposed to
+the website, so the ages it shows do not depend on the visitor's clock.
 
 ## Alerts
 

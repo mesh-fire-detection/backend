@@ -57,6 +57,8 @@ export function createApp({
             credentials: true,
             allowMethods: ['GET', 'POST', 'PATCH', 'DELETE'],
             allowHeaders: ['Content-Type'],
+            // The website reads the server's clock from it, so ages do not depend on the visitor's.
+            exposeHeaders: ['Date'],
             maxAge: 600,
         })
     )

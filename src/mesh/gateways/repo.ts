@@ -36,6 +36,33 @@ export function createGatewayRepo(db: Db) {
     return {
         lastDeliveryByPath,
 
+        /**
+         * Seconds from the Notecard capturing each event to the server receiving
+         * it, newest first: how long cellular delivery is taking.
+         */
+        cellularDelaysSince(gatewayId: string, since: Date): number[] {
+            return db
+                .select({
+                    capturedAt: notehubEvents.capturedAt,
+                    receivedAt: notehubEvents.receivedAt,
+                })
+                .from(notehubEvents)
+                .where(
+                    and(
+                        eq(notehubEvents.gatewayId, gatewayId),
+                        gte(notehubEvents.receivedAt, since)
+                    )
+                )
+                .orderBy(desc(notehubEvents.receivedAt))
+                .all()
+                .map((row) =>
+                    Math.max(
+                        0,
+                        Math.round((row.receivedAt.getTime() - row.capturedAt.getTime()) / 1000)
+                    )
+                )
+        },
+
         /** Every registered gateway's paths, deliveries and latest Notehub network. */
         links(): GatewayLinks[] {
             return db

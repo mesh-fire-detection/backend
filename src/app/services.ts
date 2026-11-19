@@ -12,6 +12,7 @@ import { createGatewayRepo } from '#src/mesh/gateways/repo'
 import { createGatewayService } from '#src/mesh/gateways/service'
 import { createIngestRepo } from '#src/mesh/ingest/repo'
 import { createIngestService } from '#src/mesh/ingest/service'
+import { createExpectations } from '#src/mesh/network/expected'
 import { createNetworkRepo } from '#src/mesh/network/repo'
 import { createNetworkService } from '#src/mesh/network/service'
 import { createNodeRepo } from '#src/mesh/nodes/repo'
@@ -31,7 +32,6 @@ import { createUserRepo } from '#src/users/repo'
 import { createUserService } from '#src/users/service'
 
 export type AppConfig = {
-    /** From `STATUS_DEGRADED_MIN`, kept under its old name so deployed settings still apply. */
     readonly statusLateMin: number
     readonly statusOfflineMin: number
     readonly lowBatteryPct: number
@@ -106,6 +106,17 @@ export function createServices(deps: ServiceDeps) {
     const networkRepo = createNetworkRepo(db)
     const ruleRepo = createRuleRepo(db)
     const alertRepo = createAlertRepo(db)
+    const expectations = createExpectations(
+        {
+            nodes: () => nodeRepo.list(),
+            reports: (since) => networkRepo.reportTimes(since),
+            latestPaths: (since) => networkRepo.latestPaths(since),
+            cellularDelays: (gatewayId, since) => gatewayRepo.cellularDelaysSince(gatewayId, since),
+        },
+        clock,
+        statusThresholds
+    )
+    const expected = () => expectations.all()
 
     const nodes = createNodeService({
         repo: nodeRepo,
@@ -113,6 +124,7 @@ export function createServices(deps: ServiceDeps) {
         transact,
         power: (since: Date) => networkRepo.powerInputs(since),
         thresholds: statusThresholds,
+        expected,
         events,
         gatewayLinks: () => gatewayRepo.links(),
     })
@@ -126,6 +138,7 @@ export function createServices(deps: ServiceDeps) {
         networkRepo,
         transact,
         thresholds: { offlineMin: config.statusOfflineMin, lowBatteryPct: config.lowBatteryPct },
+        expected,
         events,
     })
 
@@ -185,6 +198,7 @@ export function createServices(deps: ServiceDeps) {
             nodeRepo,
             clock,
             thresholds: statusThresholds,
+            expected,
             linkWindowMin: config.linkWindowMin,
         }),
         readings: createReadingsService({ repo: createReadingsRepo(db), nodes, clock, transact }),

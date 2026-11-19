@@ -22,6 +22,8 @@ describe('createApp', () => {
 
         expect(allowed.headers.get('access-control-allow-origin')).toBe(SITE_ORIGIN)
         expect(allowed.headers.get('access-control-allow-credentials')).toBe('true')
+        // The website reads the server's clock from Date.
+        expect(allowed.headers.get('access-control-expose-headers')).toBe('Date')
         expect(other.headers.get('access-control-allow-origin')).toBeNull()
     })
 

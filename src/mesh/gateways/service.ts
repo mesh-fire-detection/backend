@@ -19,6 +19,21 @@ const REJECTION_WINDOW_MS = 24 * 60 * MS_PER_MINUTE
 
 const iso = (at: Date | null): string | null => at?.toISOString() ?? null
 
+/** Latest, median and count of delivery delays given newest first; null for none. */
+export function delaySummary(
+    delays: readonly number[]
+): { latestS: number; medianS: number; count: number } | null {
+    const latest = delays[0]
+    if (latest === undefined) return null
+    const sorted = delays.toSorted((a, b) => a - b)
+    const middle = Math.floor(sorted.length / 2)
+    const median =
+        sorted.length % 2 === 1
+            ? (sorted[middle] ?? 0)
+            : ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2
+    return { latestS: latest, medianS: Math.round(median), count: delays.length }
+}
+
 function toGateway(row: GatewayRow): Gateway {
     return {
         nodeId: row.nodeId,
@@ -81,10 +96,16 @@ export function createGatewayService(deps: {
                 const connections = [
                     ...(row.mqttUsername === null
                         ? []
-                        : [{ via: 'mqtt' as const, lastDeliveryAt: iso(last.mqtt) }]),
+                        : [{ via: 'mqtt' as const, lastDeliveryAt: iso(last.mqtt), delay: null }]),
                     ...(row.notecardUid === null
                         ? []
-                        : [{ via: 'notecard' as const, lastDeliveryAt: iso(last.notehub) }]),
+                        : [
+                              {
+                                  via: 'notecard' as const,
+                                  lastDeliveryAt: iso(last.notehub),
+                                  delay: delaySummary(repo.cellularDelaysSince(row.nodeId, since)),
+                              },
+                          ]),
                 ]
                 const times = [last.mqtt, last.notehub].filter((at) => at !== null)
                 const latest = times.length === 0 ? null : new Date(Math.max(...times.map(Number)))

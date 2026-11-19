@@ -248,6 +248,28 @@ describe('system alert sweep', () => {
         ])
     })
 
+    it('clears a low battery alert only once the battery is clear of the line', async () => {
+        const s = await setup()
+        heard(s, 'sen-02')
+        battery(s, 'sen-02', 19)
+        sweep(s)
+
+        // Stepping just over the line leaves the alert open.
+        s.h.advance(MINUTE)
+        battery(s, 'sen-02', 22)
+        sweep(s)
+        expect(alertsOf(s)).toEqual([
+            expect.objectContaining({ kind: 'low_battery', status: 'open' }),
+        ])
+
+        s.h.advance(MINUTE)
+        battery(s, 'sen-02', 25)
+        sweep(s)
+        expect(alertsOf(s)).toEqual([
+            expect.objectContaining({ kind: 'low_battery', status: 'resolved' }),
+        ])
+    })
+
     it('does not call a battery low while the node is plugged in', async () => {
         const s = await setup()
         heard(s, 'sen-02')

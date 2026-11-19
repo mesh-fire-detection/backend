@@ -1,5 +1,6 @@
 import { type EventLog } from '#src/health/events/service'
 import { formatMeshId } from '#src/mesh/meshId'
+import { expectedFor } from '#src/mesh/network/expected'
 import { CHARGING_WINDOW_MS, type PowerInput, powerOf } from '#src/mesh/network/power'
 import { type StatusThresholds } from '#src/mesh/network/service'
 import { type NodeRepo, type NodeRow, type NodeRowPatch } from '#src/mesh/nodes/repo'
@@ -15,6 +16,7 @@ import {
     ADMIN_FIELDS,
     type Node,
     type NodeConnection,
+    type NodeExpected,
     type NodePath,
     type RegisterNode,
     type ReportedNode,
@@ -37,6 +39,10 @@ function toPatch(input: UpdateNode): NodeRowPatch {
     }
 }
 
+/** For a node created since its expectation was worked out: the server's defaults. */
+const fallback = (thresholds: StatusThresholds): NodeExpected =>
+    expectedFor({ configured: null, observed: null, delayMin: 0 }, thresholds)
+
 export function createNodeService(deps: {
     readonly repo: NodeRepo
     readonly clock: Clock
@@ -45,10 +51,12 @@ export function createNodeService(deps: {
     /** Each node's latest power report and its voltages since `since`. */
     readonly power: (since: Date) => ReadonlyMap<string, PowerInput>
     readonly thresholds: StatusThresholds
+    /** Every node's expected interval and the late and offline lines it gives. */
+    readonly expected: () => ReadonlyMap<string, NodeExpected>
     /** Every registered gateway's paths and deliveries. */
     readonly gatewayLinks: () => readonly GatewayLinks[]
 }) {
-    const { repo, clock, transact, power, thresholds, events, gatewayLinks } = deps
+    const { repo, clock, transact, power, thresholds, expected, events, gatewayLinks } = deps
     const powerAt = (now: Date) => power(new Date(now.getTime() - CHARGING_WINDOW_MS))
 
     const assertNodeNumFree = (nodeNum: number, exceptId?: string): void => {
@@ -83,6 +91,7 @@ export function createNodeService(deps: {
         const links = gatewayLinks()
         const since = new Date(now.getTime() - OBSERVED_WINDOW_MS)
         const observed = observe(links, since)
+        const expectations = expected()
         const notecardGateways = new Set(
             links.filter((link) => link.notecard).map((link) => link.nodeId)
         )
@@ -111,7 +120,7 @@ export function createNodeService(deps: {
                 owners.get(row.id) ?? [],
                 powerOf(inputs.get(row.id), row.powerSource, thresholds.lowBatteryPct),
                 now,
-                thresholds,
+                expectations.get(row.id) ?? fallback(thresholds),
                 observed,
                 nameOf
             )

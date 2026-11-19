@@ -61,6 +61,18 @@ export type Gateway = z.infer<typeof GatewaySchema>
 const GatewayConnectionSchema = z.object({
     via: z.enum(['mqtt', 'notecard']),
     lastDeliveryAt: IsoTimestampSchema.nullable(),
+    /**
+     * How long delivery took over the last 24 hours, in seconds: from the
+     * Notecard capturing a packet to the server receiving it. Null for MQTT,
+     * whose packets are timed on arrival, and when nothing came.
+     */
+    delay: z
+        .object({
+            latestS: z.number().int().min(0),
+            medianS: z.number().int().min(0),
+            count: z.number().int().min(1),
+        })
+        .nullable(),
 })
 
 const GatewayStatusSchema = z.object({

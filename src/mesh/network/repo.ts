@@ -67,6 +67,53 @@ export function createNetworkRepo(db: Db) {
             )
         },
 
+        /**
+         * Per node, per kind of reading (`deviceMetrics`, `environmentMetrics`,
+         * …), the times it reported since `since`, oldest first. Only what came
+         * through the mesh: a browser hears the same packets again, seconds
+         * later, which would read as a cadence of seconds.
+         */
+        reportTimes(since: Date): Map<string, Map<string, number[]>> {
+            type Row = { nodeId: string; family: string; at: number }
+            const rows = db.all<Row>(sql`
+                SELECT nodeId, family, at FROM (
+                    SELECT node_id AS nodeId, 'deviceMetrics' AS family, recorded_at AS at
+                    FROM device_metrics
+                    WHERE live_eligible = 1 AND recorded_at >= ${since.getTime()}
+                    UNION
+                    SELECT node_id, substr(metric, 1, instr(metric, '.') - 1), recorded_at
+                    FROM readings
+                    WHERE live_eligible = 1 AND source IN ('mqtt', 'notehub')
+                      AND recorded_at >= ${since.getTime()}
+                )
+                GROUP BY nodeId, family, at
+                ORDER BY nodeId, family, at
+            `)
+            const byNode = new Map<string, Map<string, number[]>>()
+            for (const row of rows) {
+                const families = byNode.get(row.nodeId) ?? new Map<string, number[]>()
+                families.set(row.family, [...(families.get(row.family) ?? []), row.at])
+                byNode.set(row.nodeId, families)
+            }
+            return byNode
+        },
+
+        /** Per node, the gateway and way in of its newest packet since `since`. */
+        latestPaths(since: Date): Map<string, { gatewayId: string; via: 'mqtt' | 'notehub' }> {
+            type Row = { nodeId: string; gatewayId: string; via: 'mqtt' | 'notehub' }
+            const rows = db.all<Row>(sql`
+                SELECT nodeId, gatewayId, via FROM (
+                    SELECT n.id AS nodeId, p.gateway_id AS gatewayId, p.via AS via,
+                        ROW_NUMBER() OVER (PARTITION BY n.id ORDER BY p.received_at DESC) AS rank
+                    FROM packets_seen p JOIN nodes n ON n.node_num = p.from_node_num
+                    WHERE p.received_at >= ${since.getTime()} AND p.via IS NOT NULL
+                ) WHERE rank = 1
+            `)
+            return new Map(
+                rows.map((row) => [row.nodeId, { gatewayId: row.gatewayId, via: row.via }])
+            )
+        },
+
         /** Oldest first, so later rows overwrite earlier ones when reduced per pair. */
         linkObservationsSince(since: Date): LinkObservationRow[] {
             return db
