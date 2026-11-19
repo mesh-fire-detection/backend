@@ -5,8 +5,13 @@ Notable changes to the backend, by release. How releases are cut is in
 
 ## Unreleased
 
+## 0.4.0 — 2026-11-18
+
 **Migration 0017** adds two columns to `nodes`: `browser_heard_at` and
-`power_source`. Nothing is backfilled.
+`power_source`. Nothing is backfilled. It runs on deploy after `release.sh`
+takes its pre-release copy. Rolling back to 0.3.1 by redeploying is not safe
+across it; restore that copy instead. Release the website's 0.5.0 after this:
+it reads `late`, `heardVia` and `power`.
 
 ### Changed
 
