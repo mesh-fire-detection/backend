@@ -5,6 +5,29 @@ Notable changes to the backend, by release. How releases are cut is in
 
 ## Unreleased
 
+**Migration 0017** adds two columns to `nodes`: `browser_heard_at` and
+`power_source`. Nothing is backfilled.
+
+### Changed
+
+- Node status is about connection only: `online`, `late` (was `degraded`) and
+  `offline`, by when the node was last heard by any path. A low battery no
+  longer makes a node late. **Breaking** for clients that check `degraded`.
+- A browser uploading a node's readings counts as hearing it, and `heardVia`
+  on `/v1/nodes` says how it was last heard: through a gateway (named), a
+  gateway's own Wi-Fi or Notecard, or a browser (only for its people and
+  admins).
+- The battery level is stored as the firmware sends it: 101, which means
+  plugged in or no battery, is no longer saved as 100.
+
+### Added
+
+- `power` on `/v1/nodes`: plugged in, charging, battery percentage and whether
+  the battery is ok, low, missing or unknown. A battery is low only when the
+  node is not plugged in, and low battery alerts follow that.
+- `powerSource` (`battery`, `solar`, `mains`) for a node's people to set. `mains`
+  means always plugged in, for boards that cannot detect USB.
+
 ## 0.3.1 — 2026-11-17
 
 Fixes for the field test. No migrations; rolling back to 0.3.0 by redeploying

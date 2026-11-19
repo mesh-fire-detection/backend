@@ -17,7 +17,8 @@ export const MetricNameSchema = z
 const ReadingSchema = z.object({ metric: MetricNameSchema, value: z.number() })
 
 const DeviceMetricsSchema = z.object({
-    batteryPct: z.number().min(0).max(100).nullable(),
+    // 101 is the firmware saying it is plugged in, or has no battery.
+    batteryPct: z.number().min(0).max(101).nullable(),
     voltage: z.number().nullable(),
     uptimeS: z.number().int().min(0).nullable(),
 })

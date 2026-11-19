@@ -28,9 +28,6 @@ const NUMERIC_SCALARS: ReadonlySet<ScalarType> = new Set([
 /** With its clock unset, a node reports its uptime as the time: 2000-01-01 in epoch seconds. */
 const EARLIEST_SENSOR_TIME = 946_684_800
 
-/** Meshtastic reports 101 when a node runs on external power. */
-const MAX_BATTERY_PCT = 100
-
 /**
  * Sensors send 32-bit floats; 4.01 decodes as 4.010000228881836. Seven
  * significant digits is all a float32 holds.
@@ -80,10 +77,9 @@ function telemetryPayload(bytes: Uint8Array): MeshPayload {
     const deviceMetrics =
         variant.case === 'deviceMetrics'
             ? {
-                  batteryPct:
-                      variant.value.batteryLevel === undefined
-                          ? null
-                          : Math.min(variant.value.batteryLevel, MAX_BATTERY_PCT),
+                  // Kept as sent: 101 is how the firmware says it is plugged in, or has
+                  // no battery, and src/mesh/network/power.ts reads it that way.
+                  batteryPct: variant.value.batteryLevel ?? null,
                   voltage:
                       variant.value.voltage === undefined
                           ? null

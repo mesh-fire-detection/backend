@@ -29,7 +29,10 @@ const SAME_PACKET_MS = 2 * MS_PER_MINUTE
 
 export function createReadingsService(deps: {
     readonly repo: ReadingsRepo
-    readonly nodes: Pick<NodeService, 'assertVisible' | 'assertEditable' | 'recordConnection'>
+    readonly nodes: Pick<
+        NodeService,
+        'assertVisible' | 'assertEditable' | 'recordConnection' | 'heardFromBrowser'
+    >
     readonly clock: Clock
     readonly transact: <T>(fn: () => T) => T
 }) {
@@ -164,6 +167,12 @@ export function createReadingsService(deps: {
                         at: new Date(input.connection.at),
                     })
                 }
+                // The newest thing the browser passed on, never later than now.
+                const heard = [
+                    ...input.readings.map((reading) => Date.parse(reading.at)),
+                    ...(input.connection === undefined ? [] : [Date.parse(input.connection.at)]),
+                ].filter((at) => Number.isFinite(at) && at <= now.getTime())
+                if (heard.length > 0) nodes.heardFromBrowser(nodeId, new Date(Math.max(...heard)))
                 return {
                     readings: stored,
                     events,

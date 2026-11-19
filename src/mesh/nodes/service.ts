@@ -1,7 +1,7 @@
 import { type EventLog } from '#src/health/events/service'
 import { formatMeshId } from '#src/mesh/meshId'
-import { nodeStatus, type StatusThresholds } from '#src/mesh/network/service'
-import { shownLocation } from '#src/mesh/nodes/position'
+import { CHARGING_WINDOW_MS, type PowerInput, powerOf } from '#src/mesh/network/power'
+import { type StatusThresholds } from '#src/mesh/network/service'
 import { type NodeRepo, type NodeRow, type NodeRowPatch } from '#src/mesh/nodes/repo'
 import {
     connectionsOf,
@@ -9,7 +9,6 @@ import {
     OBSERVED_WINDOW_MS,
     type Observed,
     PATH_WINDOW_MS,
-    rolesOf,
     shownType,
 } from '#src/mesh/nodes/roles'
 import {
@@ -21,87 +20,10 @@ import {
     type ReportedNode,
     type UpdateNode,
 } from '#src/mesh/nodes/schema'
+import { type NodeRef, type Owner, toNode } from '#src/mesh/nodes/view'
 import { type Viewer } from '#src/shared/auth/access'
 import { DomainError, notFound } from '#src/shared/errors'
-import { type Clock, MS_PER_MINUTE } from '#src/shared/time'
-
-/** How a caller stands towards one node. */
-type Standing = { readonly mine: boolean; readonly canEdit: boolean }
-type Owner = NonNullable<Node['details']>['owners'][number]
-
-/**
- * The one place a node row becomes what a caller sees. Shared fields for any
- * signed-in person; `details` only when they may edit it. Add a field to the
- * shared part only if it is safe for every member to see.
- */
-function toNode(
-    row: NodeRow,
-    standing: Standing,
-    owners: readonly Owner[],
-    batteryPct: number | null,
-    now: Date,
-    thresholds: StatusThresholds,
-    observed: Observed
-): Node {
-    const minutesSinceHeard =
-        row.lastHeardAt === null
-            ? null
-            : Math.max(0, Math.floor((now.getTime() - row.lastHeardAt.getTime()) / MS_PER_MINUTE))
-    const shown = shownLocation(row)
-    const hasReportedPosition = row.reportedLongitude !== null && row.reportedLatitude !== null
-
-    return {
-        id: row.id,
-        meshId: formatMeshId(row.nodeNum),
-        name: row.name,
-        type: row.type,
-        roles: rolesOf(row, observed),
-        connections: connectionsOf(row, observed).filter(
-            (connection) => connection.via !== 'browser' || standing.canEdit
-        ),
-        status: nodeStatus(minutesSinceHeard, batteryPct, thresholds),
-        position: shown.position,
-        approximate: shown.approximate,
-        elevationM: shown.elevationM,
-        antennaHeightM: row.antennaHeightM,
-        firmware: row.firmware,
-        deployedOn: row.deployedOn,
-        batteryPct: batteryPct === null ? null : Math.round(batteryPct),
-        lastHeardAt: row.lastHeardAt?.toISOString() ?? null,
-        enabled: row.enabled,
-        mine: standing.mine,
-        details: standing.canEdit
-            ? {
-                  position:
-                      row.longitude === null || row.latitude === null
-                          ? null
-                          : [row.longitude, row.latitude],
-                  elevationM: row.elevationM,
-                  exactPosition: row.exactPosition,
-                  hardware: row.hardware,
-                  hardwareId: row.hardwareId,
-                  note: row.note,
-                  shortName: row.shortName,
-                  settings: row.settings,
-                  settingsReportedAt: row.settingsReportedAt?.toISOString() ?? null,
-                  owners: [...owners],
-                  reported:
-                      row.reportedAt === null
-                          ? null
-                          : {
-                                name: row.reportedName,
-                                position: hasReportedPosition
-                                    ? [row.reportedLongitude ?? 0, row.reportedLatitude ?? 0]
-                                    : null,
-                                altitudeM: row.reportedAltitudeM,
-                                at: row.reportedAt.toISOString(),
-                            },
-                  createdAt: row.createdAt.toISOString(),
-                  updatedAt: row.updatedAt.toISOString(),
-              }
-            : null,
-    }
-}
+import { type Clock } from '#src/shared/time'
 
 function toPatch(input: UpdateNode): NodeRowPatch {
     const { meshId, position, ...rest } = input
@@ -120,12 +42,14 @@ export function createNodeService(deps: {
     readonly clock: Clock
     readonly transact: <T>(fn: () => T) => T
     readonly events: EventLog
-    readonly batteries: () => ReadonlyMap<string, number>
+    /** Each node's latest power report and its voltages since `since`. */
+    readonly power: (since: Date) => ReadonlyMap<string, PowerInput>
     readonly thresholds: StatusThresholds
     /** Every registered gateway's paths and deliveries. */
     readonly gatewayLinks: () => readonly GatewayLinks[]
 }) {
-    const { repo, clock, transact, batteries, thresholds, events, gatewayLinks } = deps
+    const { repo, clock, transact, power, thresholds, events, gatewayLinks } = deps
+    const powerAt = (now: Date) => power(new Date(now.getTime() - CHARGING_WINDOW_MS))
 
     const assertNodeNumFree = (nodeNum: number, exceptId?: string): void => {
         const holder = repo.findByNodeNum(nodeNum)
@@ -154,8 +78,8 @@ export function createNodeService(deps: {
     /** Builds views for rows, looking up the caller's nodes and batteries once. */
     const viewsFor = (rows: readonly NodeRow[], viewer: Viewer): Node[] => {
         const mine = repo.memberNodeIds(viewer.id)
-        const levels = batteries()
         const now = clock()
+        const inputs = powerAt(now)
         const links = gatewayLinks()
         const since = new Date(now.getTime() - OBSERVED_WINDOW_MS)
         const observed = observe(links, since)
@@ -163,6 +87,12 @@ export function createNodeService(deps: {
             links.filter((link) => link.notecard).map((link) => link.nodeId)
         )
         const canEdit = (row: NodeRow) => viewer.role === 'admin' || mine.has(row.id)
+        const nameOf = (id: string): NodeRef | null => {
+            const gateway = rows.find((other) => other.id === id) ?? repo.findById(id)
+            return gateway !== undefined && visibleTo(gateway, viewer)
+                ? { id: gateway.id, name: gateway.name }
+                : null
+        }
         const owners = new Map<string, Owner[]>()
         const editable = rows.filter((row) => canEdit(row)).map((row) => row.id)
         const members = repo.ownersOf(editable)
@@ -179,10 +109,11 @@ export function createNodeService(deps: {
                 { ...row, type: shownType(row, notecardGateways) },
                 { mine: mine.has(row.id), canEdit: canEdit(row) },
                 owners.get(row.id) ?? [],
-                levels.get(row.id) ?? null,
+                powerOf(inputs.get(row.id), row.powerSource, thresholds.lowBatteryPct),
                 now,
                 thresholds,
-                observed
+                observed,
+                nameOf
             )
         )
     }
@@ -359,11 +290,15 @@ export function createNodeService(deps: {
             // Newest first, so the first match is the latest reading.
             const latest = (from: string, to: string) =>
                 signal(links.find((link) => link.fromNodeId === from && link.toNodeId === to))
-            const levels = batteries()
+            const inputs = powerAt(now)
             const nearby = others.flatMap((otherId) => {
                 const other = shown(otherId)
                 if (other === undefined) return []
-                const battery = levels.get(other.id)
+                const otherPower = powerOf(
+                    inputs.get(other.id),
+                    other.powerSource,
+                    thresholds.lowBatteryPct
+                )
                 return [
                     {
                         node: {
@@ -372,7 +307,7 @@ export function createNodeService(deps: {
                             meshId: formatMeshId(other.nodeNum),
                             hardware: other.hardware,
                             firmware: other.firmware,
-                            batteryPct: battery === undefined ? null : Math.round(battery),
+                            batteryPct: otherPower?.batteryPct ?? null,
                         },
                         hears: latest(otherId, row.id),
                         heardBy: latest(row.id, otherId),
@@ -402,6 +337,21 @@ export function createNodeService(deps: {
         assertEditable(id: string, viewer: Viewer): void {
             if (viewer.role !== 'admin' && !repo.isMember(id, viewer.id)) throw notFound('Node')
             if (repo.findById(id) === undefined) throw notFound('Node')
+        },
+
+        /**
+         * A browser passed on something from the node at `at`: that is hearing
+         * it. Both times only move forward, as they do for packets.
+         */
+        heardFromBrowser(id: string, at: Date): void {
+            const row = repo.findById(id)
+            if (row === undefined) return
+            const later = (current: Date | null) => current === null || at > current
+            if (!later(row.browserHeardAt) && !later(row.lastHeardAt)) return
+            repo.update(id, {
+                ...(later(row.browserHeardAt) && { browserHeardAt: at }),
+                ...(later(row.lastHeardAt) && { lastHeardAt: at }),
+            })
         },
 
         /** What a browser saw at its latest connection; an older connection changes nothing. */

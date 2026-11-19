@@ -4,6 +4,7 @@ import { type AlertService } from '#src/alerts/lifecycle/service'
 import { type RuleRepo, type RuleRow } from '#src/alerts/rules/repo'
 import { type EventLog } from '#src/health/events/service'
 import { type AcceptedReading } from '#src/mesh/ingest/service'
+import { CHARGING_WINDOW_MS, powerOf } from '#src/mesh/network/power'
 import { type NetworkRepo } from '#src/mesh/network/repo'
 import { type NodeRepo } from '#src/mesh/nodes/repo'
 import { MS_PER_MINUTE, MS_PER_SECOND } from '#src/shared/time'
@@ -91,7 +92,7 @@ export function createEvaluationService(deps: {
         sweepSystemAlerts(now: Date): void {
             transact(() => {
                 const nodes = nodeRepo.list()
-                const batteries = networkRepo.latestBatteryByNode()
+                const power = networkRepo.powerInputs(new Date(now.getTime() - CHARGING_WINDOW_MS))
                 const enabled = new Set(nodes.filter((d) => d.enabled).map((d) => d.id))
                 const openOffline = new Map(
                     alertRepo.listUnresolvedSystem('offline').map((a) => [a.nodeId, a])
@@ -131,8 +132,14 @@ export function createEvaluationService(deps: {
                         alerts.resolve(offlineAlert, now, 'node heard again')
                     }
 
-                    const battery = batteries.get(node.id)
-                    const low = battery !== undefined && battery < thresholds.lowBatteryPct
+                    // Low only on battery: a node that is plugged in is not running down.
+                    const nodePower = powerOf(
+                        power.get(node.id),
+                        node.powerSource,
+                        thresholds.lowBatteryPct
+                    )
+                    const battery = nodePower?.batteryPct ?? null
+                    const low = nodePower?.battery === 'low'
                     const lowAlert = openLowBattery.get(node.id)
                     if (low && lowAlert === undefined) {
                         events.record('node.battery_low', {
