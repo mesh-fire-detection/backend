@@ -5,7 +5,10 @@ Notable changes to the backend, by release. How releases are cut is in
 
 ## Unreleased
 
-No migrations.
+## 0.5.0 — 2026-11-19
+
+No migrations; rolling back to 0.4.0 by redeploying is safe. Release the
+website's 0.6.0 after this: it reads `expected` and the `Date` header.
 
 ### Changed
 
