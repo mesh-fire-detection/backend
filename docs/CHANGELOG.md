@@ -5,6 +5,18 @@ Notable changes to the backend, by release. How releases are cut is in
 
 ## Unreleased
 
+## 0.5.1 — 2026-11-25
+
+No migrations; rolling back to 0.5.0 by redeploying is safe.
+
+### Changed
+
+- Dependencies updated: Hono, `@hono/node-server`, `hono-openapi`, Better
+  Auth, `better-sqlite3`, the Scalar API reference, and the lint, test and
+  type tooling. `eslint-plugin-unicorn` stays on 75.
+- Validation refinements use Zod's `error` option in place of the deprecated
+  `message`; the messages are unchanged.
+
 ## 0.5.0 — 2026-11-19
 
 No migrations; rolling back to 0.4.0 by redeploying is safe. Release the
