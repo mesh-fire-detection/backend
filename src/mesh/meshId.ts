@@ -24,5 +24,5 @@ export const MeshIdSchema = z
         return nodeNum
     })
     .refine((nodeNum) => nodeNum !== 0 && nodeNum !== 0xff_ff_ff_ff, {
-        message: 'reserved node number',
+        error: 'reserved node number',
     })

@@ -32,8 +32,7 @@ const EnvSchema = z
             .min(1)
             .refine((topic) => !topic.endsWith('/'), {
                 // Unquoted, `#` starts a comment in .env files and is silently cut off.
-                message:
-                    'must not end with "/"; quote the value in .env, e.g. MQTT_TOPIC="msh/US/2/e/#"',
+                error: 'must not end with "/"; quote the value in .env, e.g. MQTT_TOPIC="msh/US/2/e/#"',
             })
             .default('msh/US/2/e/#'),
         MESH_CHANNEL_KEY: optionalText,

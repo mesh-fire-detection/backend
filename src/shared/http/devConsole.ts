@@ -24,7 +24,11 @@ const documentation = {
     },
     components: {
         securitySchemes: {
-            session: { type: 'apiKey' as const, in: 'cookie' as const, name: SESSION_COOKIE },
+            session: {
+                type: 'apiKey' as const,
+                in: 'cookie' as const,
+                name: SESSION_COOKIE,
+            },
         },
     },
 }
@@ -35,7 +39,8 @@ const documentation = {
  * `DEV_CONSOLE` is set, because it maps the whole admin surface.
  */
 export function devConsoleRoutes(app: Hono<AppEnv>): Hono<AppEnv> {
-    return new Hono<AppEnv>().use('*', access('public')).route(
+    const routes = new Hono<AppEnv>()
+    routes.use('*', access('public')).route(
         '/',
         Scalar.serve<AppEnv>({
             document: (c) =>
@@ -55,4 +60,5 @@ export function devConsoleRoutes(app: Hono<AppEnv>): Hono<AppEnv> {
                 ),
         })
     )
+    return routes
 }

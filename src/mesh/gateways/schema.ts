@@ -27,7 +27,7 @@ export const RegisterGatewaySchema = z
     })
     .strict()
     .refine((body) => body.mqttUsername !== undefined || body.notecardUid !== undefined, {
-        message: 'an MQTT username or Notecard UID is required',
+        error: 'an MQTT username or Notecard UID is required',
     })
 export type RegisterGateway = z.infer<typeof RegisterGatewaySchema>
 

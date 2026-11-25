@@ -15,7 +15,7 @@ export const DEV_MAIL_PATH = '/mail'
  * a key present there is no preview store and this route is never mounted.
  */
 export function devMailRoutes(preview: PreviewStore): Hono<AppEnv> {
-    return new Hono<AppEnv>().get('/', access('public'), (c) =>
-        c.json({ messages: preview.list() })
-    )
+    const routes = new Hono<AppEnv>()
+    routes.get('/', access('public'), (c) => c.json({ messages: preview.list() }))
+    return routes
 }

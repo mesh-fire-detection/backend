@@ -6,6 +6,7 @@ data
 *.db-shm
 *.db-wal
 .env
+/.mqtt-75702a34.credentials.json
 .DS_Store
 /.idea/
 tmp/
